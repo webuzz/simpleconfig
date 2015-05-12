@@ -8,6 +8,7 @@ Create configuration class with static fields:
 		public static int maxThreads = 128;
 	}
 Use static fields in your Java project as they are, like followings:
+`
 	workerPool = new SimpleThreadPoolExecutor(PiledConfig.coreThreads,
 			PiledConfig.maxThreads <= 0 ? Integer.MAX_VALUE : PiledConfig.maxThreads,
 			Math.max(PiledConfig.idleThreads, 1),
@@ -21,16 +22,21 @@ Use static fields in your Java project as they are, like followings:
 	if (lastMaxThreads != PiledConfig.maxThreads) {
 		workerPool.setMaximumPoolSize(PiledConfig.maxThreads);
 	}
+`
 On application starting up, just add lines like the following:
+`
 	public static void main(String[] args) {
 		Config.initialize("./server.ini");
 		Config.registerUpdatingListener(PiledConfig.class);
 		...
 	}
+`
 And edit the configuration file (server.ini) with lines like these:
+`
 	# PiledConfig
 	coreThreads=20
 	maxThreads=128
+`
 After file being saved, it will take some seconds (about 10s) for application to update static fields to new values.
 
 # Features
