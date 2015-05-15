@@ -61,7 +61,8 @@ public class ConfigGenerator {
 		boolean linebreakGenerated = false;
 		Field[] fields = clz.getDeclaredFields();
 		int filteringModifiers = Modifier.PUBLIC;
-		ConfigFieldFilter filter = Config.configurationFilters.get(clz.getName());
+		String clzName = clz.getName();
+		ConfigFieldFilter filter = Config.configurationFilters.get(clzName);
 		if (filter != null && filter.modifiers >= 0) {
 			filteringModifiers = filter.modifiers;
 		}
@@ -91,6 +92,16 @@ public class ConfigGenerator {
 						}
 					}
 				}
+				/*
+				 * There are some temporary fields in Config and WebConfig and should
+				 * not be generated down for remote server.
+				 */
+				boolean ignoringTemporyField = false;
+				if (clz == Config.class && (name.equals("configurationFile") || name.equals("configurationFolder"))) {
+					ignoringTemporyField = true;
+				} else if ("im.webuzz.config.web.WebConfig".equals(clzName) && name.equals("localServerName")) {
+					ignoringTemporyField = true;
+				}
 				if (keyPrefix != null)  {
 					name = keyPrefix + "." + name;
 				}
@@ -101,7 +112,7 @@ public class ConfigGenerator {
 					builder.append("\r\n");
 					linebreakGenerated = true;
 				}
-				fieldGenerated = generateField(f, name, builder, clz, false);
+				fieldGenerated = generateField(f, name, builder, clz, ignoringTemporyField);
 				if (fieldGenerated) {
 					linebreakGenerated = false;
 				}

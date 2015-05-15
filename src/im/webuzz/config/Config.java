@@ -373,6 +373,11 @@ public class Config {
 		}
 		// Single line configuration
 		String[] arr = p.split("\\s*;\\s*");
+		int filteringModifiers = Modifier.PUBLIC;
+		ConfigFieldFilter filter = configurationFilters.get(type.getName());
+		if (filter != null && filter.modifiers >= 0) {
+			filteringModifiers = filter.modifiers;
+		}
 		for (int j = 0; j < arr.length; j++) {
 			String item = arr[j].trim();
 			if (item.length() == 0) {
@@ -383,9 +388,22 @@ public class Config {
 				continue;
 			}
 			String k = kv[0].trim();
+			if (filter != null) {
+				if (filter.excludes != null) {
+					if (filter.excludes.contains(k)) {
+						continue;
+					}
+				}
+				if (filter.includes != null) {
+					if (!filter.includes.contains(k)) {
+						// skip fields not included in #includes
+						continue;
+					}
+				}
+			}
 			Field f = null;
 			try {
-				f = type.getField(k);
+				f = type.getDeclaredField(k);
 			} catch (Exception e1) {
 				//e1.printStackTrace();
 			}
@@ -393,13 +411,15 @@ public class Config {
 				continue;
 			}
 			int modifiers = f.getModifiers();
-			if ((modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) == 0
+			if (filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0
 					|| (modifiers & Modifier.STATIC) != 0
 					|| (modifiers & Modifier.FINAL) != 0) {
 				// Ignore static, final, private fields
 				continue;
 			}
-			f.setAccessible(true);
+			if ((modifiers & Modifier.PUBLIC) == 0) {
+				f.setAccessible(true);
+			}
 			String pp = kv[1].trim();
 			checkAndUpdateField(f, obj, pp, keyName + "." + k, prop, true);
 		}

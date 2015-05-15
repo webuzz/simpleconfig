@@ -54,7 +54,8 @@ public class ConfigMerger {
 		boolean first = true;
 		Field[] fields = clz.getDeclaredFields();
 		int filteringModifiers = Modifier.PUBLIC;
-		ConfigFieldFilter filter = Config.configurationFilters.get(clz.getName());
+		String clzName = clz.getName();
+		ConfigFieldFilter filter = Config.configurationFilters.get(clzName);
 		if (filter != null && filter.modifiers >= 0) {
 			filteringModifiers = filter.modifiers;
 		}
@@ -87,6 +88,16 @@ public class ConfigMerger {
 				if (!first) {
 					builder.append("\r\n");
 				}
+				/*
+				 * There are some temporary fields in Config and WebConfig and should
+				 * not be generated down for remote server.
+				 */
+				boolean ignoringTemporyField = false;
+				if (clz == Config.class && (name.equals("configurationFile") || name.equals("configurationFolder"))) {
+					ignoringTemporyField = true; // String field
+				} else if ("im.webuzz.config.web.WebConfig".equals(clzName) && name.equals("localServerName")) {
+					ignoringTemporyField = true; // String field
+				}
 				first = false;
 				if (keyPrefix != null)  {
 					name = keyPrefix + "." + name;
@@ -105,6 +116,8 @@ public class ConfigMerger {
 						String v = (String)f.get(clz);
 						if ((v0 != null && v0.equals(v)) || (v0 == null && v == null)) {
 							if (ConfigGenerator.skipUnchangedLines) continue;
+							builder.append("#");
+						} else if (ignoringTemporyField) {
 							builder.append("#");
 						}
 						ConfigGenerator.generateString(builder, name, v);
