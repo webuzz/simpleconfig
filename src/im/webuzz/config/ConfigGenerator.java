@@ -688,7 +688,7 @@ public class ConfigGenerator {
 		if (o != null) {
 			boolean multipleLines = readableObjectFormat || !isPlainObject(o);
 			boolean generated = false;
-			boolean separatorGenerated = !multipleLines;
+			boolean separatorGenerated = false;
 			boolean fieldGenerated = false;
 			Field[] fields = o.getClass().getDeclaredFields();
 			int filteringModifiers = Modifier.PUBLIC;
@@ -1031,7 +1031,7 @@ public class ConfigGenerator {
 					}
 				} // end of if multiple/single line configuration
 			} // end of for fields
-			if (fieldGenerated && !separatorGenerated && !generated) { // length == 0
+			if (!fieldGenerated && !separatorGenerated && !generated) { // length == 0
 				builder.append(Config.$empty);
 			}
 		} else {
