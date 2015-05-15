@@ -1596,12 +1596,9 @@ public class ConfigGenerator {
 			}
 		}
 		if (oldFile != null) {
-			File configFile = new File(oldFile);
-			if (configFile.exists()) {
-				Config.configurationClasses = allNames.toArray(new String[allNames.size()]);
-				Config.initialize(oldFile);
-				Config.configurationClasses = oldConfigClasses;
-			}
+			Config.configurationClasses = allNames.toArray(new String[allNames.size()]);
+			Config.initialize(oldFile);
+			Config.configurationClasses = oldConfigClasses;
 		}
 
 		String fileExt = Config.configurationFileExtension;
