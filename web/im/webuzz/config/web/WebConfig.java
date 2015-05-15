@@ -21,31 +21,74 @@ public class WebConfig {
 	 */
 	public static String[] ignoringFields = new String[] {
 		// Config.class kernel fields should only be changed or updated locally
-		"configurationFile", "configurationExtraPath", "supportsMultipleConfigs", "synchronizers", 
+		"configurationFile",
+		"configurationFileExtension",
+		"configurationFolder",
+		"configurationMultipleFiles",
+		"configurationWatchmen", 
 		// Following is WebConfig fields
 		configKeyPrefix + ".ignoringFields", // ignoring fields can not be updated from remote server
 		configKeyPrefix + ".synchronizing", // could not be set to false from remote configuration server. or won't be able to re-synchronizing
 		configKeyPrefix + ".localServerName", // changing local server name from remote server makes no sense
 	};
 	
+	/**
+	 * Whether start synchronizing configuration files from remote server or not.
+	 * Synchronization can be turned on or off at any time. 
+	 */
 	public static boolean synchronizing = false;
 	
-	public static String localServerName = null; // ${local.server.name}
+	/**
+	 * Local server name which is used to tell configuration center who is requesting configurations.
+	 * Marked as ${local.server.name} in {@link #targetURLPattern}
+	 */
+	public static String localServerName = null;
 
+	/**
+	 * Global configuration center URL.
+	 * Marked as ${server.url.prefix} in {@link #targetURLPattern}. Usually it is 
+	 * an HTTP server URL.
+	 */
+	public static String globalServerURLPrefix = null; 
 	
-	public static String globalServerURLPrefix = null; // ${server.url.prefix} HTTP server URL
+	/**
+	 * Global configuration center should always be protected with user authorization.
+	 * Marked as ${server.auth.user} in {@value #targetURLPattern}
+	 */
+	public static String globalServerAuthUser = null;
 	
-	public static String globalServerAuthUser = null; // ${server.auth.user}
+	/**
+	 * Marked as ${server.auth.password} in {@link #targetURLPattern}
+	 */
+	public static String globalServerAuthPassword = null;
 	
-	public static String globalServerAuthPassword = null; // ${server.auth.password}
-	
-	// Static file pattern: "${server.url.prefix}/configs/${local.server.name}/${config.key.prefix}.ini"
-	// Dynamic URL pattern: "${server.url.prefix}/config?server=${local.server.name}&prefix=${config.key.prefix}"
-	// Server authorization pattern: "${server.auth.user}:${server.auth.password}"
+	/**
+	 * Target URL with template support.
+	 * 
+	 * Static file pattern: "${server.url.prefix}/configs/${local.server.name}/${config.key.prefix}.ini"
+	 * Dynamic URL pattern: "${server.url.prefix}/config?server=${local.server.name}&prefix=${config.key.prefix}"
+	 * Server authorization pattern: "${server.auth.user}:${server.auth.password}"
+	 */
 	public static String targetURLPattern = null;
 	
-	public static String httpRequestClass = null;
+	/**
+	 * Web request client is a class with static method asyncWebRequest(String url, String user, String password,
+	 * long lastModified, Object callback). Object callback has a method got(int responseCode, byte[] responseBytes).
+	 * Object callback is an instance of interface WebCallback.
+	 * 
+	 * Client class is provided to override the default HTTP request client. In such ways, other clients (like
+	 * FTP client, HTTP 2.0 client or other socket client) can be used to fetch remote configuration file.
+	 */
+	public static String webRequestClient = null;
 
-	public static long httpRequestTimeout = 2000; // wait at least 2s before moving to next HTTP request
+	/**
+	 * Try to request configuration one by one only put request to background if timeout is reached.
+	 * By default, wait at least 2s before moving to next request.
+	 */
+	public static long webRequestTimeout = 2000;
 
+	/**
+	 * Interval of checking web remote server for configuration file update.
+	 */
+	public static long webRequestInterval = 10000;
 }

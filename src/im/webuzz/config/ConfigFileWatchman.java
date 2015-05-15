@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,7 +44,8 @@ public class ConfigFileWatchman {
 		}
 		running = true;
 		
-		Thread thread = new Thread("Configuration Monitor") {
+		Thread thread = new Thread(new Runnable() {
+			
 			@Override
 			public void run() {
 				lastUpdated = 0;
@@ -64,7 +66,7 @@ public class ConfigFileWatchman {
 				}
 			}
 			
-		};
+		}, "Configuration Local File Watchman");
 		thread.setDaemon(true);
 		thread.start();
 	}
@@ -74,7 +76,7 @@ public class ConfigFileWatchman {
 			Config.parseConfiguration(clazz, true, prop);
 		}
 		
-		if (!Config.configurationMultipeFiles) {
+		if (!Config.configurationMultipleFiles) {
 			return;
 		}
 		
@@ -85,12 +87,13 @@ public class ConfigFileWatchman {
 		
 		String folder = Config.configurationFolder;
 		if (folder == null || folder.length() == 0) {
-			if (Config.configurationFile == null) {
+			String file = Config.configurationFile;
+			if (file == null) {
 				return;
 			}
-			folder = new File(Config.configurationFile).getParent();
+			folder = new File(file).getParent();
 		}
-		File file = new File(folder, keyPrefix + Config.configFileExtension);
+		File file = new File(folder, keyPrefix + Config.configurationFileExtension);
 		if (!file.exists()) {
 			return;
 		}
@@ -159,23 +162,46 @@ public class ConfigFileWatchman {
 		return null;
 	}
 	
-	private static void updateFromConfigurationFiles(final String configPath, final String extraFolder) {
-		Properties mainProp = readConfigurations(configPath);
-		if (mainProp != null) {
-			Class<?>[] configs = Config.getAllConfigurations();
-			for (int i = 0; i < configs.length; i++) {
-				Config.parseConfiguration(configs[i], true, mainProp);
+	private static void updateFromConfigurationFiles(String configPath, String extraFolder) {
+		String[] oldWatchmen = Config.configurationWatchmen;
+		boolean configurationSwitched = false;
+		int loopLoadings = 5;
+		do {
+			configurationSwitched = false;
+			Properties mainProp = readConfigurations(configPath);
+			if (mainProp != null) {
+				Class<?>[] configs = Config.getAllConfigurations();
+				for (int i = 0; i < configs.length; i++) {
+					Config.parseConfiguration(configs[i], true, mainProp);
+				}
 			}
+			
+			if (configPath != null && !configPath.equals(Config.configurationFile)) {
+				if (Config.configurationLogging) {
+					System.out.println("[Config] Switch configuration file from " + configPath + " to " + Config.configurationFile + ".");
+				}
+				configPath = Config.configurationFile;
+				lastUpdated = 0;
+				configurationSwitched = true;
+			}
+		} while (configurationSwitched && loopLoadings-- > 0);
+		
+		if (loopLoadings <= 0 && Config.configurationLogging) {
+			System.out.println("[Config] Configuration file is being redirected for too many times (5).");
 		}
 		
-		if (Config.configurationLogging && configPath != null && !configPath.equals(Config.configurationFile)) {
-			System.out.println("[Config] Switch configuration file from " + configPath + " to " + Config.configurationFile + ".");
-		}
-		if (Config.configurationLogging && extraFolder != null && !extraFolder.equals(Config.configurationFolder)) {
-			System.out.println("[Config] Switch configuration folder from " + extraFolder + " to " + Config.configurationFolder + ".");
+		if (!Arrays.equals(oldWatchmen, Config.configurationWatchmen)) {
+			Config.loadWatchmen();
 		}
 		
-		if (!Config.configurationMultipeFiles) {
+		if (extraFolder != null && !extraFolder.equals(Config.configurationFolder)) {
+			if (Config.configurationLogging) {
+				System.out.println("[Config] Switch configuration folder from " + extraFolder + " to " + Config.configurationFolder + ".");
+			}
+			fileLastUpdateds.clear();
+		}
+		
+		if (!Config.configurationMultipleFiles) {
 			return;
 		}
 		
@@ -190,7 +216,7 @@ public class ConfigFileWatchman {
 			if (keyPrefix == null || keyPrefix.length() == 0) {
 				continue;
 			}
-			File file = new File(folder, keyPrefix + Config.configFileExtension);
+			File file = new File(folder, keyPrefix + Config.configurationFileExtension);
 			if (!file.exists()) {
 				continue;
 			}

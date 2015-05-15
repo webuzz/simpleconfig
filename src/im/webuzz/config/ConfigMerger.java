@@ -518,6 +518,14 @@ public class ConfigMerger {
 			}
 		}
 		
+		String fileExt = Config.configurationFileExtension;
+		int idx = file.lastIndexOf('.');
+		if (idx != -1) {
+			String ext = file.substring(idx + 1);
+			if (ext.length() > 0) {
+				fileExt = file.substring(idx);
+			}
+		}
 		for (Iterator<Class<?>> itr = allConfigs.iterator(); itr.hasNext();) {
 			Class<?> clz = (Class<?>) itr.next();
 			String keyPrefix = Config.getKeyPrefix(clz);
@@ -527,10 +535,11 @@ public class ConfigMerger {
 				props = defaultProps;
 			} else {
 				String folder = file;
-				if (folder.endsWith(Config.configFileExtension)) {
-					folder = new File(folder).getParent();
+				File folderFile = new File(folder);
+				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
+					folder = folderFile.getParent();
 				}
-				File configFile = new File(folder, keyPrefix + Config.configFileExtension);
+				File configFile = new File(folder, keyPrefix + fileExt);
 				if (!configFile.exists()) {
 					props = defaultProps;
 				} else {
@@ -561,9 +570,16 @@ public class ConfigMerger {
 	}
 
 	/**
-	 * Merge old configuration file into new configuration.
+	 * Read configuration from merging files and then generate delta configuration files based on
+	 * default configuration from classes' static fields.
 	 * 
-	 * @param multipleConfigs
+	 * If merging file does not change the value of static field, then it will output a configuration
+	 * line with prefix "#", notifying it is not modified.
+	 * 
+	 * The target files generated should have lots of lines with comment prefix "#" an only a
+	 * few lines are not prefixed with "#". 
+	 * 
+	 * @param mularetipleConfigs
 	 * @param targetFile File to be written with merged configurations
 	 * @param mergingFile File to with old data to be merging into new configuration
 	 * @param classes
@@ -589,9 +605,9 @@ public class ConfigMerger {
 				}
 				allFields.put(fieldName, clazzName + "." + fieldName);
 			}
+			
 		};
 
-		
 		StringBuilder defaultBuilder = new StringBuilder();
 		Map<String, StringBuilder> configBuilders = new HashMap<String, StringBuilder>();
 		for (Iterator<Class<?>> itr = allConfigs.iterator(); itr.hasNext();) {
@@ -633,6 +649,14 @@ public class ConfigMerger {
 			checking.updateConfigs();
 		}
 		
+		String fileExt = Config.configurationFileExtension;
+		int idx = targetFile.lastIndexOf('.');
+		if (idx != -1) {
+			String ext = targetFile.substring(idx + 1);
+			if (ext.length() > 0) {
+				fileExt = targetFile.substring(idx);
+			}
+		}
 		defaultBuilder = new StringBuilder();
 		for (Iterator<Class<?>> itr = allConfigs.iterator(); itr.hasNext();) {
 			Class<?> clz = (Class<?>) itr.next();
@@ -666,13 +690,18 @@ public class ConfigMerger {
 			if (!globalConfig) { // multiple configurations
 				source = builder.toString();
 				String folder = targetFile;
-				if (folder.endsWith(Config.configFileExtension)) {
-					folder = new File(folder).getParent();
+				File folderFile = new File(folder);
+				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
+					folder = folderFile.getParent();
 				}
-				File configFile = new File(folder, keyPrefix + Config.configFileExtension);
+				File configFile = new File(folder, keyPrefix + fileExt);
 				String oldSource = ConfigGenerator.readFile(configFile);
 				if (!source.equals(oldSource)) {
-					System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + keyPrefix + Config.configFileExtension);
+					System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + keyPrefix + fileExt);
+					folderFile = new File(folder);
+					if (!folderFile.exists()) {
+						folderFile.mkdirs();
+					}
 					FileOutputStream fos = null;
 					try {
 						fos = new FileOutputStream(configFile);

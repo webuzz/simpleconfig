@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -36,8 +37,6 @@ public class Config {
 	
 	public static final Charset configFileEncoding = Charset.forName("UTF-8");
 
-	public static final String configFileExtension = ".ini";
-	
 	protected static final String keyPrefixFieldName = "configKeyPrefix";
 	
 	protected static final String $null = "[null]";
@@ -49,8 +48,9 @@ public class Config {
 	protected static final String $object = "[object]";
 
 	public static String configurationFile = null;
+	public static String configurationFileExtension = ".ini";
 	public static String configurationFolder = null;
-	public static boolean configurationMultipeFiles = true;
+	public static boolean configurationMultipleFiles = true;
 	
 	public static String[] configurationWatchmen = new String[] { "im.webuzz.config.ConfigFileWatchman" };
 	public static String[] configurationClasses = null;
@@ -73,6 +73,7 @@ public class Config {
 		}
 		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
 		if (updating) {
+			initializedTime = System.currentTimeMillis();
 			// Load watchman classes and start loadConfigClass task
 			String[] syncClasses = configurationWatchmen;
 			if (syncClasses != null && syncClasses.length > 0) {
@@ -102,9 +103,9 @@ public class Config {
 	}
 
 	public static void initialize(String configPath, String extraFolder, boolean multipleConfigs) {
-		configurationMultipeFiles = multipleConfigs;
 		configurationFile = configPath;
 		configurationFolder = extraFolder;
+		configurationMultipleFiles = multipleConfigs;
 		initialize(); // call default initialize method
 	}
 
@@ -114,58 +115,16 @@ public class Config {
 	public static void initialize() {
 		allConfigs.put(Config.class.getName(), Config.class);
 		
-		// Load watchman classes and start synchronizing task
-		String[] syncClasses = configurationWatchmen;
-		if (syncClasses != null && syncClasses.length > 0) {
-			// by default, there is a watchman: im.webuzz.config.ConfigFileWatchman
-			for (int i = 0; i < syncClasses.length; i++) {
-				String clazz = syncClasses[i];
-				Class<?> clz = loadConfigurationClass(clazz);
-				if (clz != null) {
-					try {
-						Method method = clz.getMethod("startWatchman", new Class[0]);
-						if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
-							method.invoke(null, new Object[0]);
-							if (configurationLogging) {
-								System.out.println("[Config] Task " + clazz + "#startWatchman done.");
-							}
-						}
-					} catch (Exception e) {
-						//e.printStackTrace();
-					}
-				}
-			}
-			String[] updatedClasses = configurationWatchmen; // Config.wathmen may be updated from file
-			if (!Arrays.equals(updatedClasses, syncClasses) && updatedClasses != null && updatedClasses.length > 0) {
-				for (int i = 0; i < updatedClasses.length; i++) {
-					String clazz = updatedClasses[i];
-					boolean existed = false;
-					for (int j = 0; j < syncClasses.length; j++) {
-						if (clazz.equals(syncClasses[j])) {
-							existed = true;
-							break;
-						}
-					}
-					if (existed) {
-						continue;
-					}
-					Class<?> clz = loadConfigurationClass(clazz);
-					if (clz != null) {
-						try {
-							Method method = clz.getMethod("startWatchman", new Class[0]);
-							if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
-								method.invoke(null, new Object[0]);
-								if (configurationLogging) {
-									System.out.println("[Config] Task " + clazz + "#startWatchman done.");
-								}
-							}
-						} catch (Exception e) {
-							//e.printStackTrace();
-						}
-					}
-				}
+		String configPath = configurationFile;
+		int idx = configPath.lastIndexOf('.');
+		if (idx != -1) {
+			String ext = configPath.substring(idx + 1);
+			if (ext.length() > 0) {
+				configurationFileExtension = configPath.substring(idx);
 			}
 		}
+		
+		loadWatchmen();
 		
 		String[] configClasses = configurationClasses;
 		if (configClasses != null) {
@@ -184,6 +143,46 @@ public class Config {
 		initializedTime = System.currentTimeMillis();
 		if (configurationLogging) {
 			System.out.println("[Config] Configuration initialized.");
+		}
+	}
+
+	public static void loadWatchmen() {
+		// Load watchman classes and start synchronizing task
+		Set<String> loadedWatchmen = new HashSet<String>();
+		int loopLoadings = 5;
+		String[] syncClasses = configurationWatchmen;
+		while (syncClasses != null && syncClasses.length > 0 && loopLoadings-- > 0) {
+			// by default, there is a watchman: im.webuzz.config.ConfigFileWatchman
+			for (int i = 0; i < syncClasses.length; i++) {
+				String clazz = syncClasses[i];
+				if (loadedWatchmen.contains(clazz)) {
+					continue;
+				}
+				Class<?> clz = loadConfigurationClass(clazz);
+				if (clz != null) {
+					try {
+						Method method = clz.getMethod("startWatchman", new Class[0]);
+						if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
+							method.invoke(null, new Object[0]);
+							if (configurationLogging) {
+								System.out.println("[Config] Task " + clazz + "#startWatchman done.");
+							}
+						}
+					} catch (Exception e) {
+						//e.printStackTrace();
+					}
+					loadedWatchmen.add(clazz);
+				}
+			}
+			String[] updatedClasses = configurationWatchmen;
+			if (Arrays.equals(updatedClasses, syncClasses)) {
+				break;
+			}
+			// Config.configurationWatchmen may be updated from file
+			syncClasses = updatedClasses;
+		}
+		if (loopLoadings <= 0 && configurationLogging) {
+			System.out.println("[Config] Loading watchman classes results in too many loops (5).");
 		}
 	}
 

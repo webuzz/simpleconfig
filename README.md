@@ -1,7 +1,7 @@
 # simpleconfig
 A configuration library supports binding Java classes' static fields to configuration files and modifying files to update fields' values.
 
-# Usage
+## Usage
 Create a configuration class with static fields:
 ```java
 	public class PiledConfig {
@@ -16,7 +16,7 @@ Use static fields in your Java project as they are, like followings:
 			Math.max(PiledConfig.idleThreads, 1),
             PiledConfig.threadIdleSeconds, TimeUnit.SECONDS,
 			PiledConfig.maxQueueRequests,
-            new SimpleNamedThreadFactory("HTTP Service Worker" + (count == 1 ? "" : "-" + (index + 1))));
+            new SimpleNamedThreadFactory("HTTP Service Worker"));
 	...
 	if (lastCoreThreads != PiledConfig.coreThreads) {
 		workerPool.setCorePoolSize(PiledConfig.coreThreads);
@@ -41,11 +41,11 @@ maxThreads=128
 ```
 After file being saved, it will take some seconds (about 10s) for application to update static fields to new values.
 
-# Features
+## Features
 1. Support almost all types of static fields: primitive types, array, List, Set, Map and nested types
 2. Support multiple configuration files
 3. Support synchronizing configurations from remote web servers
 4. Support binding and modifying private static fields in third-parties classes 
 
-# License
+## License
 Eclipse Public License 1.0 

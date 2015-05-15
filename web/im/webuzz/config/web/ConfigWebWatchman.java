@@ -16,11 +16,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
-import net.sf.j2s.ajax.HttpRequest;
-import net.sf.j2s.ajax.XHRCallbackAdapter;
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigMerger;
 
@@ -31,6 +33,7 @@ public class ConfigWebWatchman {
 
 	private static boolean running = false;
 	
+	private static BlockingQueue<Class<?>> queue = new LinkedBlockingQueue<Class<?>>();
 
 	private final static String[] WEEK_DAYS_ABBREV = new String[] {
 		"Sun", "Mon", "Tue", "Wed", "Thu",  "Fri", "Sat"
@@ -76,23 +79,36 @@ public class ConfigWebWatchman {
 		running = true;
 		Config.registerUpdatingListener(WebConfig.class);
 		
-		Thread webThread = new Thread("Configuration Web Synchronizer") {
+		Thread webThread = new Thread(new Runnable() {
 			
 			private long currentRequestTime = 0;
 			
 			@Override
 			public void run() {
+				boolean first = true;
 				while (running) {
-					for (int i = 0; i < 10; i++) {
-						try {
-							Thread.sleep(1000);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-						if (!running) {
-							break;
+					if (!first) {
+						int seconds = Math.max(1, (int) (WebConfig.webRequestInterval / 1000));
+						for (int i = 0; i < seconds; i++) {
+							Class<?> clazz = null;
+							try {
+								synchronized (queue) {
+									clazz = queue.poll(1000, TimeUnit.MILLISECONDS);
+								}
+								//Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+							if (!running) {
+								break;
+							}
+							if (clazz != null) {
+								synchronizeClass(clazz);								
+								i = i > seconds / 2 ? Math.max(seconds / 2 - 2, 1) : 0; // restart sleep waiting
+							}
 						}
 					}
+					first = false;
 					if (!WebConfig.synchronizing) {
 						continue;
 					}
@@ -102,30 +118,40 @@ public class ConfigWebWatchman {
 						if (cfgPath != null) {
 							File cfgFile = new File(cfgPath);
 							String cfgName = cfgFile.getName();
-							if (cfgName.endsWith(Config.configFileExtension)) {
-								cfgName = cfgName.substring(0, cfgName.length() - 4);
+							String fileExt = Config.configurationFileExtension;
+							if (cfgName.endsWith(fileExt)) {
+								cfgName = cfgName.substring(0, cfgName.length() - fileExt.length());
+							} else {
+								int idx = cfgName.lastIndexOf('.');
+								if (idx != -1) {
+									cfgName = cfgName.substring(0, idx);
+								}
 							}
 							synchronizeFile(cfgName, cfgFile, true);
 						}
 						
 						Class<?>[] configs = Config.getAllConfigurations();
 						for (int i = 0; i < configs.length; i++) {
-							Class<?> clz = configs[i];
-							final String keyPrefix = Config.getKeyPrefix(clz);
-							if (keyPrefix == null || keyPrefix.length() == 0) {
-								continue;
-							}
-							String folder = Config.configurationFolder;
-							if (folder == null) {
-								folder = Config.configurationFile;
-								if (folder.endsWith(Config.configFileExtension)) {
-									folder = new File(folder).getParent();
-								}
-							}
-							synchronizeFile(keyPrefix, new File(folder, keyPrefix + Config.configFileExtension), false);
+							synchronizeClass(configs[i]);
 						}
 					}
 				}
+			}
+			
+			void synchronizeClass(Class<?> clz) {
+				String keyPrefix = Config.getKeyPrefix(clz);
+				if (keyPrefix == null || keyPrefix.length() == 0) {
+					return;
+				}
+				String folder = Config.configurationFolder;
+				if (folder == null) {
+					folder = Config.configurationFile;
+					File folderFile = new File(folder);
+					if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(Config.configurationFileExtension)) {
+						folder = folderFile.getParent();
+					}
+				}
+				synchronizeFile(keyPrefix, new File(folder, keyPrefix + Config.configurationFileExtension), false);
 			}
 			
 			void synchronizeFile(final String keyPrefix, final File file, final boolean globalConfig) {
@@ -133,51 +159,47 @@ public class ConfigWebWatchman {
 				if (urlPattern == null) {
 					return;
 				}
-				String url = urlPattern.replaceAll("\\$\\{server.url.prefix\\}", WebConfig.globalServerURLPrefix)
-						.replaceAll("\\$\\{server.auth.user\\}", WebConfig.globalServerAuthUser)
-						.replaceAll("\\$\\{server.auth.password\\}", WebConfig.globalServerAuthPassword)
-						.replaceAll("\\$\\{local.server.name\\}", WebConfig.localServerName)
-						.replaceAll("\\$\\{config.key.prefix\\}", keyPrefix);
+				String server = WebConfig.globalServerURLPrefix;
+				String user = WebConfig.globalServerAuthUser;
+				String password = WebConfig.globalServerAuthPassword;
+				String localName = WebConfig.localServerName;
+				String url = urlPattern;
+				if (server != null) {
+					url = url.replaceAll("\\$\\{server.url.prefix\\}", server);
+				}
+				if (localName != null && url.indexOf("${local.server.name}") != -1) {
+					url = url.replaceAll("\\$\\{local.server.name\\}", localName);
+				}
+				url = url.replaceAll("\\$\\{config.key.prefix\\}", keyPrefix);
+				if (user != null && url.indexOf("${server.auth.user}") != -1) {
+					url = url.replaceAll("\\$\\{server.auth.user\\}", user);
+				}
+				if (password != null && url.indexOf("${server.auth.password}") != -1) {
+					url = url.replaceAll("\\$\\{server.auth.password\\}", password);
+				}
 				final StringBuilder builder = new StringBuilder();
-				HttpRequest httpReq = null;
-				String reqClass = WebConfig.httpRequestClass;
-				if (reqClass != null && reqClass.length() > 0) {
-					Class<?> clz = Config.loadConfigurationClass(reqClass);
-					if (clz != null) {
-						try {
-							if (HttpRequest.class.isAssignableFrom(clz)) {
-								httpReq = (HttpRequest) clz.newInstance();
-							}
-						} catch (InstantiationException e) {
-							e.printStackTrace();
-						} catch (IllegalAccessException e) {
-							e.printStackTrace();
-						}
-					}
-				}
-				if (httpReq == null) {
-					httpReq = new HttpRequest();
-				}
-				final HttpRequest req = httpReq;
-				req.open("GET", url, true, WebConfig.globalServerAuthUser, WebConfig.globalServerAuthPassword);
 				final long requestTime = currentRequestTime;
-				req.registerOnReadyStateChange(new XHRCallbackAdapter() {
-
+				WebCallback callback = new WebCallback() {
+					
 					@Override
-					public void onLoaded() {
-						if (req.getStatus() == 200 && requestTime == currentRequestTime) { // HTTP OK
-							byte[] response = req.getResponseBytes();
-							if (response != null && response.length > 0) {
+					public void got(int responseCode, byte[] responseBytes) {
+						if (responseCode == 200 && requestTime == currentRequestTime) { // HTTP OK
+							if (responseBytes != null && responseBytes.length > 0) {
 								String[] ignoringFields = WebConfig.ignoringFields;
 								byte[] localBytes = readFile(file);
 								if (ignoringFields != null && ignoringFields.length > 0) {
-									response = ConfigMerger.mergeWithIgnoringFields(response, localBytes, globalConfig ? null : keyPrefix, ignoringFields);
+									responseBytes = ConfigMerger.mergeWithIgnoringFields(responseBytes, localBytes,
+											globalConfig ? null : keyPrefix, ignoringFields);
 								}
-								if (!Arrays.equals(response, localBytes)) {
+								if (!Arrays.equals(responseBytes, localBytes)) {
+									File folderFile = file.getParentFile();
+									if (!folderFile.exists()) {
+										folderFile.mkdirs();
+									}
 									FileOutputStream fos = null;
 									try {
 										fos = new FileOutputStream(file);
-										fos.write(response);
+										fos.write(responseBytes);
 									} catch (IOException e) {
 										e.printStackTrace();
 									} finally {
@@ -191,10 +213,17 @@ public class ConfigWebWatchman {
 										}
 									}
 									if (Config.configurationLogging) {
-										System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " synchronized remotely.");
+										System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " content synchronized remotely.");
 									}
 								} else {
 									file.setLastModified(System.currentTimeMillis());
+									if (Config.configurationLogging) {
+										System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " last modified time synchronized remotely.");
+									}
+								}
+							} else if (responseCode != 304) {
+								if (Config.configurationLogging) {
+									System.out.println("[Config] Fetching configuration file " + file.getAbsolutePath() + " code=" + responseCode + ".");
 								}
 							}
 						}
@@ -203,24 +232,49 @@ public class ConfigWebWatchman {
 							builder.notify();
 						}
 					}
-					
-				});
-				if (file.exists()) {
-					req.setRequestHeader("If-Modified-Since", getHTTPDateString(file.lastModified()));
+				};
+
+				long lastModified = file.exists() ? file.lastModified() : -1;
+
+				boolean done = false;
+				String reqClass = WebConfig.webRequestClient;
+				if (reqClass != null && reqClass.length() > 0) {
+					// Other class may be used to request remote configuration file besides HTTP client
+					Class<?> clz = Config.loadConfigurationClass(reqClass);
+					if (clz != null) {
+						try {
+							Method m = clz.getMethod("asyncWebRequest", 
+									String.class, // url
+									String.class, // user
+									String.class, // password
+									long.class, // lastModified
+									Object.class // WebFetchCallback.class callback
+							);
+							m.invoke(clz, url, user, password, lastModified, callback);
+							done = true;
+						} catch (NoSuchMethodException e) {
+							// do nothing
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
 				}
-				req.send();
+				if (!done) { // fall back to HTTP request client
+					asyncWebRequest(url, user, password, lastModified, callback);
+				}
+				
 				try {
 					synchronized (builder) {
 						if (builder.length() <= 0) {
-							builder.wait(WebConfig.httpRequestTimeout);
+							builder.wait(WebConfig.webRequestTimeout);
 						}
 					}
-				} catch (InterruptedException e1) {
-					e1.printStackTrace();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
 				}
 			}
 			
-		};
+		}, "Configuration Remote Web Wathman");
 		webThread.setDaemon(true);
 		webThread.start();
 	}
@@ -231,6 +285,53 @@ public class ConfigWebWatchman {
 	
 	public static void loadConfigClass(Class<?> clazz) {
 		// Do nothing!
+		String keyPrefix = Config.getKeyPrefix(clazz);
+		if (keyPrefix == null || keyPrefix.length() == 0) {
+			return;
+		}
+		try {
+			synchronized (queue) {
+				queue.put(clazz);
+				queue.notify();
+			}
+		} catch (InterruptedException e) {
+			//e.printStackTrace();
+			// Do nothing, watchman will try to synchronize this class from remote server later (in 10s)
+		}
+	}
+
+	/*
+	 * Default HTTP client to request remote configuration file.
+	 */
+	public static void asyncWebRequest(String url, String user, String password, long lastModified, final Object callback) {
+		final HttpRequest req = new HttpRequest();
+		req.open("GET", url, true, user, password);
+		req.registerOnReadyStateChange(new IXHRCallback() {
+
+			@Override
+			public void onOpen() {
+			}
+
+			@Override
+			public void onSent() {
+			}
+
+			@Override
+			public void onReceiving() {
+			}
+
+			@Override
+			public void onLoaded() {
+				if (callback instanceof WebCallback) {
+					((WebCallback) callback).got(req.getStatus(), req.getResponseBytes());
+				} // else do nothing
+			}
+			
+		});
+		if (lastModified > 0) {
+			req.setRequestHeader("If-Modified-Since", ConfigWebWatchman.getHTTPDateString(lastModified));
+		}
+		req.send();
 	}
 
 }

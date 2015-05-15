@@ -42,11 +42,11 @@ public class ConfigGenerator {
 		
 	}
 
-	public static boolean readablePrimitiveArrayFormat = false; // For int, long, String type
-	public static boolean readablePrimitiveSetFormat = false; // For int, long, String type
-	public static boolean readablePrimitiveListFormat = false; // For int, long, String type
-	public static boolean readablePrimitiveMapFormat = false; // For int, long, String type
-	public static boolean readablePrimitiveObjectFormat = false; // For int, long, String type fields
+	public static boolean readableArrayFormat = false; // For array
+	public static boolean readableSetFormat = false; // For set
+	public static boolean readableListFormat = false; // For true
+	public static boolean readableMapFormat = false; // For true
+	public static boolean readableObjectFormat = false; // For true
 	public static boolean skipUnchangedLines = false;
 	public static boolean skipObjectUnchangedFields = true;
 
@@ -686,7 +686,7 @@ public class ConfigGenerator {
 		}
 		builder.append(keyPrefix).append("=");
 		if (o != null) {
-			boolean multipleLines = readablePrimitiveObjectFormat || !isPlainObject(o);
+			boolean multipleLines = readableObjectFormat || !isPlainObject(o);
 			boolean generated = false;
 			boolean separatorGenerated = !multipleLines;
 			boolean fieldGenerated = false;
@@ -1046,7 +1046,7 @@ public class ConfigGenerator {
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			Set<Entry<String, Object>> entries = vs.entrySet();
 			if (entries.size() > 0) {
-				if (readablePrimitiveMapFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
+				if (readableMapFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
 					builder.append(Config.$map);
 					for (Entry<String, Object> entry : entries) {
 						builder.append("\r\n");
@@ -1089,7 +1089,7 @@ public class ConfigGenerator {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			boolean first = true;
-			if (readablePrimitiveSetFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
+			if (readableSetFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
 				builder.append(Config.$set);
 				int size = vs.size();
 				int length = String.valueOf(size).length();
@@ -1136,7 +1136,7 @@ public class ConfigGenerator {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			boolean first = true;
-			if (readablePrimitiveListFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
+			if (readableListFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
 				builder.append(Config.$list);
 				int size = vs.size();
 				int length = String.valueOf(size).length();
@@ -1179,7 +1179,7 @@ public class ConfigGenerator {
 	static void generateCharArray(StringBuilder builder, String name, char[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1216,7 +1216,7 @@ public class ConfigGenerator {
 	static void generateByteArray(StringBuilder builder, String name, byte[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1253,7 +1253,7 @@ public class ConfigGenerator {
 	static void generateShortArray(StringBuilder builder, String name, short[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1290,7 +1290,7 @@ public class ConfigGenerator {
 	static void generateFloatArray(StringBuilder builder, String name, float[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1327,7 +1327,7 @@ public class ConfigGenerator {
 	static void generateDoubleArray(StringBuilder builder, String name, double[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1364,7 +1364,7 @@ public class ConfigGenerator {
 	static void generateBooleanArray(StringBuilder builder, String name, boolean[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1401,7 +1401,7 @@ public class ConfigGenerator {
 	static void generateLongArray(StringBuilder builder, String name, long[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1438,7 +1438,7 @@ public class ConfigGenerator {
 	static void generateIntegerArray(StringBuilder builder, String name, int[] vs, boolean unchanged) {
 		builder.append(name).append("=");
 		if (vs != null && vs.length > 0) {
-			if (readablePrimitiveArrayFormat) {
+			if (readableArrayFormat) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1477,7 +1477,7 @@ public class ConfigGenerator {
 		if (vs != null && vs.length > 0) {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-			if (readablePrimitiveArrayFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
+			if (readableArrayFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
 				builder.append(Config.$array);
 				int size = vs.length;
 				int length = String.valueOf(size).length();
@@ -1557,10 +1557,62 @@ public class ConfigGenerator {
 		return new String(baos.toByteArray(), Config.configFileEncoding);
 	}
 
+	/**
+	 * Generate default configuration. Ignoring existed configuration files.
+	 * 
+	 * @param multipleConfigs
+	 * @param file
+	 * @param classes
+	 */
 	public static void generateDefaultConfiguration(boolean multipleConfigs, String file, Class<?>[] classes) {
+		// Old file is null, generate default configuration file.
+		generateUpdatedConfiguration(multipleConfigs, file, null, classes);
+	}
+	
+	/**
+	 * Generate updated configuration files: static fields default value + old file value.
+	 * If old file is not specific, generate default configuration files with default static
+	 * field values.
+	 * 
+	 * @param multipleConfigs
+	 * @param file
+	 * @param oldFile
+	 * @param classes
+	 */
+	public static void generateUpdatedConfiguration(boolean multipleConfigs, String file, String oldFile, Class<?>[] classes) {
+		List<String> allNames = new ArrayList<String>();
+		String[] oldConfigClasses = Config.configurationClasses;
+		if (oldConfigClasses != null) {
+			for (String clazz : oldConfigClasses) {
+				allNames.add(clazz);
+			}
+		}
 		List<Class<?>> allConfigs = new ArrayList<Class<?>>();
 		for (int i = 0; i < classes.length; i++) {
-			allConfigs.add(classes[i]);
+			Class<?> clz = classes[i];
+			if (clz != null) {
+				allConfigs.add(clz);
+				allNames.add(clz.getName());
+			}
+		}
+		if (oldFile != null) {
+			File configFile = new File(oldFile);
+			if (configFile.exists()) {
+				Config.configurationClasses = allNames.toArray(new String[allNames.size()]);
+				Config.initialize(oldFile);
+				Config.configurationClasses = oldConfigClasses;
+			}
+		}
+
+		String fileExt = Config.configurationFileExtension;
+		String oldFileExt = fileExt;
+		int idx = file.lastIndexOf('.');
+		if (idx != -1) {
+			String ext = file.substring(idx + 1);
+			if (ext.length() > 0) {
+				fileExt = file.substring(idx);
+				Config.configurationFileExtension = fileExt;
+			}
 		}
 		
 		final Map<String, String> allFields = new HashMap<String, String>();
@@ -1594,15 +1646,20 @@ public class ConfigGenerator {
 			if (!globalConfig) { // multiple configurations
 				String source = builder.toString();
 				String folder = file;
-				if (folder.endsWith(Config.configFileExtension)) {
-					folder = new File(folder).getParent();
+				File folderFile = new File(folder);
+				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
+					folder = folderFile.getParent();
 				}
-				String oldSource = readFile(new File(folder, keyPrefix + Config.configFileExtension));
+				String oldSource = readFile(new File(folder, keyPrefix + fileExt));
 				if (!source.equals(oldSource)) {
-					System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + keyPrefix + Config.configFileExtension);
+					System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + keyPrefix + fileExt);
+					folderFile = new File(folder);
+					if (!folderFile.exists()) {
+						folderFile.mkdirs();
+					}
 					FileOutputStream fos = null;
 					try {
-						fos = new FileOutputStream(new File(folder, keyPrefix + Config.configFileExtension));
+						fos = new FileOutputStream(new File(folder, keyPrefix + fileExt));
 						fos.write(source.getBytes(Config.configFileEncoding));
 					} catch (IOException e) {
 						e.printStackTrace();
@@ -1621,10 +1678,15 @@ public class ConfigGenerator {
 		} // end of for classes
 		
 		String source = defaultBuilder.toString();
-		String oldSource = readFile(new File(file));
+		File cfgFile = new File(file);
+		String oldSource = readFile(cfgFile);
 		if (!source.equals(oldSource)) {
 			System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + file);
 			FileOutputStream fos = null;
+			File folderFile = cfgFile.getParentFile();
+			if (!folderFile.exists()) {
+				folderFile.mkdirs();
+			}
 			try {
 				fos = new FileOutputStream(file);
 				fos.write(source.getBytes(Config.configFileEncoding));
@@ -1640,6 +1702,9 @@ public class ConfigGenerator {
 				}
 			}
 		} // end if
+		if (!Config.configurationFileExtension.equals(oldFileExt)) {
+			Config.configurationFileExtension = oldFileExt;
+		}
 	}
 	
 	/**
@@ -1647,7 +1712,7 @@ public class ConfigGenerator {
 	 */
 	public static void main(String[] args) {
 		if (args == null || args.length < 2) {
-			System.out.println("Usage: " + ConfigGenerator.class.getName() + " [--multiple-configs] <target config file> <config class> [config class ...] [checking class]");
+			System.out.println("Usage: " + ConfigGenerator.class.getName() + " [--multiple-configs] <target config file> [old config file] <config class> [config class ...] [checking class]");
 			return;
 		}
 		boolean multipleConfigs = false;
@@ -1657,21 +1722,36 @@ public class ConfigGenerator {
 			index++;
 		}
 		String targetFile = args[index];
-		List<Class<?>> allNames = new ArrayList<Class<?>>();
+		if (targetFile == null || targetFile.length() <= 0) {
+			System.out.println("Usage: " + ConfigGenerator.class.getName() + " [--multiple-configs] <target config file> [old config file] <config class> [config class ...] [checking class]");
+			System.out.println("Target config file path can not be empty.");
+			return;
+		}
+		String oldFile = args[index + 1];
+		if (new File(oldFile).exists()) {
+			index++;
+		} else {
+			oldFile = null;
+		}
+		List<Class<?>> allClasses = new ArrayList<Class<?>>();
 		for (int i = index + 1; i < args.length; i++) {
 			String clazz = args[i];
 			if (clazz != null && clazz.length() > 0) {
 				try {
 					Class<?> c = Class.forName(clazz);
-					allNames.add(c);
+					allClasses.add(c);
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
 				}
 			}
 		}
 		
-		Class<?>[] classes = allNames.toArray(new Class<?>[allNames.size()]);
-		generateDefaultConfiguration(multipleConfigs, targetFile, classes);
+		Class<?>[] classes = allClasses.toArray(new Class<?>[allClasses.size()]);
+		if (oldFile == null) {
+			generateDefaultConfiguration(multipleConfigs, targetFile, classes);
+		} else {
+			generateUpdatedConfiguration(multipleConfigs, targetFile, oldFile, classes);
+		}
 	}
 
 }

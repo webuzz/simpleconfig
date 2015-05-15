@@ -1,15 +1,53 @@
+/*******************************************************************************
+ * Copyright (c) 2010 - 2015 java2script.org, webuzz.im and others
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
+ *******************************************************************************/
+
 package im.webuzz.config;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Configuration field filter is used to control updating static fields without
+ * accident modified unwanted fields.
+ * 
+ * For example, if there are class with static fields which we want to keep it
+ * untouchable by configuration file. Just add a filter with excluded fields for
+ * given class into the Config#configurationFilters map.
+ * 
+ * @author zhourenjian
+ *
+ */
 public class ConfigFieldFilter {
 
+	/**
+	 * Modifiers are used to filter fields.
+	 * If modifiers is less than or equals to 0, modifier filter is ignored.
+	 * If modifiers is 1, Modifier#PUBLIC, only public fields are configurable.
+	 * If modifiers is 2, Modifier#PRIVATE, only private fields are configurable.
+	 * If modifiers is 4, Modifier#PROTECTED, only protected fields are configurable.
+	 */
 	public int modifiers;
-	
+
+	/**
+	 * Included fields filter.
+	 * If fields are in this set, they are configurable.
+	 * If fields are not in this set, ignore them.
+	 */
 	public Set<String> includes;
 	
+	/**
+	 * Excluded fields filter.
+	 * If fields are not listed in this set, they are configurable.
+	 */
 	public Set<String> excludes;
 
 	public ConfigFieldFilter() {
