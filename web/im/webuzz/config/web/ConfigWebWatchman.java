@@ -92,9 +92,7 @@ public class ConfigWebWatchman {
 						for (int i = 0; i < seconds; i++) {
 							Class<?> clazz = null;
 							try {
-								synchronized (queue) {
-									clazz = queue.poll(1000, TimeUnit.MILLISECONDS);
-								}
+								clazz = queue.poll(1000, TimeUnit.MILLISECONDS);
 								//Thread.sleep(1000);
 							} catch (InterruptedException e) {
 								e.printStackTrace();
@@ -290,10 +288,7 @@ public class ConfigWebWatchman {
 			return;
 		}
 		try {
-			synchronized (queue) {
-				queue.put(clazz);
-				queue.notify();
-			}
+			queue.put(clazz);
 		} catch (InterruptedException e) {
 			//e.printStackTrace();
 			// Do nothing, watchman will try to synchronize this class from remote server later (in 10s)
