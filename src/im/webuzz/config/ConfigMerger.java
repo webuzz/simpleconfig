@@ -89,13 +89,11 @@ public class ConfigMerger {
 					builder.append("\r\n");
 				}
 				/*
-				 * There are some temporary fields in Config and WebConfig and should
+				 * There are some temporary fields in Config and should
 				 * not be generated down for remote server.
 				 */
 				boolean ignoringTemporyField = false;
 				if (clz == Config.class && (name.equals("configurationFile") || name.equals("configurationFolder"))) {
-					ignoringTemporyField = true; // String field
-				} else if ("im.webuzz.config.web.WebConfig".equals(clzName) && name.equals("localServerName")) {
 					ignoringTemporyField = true; // String field
 				}
 				first = false;

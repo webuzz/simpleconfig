@@ -66,6 +66,9 @@ public class Config {
 	
 	private static long initializedTime = 0;
 	
+	// Keep not found classes, if next time trying to load these classes, do not print exceptions
+	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+	
 	// May dependent on disk IO
 	public static void registerUpdatingListener(Class<?> clazz) {
 		if (clazz == null) {
@@ -208,14 +211,20 @@ public class Config {
 			try {
 				clz = configurationLoader.loadClass(clazz);
 			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
+				if (!notFoundClasses.contains(clazz)) {
+					notFoundClasses.add(clazz);
+					e.printStackTrace();
+				}
 			}
 		}
 		if (clz == null) {
 			try {
 				clz = Class.forName(clazz);
 			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
+				if (!notFoundClasses.contains(clazz)) {
+					notFoundClasses.add(clazz);
+					e.printStackTrace();
+				}
 			}
 		}
 		return clz;
@@ -324,7 +333,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0 || obj == null) {
 			return obj;
 		}
-		if ($object.equals(p)) { // Multiple line configuration
+		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
 			Field[] fields = type.getDeclaredFields();
 			int filteringModifiers = Modifier.PUBLIC;
 			ConfigFieldFilter filter = configurationFilters.get(type.getName());
@@ -436,7 +445,7 @@ public class Config {
 		}
 		boolean isTypeString = valueTypes == null || valueTypes.length == 0
 				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		if ($map.equals(p)) { // readable map, multiple line configuration
+		if ($map.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable map, multiple line configuration
 			Set<String> names = prop.stringPropertyNames();
 			if (isTypeString) {
 				for (String propName : names) {
@@ -500,7 +509,7 @@ public class Config {
 		}
 		boolean isTypeString = valueTypes == null || valueTypes.length == 0
 				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		if ($list.equals(p)) { // readable list, multiple line configuration
+		if ($list.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable list, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -550,7 +559,7 @@ public class Config {
 		}
 		boolean isTypeString = valueTypes == null || valueTypes.length == 0
 				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		if ($set.equals(p)) { // readable map
+		if ($set.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable map
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -598,7 +607,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new char[0];
 		} 
-		if ($array.equals(p)) { // readable char array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable char array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -649,7 +658,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new byte[0];
 		} 
-		if ($array.equals(p)) { // readable byte array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable byte array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -700,7 +709,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new short[0];
 		} 
-		if ($array.equals(p)) { // readable short array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable short array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -751,7 +760,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new float[0];
 		} 
-		if ($array.equals(p)) { // readable float array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable float array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -802,7 +811,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new double[0];
 		} 
-		if ($array.equals(p)) { // readable double array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable double array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -853,7 +862,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new boolean[0];
 		} 
-		if ($array.equals(p)) { // readable boolean array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable boolean array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -904,7 +913,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new long[0];
 		} 
-		if ($array.equals(p)) { // readable long array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable long array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -955,7 +964,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return new int[0];
 		}
-		if ($array.equals(p)) { // readable integer array, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable integer array, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			for (String propName : names) {
@@ -1009,7 +1018,7 @@ public class Config {
 		if ($empty.equals(p) || p.length() == 0) {
 			return (Object[]) Array.newInstance(componentType, 0);
 		}
-		if ($array.equals(p)) { // readable map, multiple line configuration
+		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable map, multiple line configuration
 			List<String> filteredNames = new ArrayList<String>();
 			Set<String> names = prop.stringPropertyNames();
 			String prefix = keyName + ".";

@@ -93,13 +93,11 @@ public class ConfigGenerator {
 					}
 				}
 				/*
-				 * There are some temporary fields in Config and WebConfig and should
+				 * There are some temporary fields in Config and should
 				 * not be generated down for remote server.
 				 */
 				boolean ignoringTemporyField = false;
 				if (clz == Config.class && (name.equals("configurationFile") || name.equals("configurationFolder"))) {
-					ignoringTemporyField = true;
-				} else if ("im.webuzz.config.web.WebConfig".equals(clzName) && name.equals("localServerName")) {
 					ignoringTemporyField = true;
 				}
 				if (keyPrefix != null)  {
@@ -1579,7 +1577,7 @@ public class ConfigGenerator {
 		// Old file is null, generate default configuration file.
 		generateUpdatedConfiguration(multipleConfigs, file, null, classes);
 	}
-	
+
 	/**
 	 * Generate updated configuration files: static fields default value + old file value.
 	 * If old file is not specific, generate default configuration files with default static
@@ -1591,6 +1589,23 @@ public class ConfigGenerator {
 	 * @param classes
 	 */
 	public static void generateUpdatedConfiguration(boolean multipleConfigs, String file, String oldFile, Class<?>[] classes) {
+		generateUpdatedConfiguration(multipleConfigs, file, oldFile, classes, false); // Only overwriting main file. 
+	}
+	
+	/**
+	 * Generate updated configuration files: static fields default value + old file value.
+	 * If old file is not specific, generate default configuration files with default static
+	 * field values.
+	 * If sub-configuration or common configurations are updated, try to overwrite it or create
+	 * a new configuration with a warning.
+	 * 
+	 * @param multipleConfigs
+	 * @param file
+	 * @param oldFile
+	 * @param classes
+	 * @param overwritingSubConfigs
+	 */
+	public static void generateUpdatedConfiguration(boolean multipleConfigs, String file, String oldFile, Class<?>[] classes, boolean overwritingSubConfigs) {
 		List<String> allNames = new ArrayList<String>();
 		String[] oldConfigClasses = Config.configurationClasses;
 		if (oldConfigClasses != null) {
@@ -1658,16 +1673,25 @@ public class ConfigGenerator {
 				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
 					folder = folderFile.getParent();
 				}
-				String oldSource = readFile(new File(folder, keyPrefix + fileExt));
+				File oldConfigFile = new File(folder, keyPrefix + fileExt);
+				String oldSource = readFile(oldConfigFile);
 				if (!source.equals(oldSource)) {
-					System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + keyPrefix + fileExt);
+					boolean newFile = oldSource == null || oldSource.length() == 0;
+					System.out.println((newFile ? "Write " : "Update ") + keyPrefix + fileExt);
 					folderFile = new File(folder);
 					if (!folderFile.exists()) {
 						folderFile.mkdirs();
 					}
 					FileOutputStream fos = null;
 					try {
-						fos = new FileOutputStream(new File(folder, keyPrefix + fileExt));
+						if (newFile || overwritingSubConfigs) {
+							fos = new FileOutputStream(oldConfigFile);
+						} else {
+							File newConfigFile = new File(folder, keyPrefix + ".new" + fileExt);
+							fos = new FileOutputStream(newConfigFile);
+							System.out.println(oldConfigFile.getAbsolutePath() + " is NOT updated with latest configuration.\r\n"
+									+ "Please try to merge it with " + newConfigFile.getAbsolutePath() + " manually.");
+						}
 						fos.write(source.getBytes(Config.configFileEncoding));
 					} catch (IOException e) {
 						e.printStackTrace();
