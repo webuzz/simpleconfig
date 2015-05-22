@@ -1744,15 +1744,43 @@ public class ConfigGenerator {
 	 */
 	public static void main(String[] args) {
 		if (args == null || args.length < 2) {
-			System.out.println("Usage: " + ConfigGenerator.class.getName() + " [--multiple-configs] <target config file> [old config file] <config class> [config class ...] [checking class]");
+			System.out.println("Usage: " + ConfigGenerator.class.getName()
+					+ " [--multiple-configs] [--compact-object] [--compact-array] [--compact-list] [--compact-set] [--compact-map]"
+					+ " <target config file> [old config file] <config class> [config class ...] [checking class]");
 			return;
 		}
+
 		boolean multipleConfigs = false;
 		int index = 0;
-		if ("--multiple-configs".equals(args[0])) {
-			multipleConfigs = true;
-			index++;
-		}
+		ConfigGenerator.readableArrayFormat = true;
+		ConfigGenerator.readableListFormat = true;
+		ConfigGenerator.readableMapFormat = true;
+		ConfigGenerator.readableObjectFormat = true;
+		ConfigGenerator.readableObjectFormat = true;
+		do {
+			String nextArg = args[index];
+			if ("--multiple-configs".equals(nextArg)) {
+				multipleConfigs = true;
+				index++;
+			} else if ("--compact-object".equals(nextArg)) {
+				ConfigGenerator.readableObjectFormat = false;
+				index++;
+			} else if ("--compact-array".equals(nextArg)) {
+				ConfigGenerator.readableArrayFormat = false;
+				index++;
+			} else if ("--compact-list".equals(nextArg)) {
+				ConfigGenerator.readableListFormat = false;
+				index++;
+			} else if ("--compact-set".equals(nextArg)) {
+				ConfigGenerator.readableSetFormat = false;
+				index++;
+			} else if ("--compact-map".equals(nextArg)) {
+				ConfigGenerator.readableMapFormat = false;
+				index++;
+			} else {
+				break;
+			}
+		} while (true);
 		String targetFile = args[index];
 		if (targetFile == null || targetFile.length() <= 0) {
 			System.out.println("Usage: " + ConfigGenerator.class.getName() + " [--multiple-configs] <target config file> [old config file] <config class> [config class ...] [checking class]");

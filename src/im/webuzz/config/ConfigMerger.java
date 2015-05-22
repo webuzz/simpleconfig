@@ -370,6 +370,10 @@ public class ConfigMerger {
 	}
 
 	public static boolean isConfigurationChanged(Class<?> clz, boolean combinedConfigs, Properties baseProps) {
+		return isConfigurationChanged(clz, combinedConfigs, baseProps, null);
+	}
+	
+	private static boolean isConfigurationChanged(Class<?> clz, boolean combinedConfigs, Properties baseProps, StringBuilder diffBuilder) {
 		String keyPrefix = null;
 		if (combinedConfigs) {
 			keyPrefix = Config.getKeyPrefix(clz);
@@ -413,10 +417,8 @@ public class ConfigMerger {
 				if ((modifiers & Modifier.PUBLIC) == 0) {
 					f.setAccessible(true);
 				}
-				if (Config.checkAndUpdateField(f, clz, v0, name, baseProps, false)) {
-					if (Config.checkAndUpdateField(f, clz, v0, name, baseProps, false)) {
-						return true;
-					}
+				if (Config.checkAndUpdateField(f, clz, v0, name, baseProps, false, diffBuilder)) {
+					return true;
 				}
 			} // end of if
 		} // end of for fields
@@ -510,7 +512,7 @@ public class ConfigMerger {
 		}
 	}
 	
-	private static boolean isConfigurationFileIncorrect(boolean multipleConfigs, String file, List<Class<?>> allConfigs) {
+	private static boolean isConfigurationFileIncorrect(boolean multipleConfigs, String file, List<Class<?>> allConfigs, StringBuilder diffBuilder) {
 		Properties defaultProps = new Properties();
 		FileInputStream fis = null;
 		try {
@@ -573,7 +575,7 @@ public class ConfigMerger {
 					}
 				}
 			}
-			if (isConfigurationChanged(clz, false, props)) { // incorrect configuration
+			if (isConfigurationChanged(clz, false, props, diffBuilder)) { // incorrect configuration
 				return true;
 			}
 		} // end of for classes
@@ -758,9 +760,11 @@ public class ConfigMerger {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		if (isConfigurationFileIncorrect(multipleConfigs, targetFile, allConfigs)) {
+		StringBuilder diffBuilder = new StringBuilder();
+		if (isConfigurationFileIncorrect(multipleConfigs, targetFile, allConfigs, diffBuilder)) {
 			// not the same, changed
 			System.out.println("Saved " + targetFile + " is incorrect!");
+			System.out.println(diffBuilder.toString());
 		} else {
 			System.out.println("Done!");
 		}
@@ -768,15 +772,42 @@ public class ConfigMerger {
 
 	public static void main(String[] args) {
 		if (args == null || args.length < 2) {
-			System.out.println("Usage: " + ConfigMerger.class.getName() + " <target config file> <merge config file> <config class> [config class ...] [checking class]");
+			System.out.println("Usage: " + ConfigMerger.class.getName()
+					+ " [--multiple-configs] [--compact-object] [--compact-array] [--compact-list] [--compact-set] [--compact-map]"
+					+ " <target config file> <merge config file> <config class> [config class ...] [checking class]");
 			return;
 		}
 		boolean multipleConfigs = false;
 		int index = 0;
-		if ("--multiple-configs".equals(args[0])) {
-			multipleConfigs = true;
-			index++;
-		}
+		ConfigGenerator.readableArrayFormat = true;
+		ConfigGenerator.readableListFormat = true;
+		ConfigGenerator.readableMapFormat = true;
+		ConfigGenerator.readableObjectFormat = true;
+		ConfigGenerator.readableObjectFormat = true;
+		do {
+			String nextArg = args[index];
+			if ("--multiple-configs".equals(nextArg)) {
+				multipleConfigs = true;
+				index++;
+			} else if ("--compact-object".equals(nextArg)) {
+				ConfigGenerator.readableObjectFormat = false;
+				index++;
+			} else if ("--compact-array".equals(nextArg)) {
+				ConfigGenerator.readableArrayFormat = false;
+				index++;
+			} else if ("--compact-list".equals(nextArg)) {
+				ConfigGenerator.readableListFormat = false;
+				index++;
+			} else if ("--compact-set".equals(nextArg)) {
+				ConfigGenerator.readableSetFormat = false;
+				index++;
+			} else if ("--compact-map".equals(nextArg)) {
+				ConfigGenerator.readableMapFormat = false;
+				index++;
+			} else {
+				break;
+			}
+		} while (true);
 		String targetFile = args[index];
 		String mergingFile = args[index + 1];
 		IConfigurable checking = null;

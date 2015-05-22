@@ -460,10 +460,21 @@ public class Config {
 				int dots = 1;
 				boolean hasKey = false;
 				String prefix = keyName + ".";
+				Set<String> parsedKeys = new HashSet<String>();
 				do {
 					for (String propName : names) {
 						if (propName.startsWith(prefix)) {
 							hasKey = true;
+							boolean alreadyParsed = false;
+							for (String key : parsedKeys) {
+								if (propName.startsWith(key)) {
+									alreadyParsed = true;
+									break;
+								}
+							}
+							if (alreadyParsed) {
+								continue;
+							}
 							String k = propName.substring(prefix.length());
 							String[] split = k.split("\\.");
 							if (split.length > dots) {
@@ -471,10 +482,11 @@ public class Config {
 							}
 							String v = (String) prop.getProperty(propName);
 							value.put(k, parseTypedObject(valueTypes, v, propName, prop));
+							parsedKeys.add(propName + ".");
 						}
 					}
 					dots++;
-				} while (value.isEmpty() && hasKey && dots < Math.max(1, configurationMapSearchingDots));
+				} while (hasKey && dots < Math.max(1, configurationMapSearchingDots));
 			}
 			return value;
 		}
@@ -1161,10 +1173,21 @@ public class Config {
 	}
 
 	protected static boolean checkAndUpdateField(Field f, Object obj, String p, String keyName, Properties prop, boolean updatingField) {
+		return checkAndUpdateField(f, obj, p, keyName, prop, updatingField, null);
+	}
+	
+	private static StringBuilder diffFieldPrefix(StringBuilder diffBuilder, Object obj, Field f) {
+		return diffBuilder.append((obj instanceof Class<?> ? (Class<?>) obj : obj.getClass()).getSimpleName())
+			.append('.').append(f.getName()).append(':');
+	}
+
+	protected static boolean checkAndUpdateField(Field f, Object obj, String p, String keyName, Properties prop, boolean updatingField, StringBuilder diffBuilder) {
 		Class<?> type = f.getType();
 		try {
 			if (type == int.class) {
 				if (!p.equals(String.valueOf(f.getInt(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getInt(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setInt(obj, Integer.parseInt(p));
 					return true;
 				}
@@ -1172,64 +1195,94 @@ public class Config {
 				String newStr = parseString(p);
 				String oldStr = (String) f.get(obj);
 				if ((newStr == null && oldStr != null) || (newStr != null && !newStr.equals(oldStr))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.set(obj, newStr);
 					return true;
 				}
 			} else if (type == boolean.class) {
 				if (!p.equals(String.valueOf(f.getBoolean(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getBoolean(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setBoolean(obj, Boolean.parseBoolean(p));
 					return true;
 				}
 			} else if (type == long.class) {
 				if (!p.equals(String.valueOf(f.getLong(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getLong(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setLong(obj, Long.parseLong(p));
 					return true;
 				}
 			} else if (type == int[].class) {
 				int[] newArr = parseIntegerArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (int[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == long[].class) {
 				long[] newArr = parseLongArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (long[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == boolean[].class) {
 				boolean[] newArr = parseBooleanArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (boolean[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == double[].class) {
 				double[] newArr = parseDoubleArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (double[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == float[].class) {
 				float[] newArr = parseFloatArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (float[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == short[].class) {
 				short[] newArr = parseShortArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (short[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == byte[].class) {
 				byte[] newArr = parseByteArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (byte[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == char[].class) {
 				char[] newArr = parseCharArray(p, keyName, prop);
 				if (!Arrays.equals(newArr, (char[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
@@ -1237,31 +1290,44 @@ public class Config {
 				Class<?> compType = type.getComponentType();
 				Object[] newArr = parseArray(p, new Class<?>[] { compType }, keyName, prop);
 				if (!Arrays.deepEquals(newArr, (Object[]) f.get(obj))) { // Only update necessary fields
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
 					if (updatingField) f.set(obj, newArr);
 					return true;
 				}
 			} else if (type == double.class) {
 				if (!p.equals(String.valueOf(f.getDouble(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getDouble(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setDouble(obj, Double.parseDouble(p));
 					return true;
 				}
 			} else if (type == float.class) {
 				if (!p.equals(String.valueOf(f.getFloat(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getFloat(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setFloat(obj, Float.parseFloat(p));
 					return true;
 				}
 			} else if (type == short.class) {
 				if (!p.equals(String.valueOf(f.getShort(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getShort(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setShort(obj, Short.parseShort(p));
 					return true;
 				}
 			} else if (type == byte.class) {
 				if (!p.equals(String.valueOf(f.getByte(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getByte(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setByte(obj, Byte.parseByte(p));
 					return true;
 				}
 			} else if (type == char.class) {
 				if (!p.equals(String.valueOf(f.getChar(obj)))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.getChar(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setChar(obj, p.charAt(0));
 					return true;
 				}
@@ -1276,6 +1342,9 @@ public class Config {
 					@SuppressWarnings("unchecked")
 					List<Object> oldList = (List<Object>) f.get(obj);
 					if (!listEquals(newList, oldList)) {
+						if (diffBuilder != null)
+							diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+								.append(newList == null ? null : "[" + newList.size() + "]").append("\r\n");
 						if (updatingField) f.set(obj, newList);
 						return true;
 					}
@@ -1284,6 +1353,9 @@ public class Config {
 					@SuppressWarnings("unchecked")
 					Set<Object> oldSet = (Set<Object>) f.get(obj);
 					if (!setEquals(newSet, oldSet)) {
+						if (diffBuilder != null)
+							diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+								.append(newSet == null ? null : "[" + newSet.size() + "]").append("\r\n");
 						if (updatingField) f.set(obj, newSet);
 						return true;
 					}
@@ -1292,6 +1364,9 @@ public class Config {
 					@SuppressWarnings("unchecked")
 					Map<String, Object> oldMap = (Map<String, Object>) f.get(obj);
 					if (!mapEquals(newMap, oldMap)) {
+						if (diffBuilder != null)
+							diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
+								.append(newMap == null ? null : "[" + newMap.size() + "]").append("\r\n");
 						if (updatingField) f.set(obj, newMap);
 						return true;
 					}
@@ -1299,48 +1374,64 @@ public class Config {
 			} else if (type == Integer.class) {
 				Integer v = (Integer) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.set(obj, $null.equals(p) ? null : Integer.valueOf(p));
 					return true;
 				}
 			} else if (type == Boolean.class) {
 				Boolean v = (Boolean) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.set(obj, $null.equals(p) ? null : Boolean.valueOf(p));
 					return true;
 				}
 			} else if (type == Long.class) {
 				Long v = (Long) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.set(obj, $null.equals(p) ? null : Long.valueOf(p));
 					return true;
 				}
 			} else if (type == Double.class) {
 				Double v = (Double) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setDouble(obj, $null.equals(p) ? null : Double.valueOf(p));
 					return true;
 				}
 			} else if (type == Float.class) {
 				Float v = (Float) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setFloat(obj, $null.equals(p) ? null : Float.valueOf(p));
 					return true;
 				}
 			} else if (type == Short.class) {
 				Short v = (Short) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setShort(obj, $null.equals(p) ? null : Short.valueOf(p));
 					return true;
 				}
 			} else if (type == Byte.class) {
 				Byte v = (Byte) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setByte(obj, $null.equals(p) ? null : Byte.valueOf(p));
 					return true;
 				}
 			} else if (type == Character.class) {
 				Character v = (Character) f.get(obj);
 				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.setChar(obj, $null.equals(p) ? null : Character.valueOf(p.charAt(0)));
 					return true;
 				}
@@ -1348,6 +1439,8 @@ public class Config {
 				Object newObj = parseObject(p, null, keyName, prop);
 				Object oldObj = f.get(obj);
 				if ((newObj == null && oldObj != null) || (newObj != null && !newObj.equals(oldObj))) {
+					if (diffBuilder != null)
+						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
 					if (updatingField) f.set(obj, newObj);
 					return true;
 				}
@@ -1378,17 +1471,17 @@ public class Config {
 
 	// Support List#equals with array comparison
 	@SuppressWarnings("unchecked")
-	static boolean listEquals(List<Object> l1, List<Object> l2) {
+	public static <T> boolean listEquals(List<T> l1, List<T> l2) {
 		if (l1 == l2)
 		    return true;
 		if ((l1 == null && l2 != null) || (l1 != null && l2 == null)) {
 			return false;
 		}
-		ListIterator<Object> e1 = l1.listIterator();
-		ListIterator<Object> e2 = l2.listIterator();
+		ListIterator<T> e1 = l1.listIterator();
+		ListIterator<T> e2 = l2.listIterator();
 		while(e1.hasNext() && e2.hasNext()) {
-		    Object o1 = e1.next();
-		    Object o2 = e2.next();
+		    T o1 = e1.next();
+		    T o2 = e2.next();
 		    if (o1 == null && o2 != null) {
 		    	return false;
 		    } else if (o1 != null) {
@@ -1437,8 +1530,8 @@ public class Config {
 	}
 
     @SuppressWarnings("unchecked")
-	static boolean setContains(Set<Object> s, Object o) {
-		Iterator<Object> e = s.iterator();
+	static <T> boolean setContains(Set<T> s, Object o) {
+		Iterator<T> e = s.iterator();
 		if (o==null) {
 		    while (e.hasNext())
 				if (e.next()==null)
@@ -1512,7 +1605,7 @@ public class Config {
     }
 
 	// Support Set#equals with array comparison
-	static boolean setEquals(Set<Object> s1, Set<Object> s2) {
+	public static <T> boolean setEquals(Set<T> s1, Set<T> s2) {
 		if (s1 == s2)
 		    return true;
 		if ((s1 == null && s2 != null) || (s1 != null && s2 == null)) {
@@ -1521,7 +1614,7 @@ public class Config {
 		if (s2.size() != s1.size())
 		    return false;
 	    try {
-	    	Iterator<?> e2 = s2.iterator();
+	    	Iterator<T> e2 = s2.iterator();
 	    	while (e2.hasNext()) {
 	    	    if (!setContains(s1, e2.next()))
 	    	    	return false;
@@ -1536,7 +1629,7 @@ public class Config {
 
 	// Support Map#equals with array comparison
 	@SuppressWarnings("unchecked")
-	static boolean mapEquals(Map<String, Object> m1, Map<String, Object> m2) {
+	public static <T> boolean mapEquals(Map<String, T> m1, Map<String, T> m2) {
 		if (m1 == m2)
 		    return true;
 		if ((m1 == null && m2 != null) || (m1 != null && m2 == null)) {
@@ -1546,9 +1639,9 @@ public class Config {
 		    return false;
 	
 	    try {
-	        Iterator<Entry<String,Object>> i = m1.entrySet().iterator();
+	        Iterator<Entry<String, T>> i = m1.entrySet().iterator();
 	        while (i.hasNext()) {
-	            Entry<String,Object> e = i.next();
+	            Entry<String, T> e = i.next();
 	            String key = e.getKey();
 	            Object value = e.getValue();
 	            if (value == null) {
