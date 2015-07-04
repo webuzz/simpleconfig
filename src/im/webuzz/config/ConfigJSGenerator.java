@@ -24,7 +24,9 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -32,18 +34,32 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 /**
- * Generate configuration default file.
+ * Generate configuration default file in JavaScript format.
  * 
  * @author zhourenjian
  *
  */
-public class ConfigGenerator {
+public class ConfigJSGenerator {
 
 	public static interface ICheckConfiguration {
 		
 		public void check(String clazzName, String fieldName);
 		
 	}
+	
+	protected static final String $null = "null";
+	protected static final String $empty = "[]";
+	protected static final String $arrayOpen = "[";
+	protected static final String $listOpen = "[";
+	protected static final String $setOpen = "[";
+	protected static final String $mapOpen = "{";
+	protected static final String $objectOpen = "{";
+	protected static final String $arrayClose = "]";
+	protected static final String $listClose = "]";
+	protected static final String $setClose = "]";
+	protected static final String $mapClose = "}";
+	protected static final String $objectClose = "}";
+
 
 	public static boolean readableArrayFormat = false; // For array
 	public static boolean readableSetFormat = false; // For set
@@ -55,6 +71,7 @@ public class ConfigGenerator {
 
 	public static String generateConfigruation(Class<?> clz, boolean combinedConfigs, ICheckConfiguration checking) {
 		StringBuilder builder = new StringBuilder();
+		builder.append("{\r\n");
 		//boolean skipUnchangedLines = false;
 		String keyPrefix = null;
 		if (combinedConfigs) { // generating combined configurations into one file
@@ -104,13 +121,13 @@ public class ConfigGenerator {
 					ignoringTemporyField = true;
 				}
 				if (keyPrefix != null)  {
-					name = keyPrefix + "." + name;
+					name = getPrefixIndent(keyPrefix) + "\t" + name;
 				}
 				if (checking != null) {
 					checking.check(clz.getName(), name);
 				}
 				if (fieldGenerated && !linebreakGenerated) {
-					builder.append("\r\n");
+					builder.append(",\r\n");
 					linebreakGenerated = true;
 				}
 				fieldGenerated = generateField(f, name, builder, clz, ignoringTemporyField);
@@ -122,6 +139,7 @@ public class ConfigGenerator {
 		if (fieldGenerated && !linebreakGenerated) {
 			builder.append("\r\n");
 		}
+		builder.append("}\r\n");
 		return builder.toString();
 	}
 
@@ -312,13 +330,13 @@ public class ConfigGenerator {
 	static void generateTypeObject(StringBuilder builder, String keyPrefix, Object o, Class<?>[] valueTypes, boolean unchanged) {
 		Class<?> type = valueTypes[0];
 		if (type == Integer.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == String.class) {
 			generateString(builder, keyPrefix, (String) o);
 		} else if (type == Boolean.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == Long.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == int[].class) {
 			generateIntegerArray(builder, keyPrefix, (int[]) o, unchanged);
 		} else if (type == long[].class) {
@@ -339,15 +357,15 @@ public class ConfigGenerator {
 			Class<?> compType = type.getComponentType();
 			generateArray(builder, keyPrefix, (Object[]) o, new Class<?>[] { compType }, unchanged);
 		} else if (type == Double.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == Float.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == Short.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == Byte.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == Character.class) {
-			builder.append(keyPrefix).append("=").append(o == null ? Config.$null : o);
+			builder.append(keyPrefix).append(":").append(o == null ? $null : o);
 		} else if (type == List.class || type == Set.class || type == Map.class) {
 			Class<?>[] nextValueTypes = null;
 			if (valueTypes.length > 1) {
@@ -379,19 +397,19 @@ public class ConfigGenerator {
 				int v = f.getInt(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == String.class) {
 				String v = (String) f.get(o);
 				if (v == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateString(builder, name, v);
 				return true;
@@ -399,29 +417,29 @@ public class ConfigGenerator {
 				boolean v = f.getBoolean(o);
 				if (v == false) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == long.class) {
 				long v = f.getLong(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == int[].class) {
 				int[] vs = (int[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateIntegerArray(builder, name, vs, unchanged);
 				return true;
@@ -429,9 +447,9 @@ public class ConfigGenerator {
 				long[] vs = (long[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateLongArray(builder, name, vs, unchanged);
 				return true;
@@ -439,9 +457,9 @@ public class ConfigGenerator {
 				boolean[] vs = (boolean[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateBooleanArray(builder, name, vs, unchanged);
 				return true;
@@ -449,9 +467,9 @@ public class ConfigGenerator {
 				double[] vs = (double[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateDoubleArray(builder, name, vs, unchanged);
 				return true;
@@ -459,9 +477,9 @@ public class ConfigGenerator {
 				float[] vs = (float[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateFloatArray(builder, name, vs, unchanged);
 				return true;
@@ -469,9 +487,9 @@ public class ConfigGenerator {
 				short[] vs = (short[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateShortArray(builder, name, vs, unchanged);
 				return true;
@@ -479,9 +497,9 @@ public class ConfigGenerator {
 				byte[] vs = (byte[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateByteArray(builder, name, vs, unchanged);
 				return true;
@@ -489,9 +507,9 @@ public class ConfigGenerator {
 				char[] vs = (char[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateCharArray(builder, name, vs, unchanged);
 				return true;
@@ -500,9 +518,9 @@ public class ConfigGenerator {
 				Object[] vs = (Object[])f.get(o);
 				if (vs == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateArray(builder, name, vs, new Class<?>[] { compType }, unchanged);
 				return true;
@@ -510,51 +528,51 @@ public class ConfigGenerator {
 				double v = f.getDouble(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == float.class) {
 				float v = f.getFloat(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == short.class) {
 				short v = f.getShort(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == byte.class) {
 				byte v = f.getByte(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == char.class) {
 				char v = f.getChar(o);
 				if (v == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v);
+				builder.append(name).append(":").append(v);
 				return true;
 			} else if (type == List.class || type == Set.class || type == Map.class) { // List<Object>
 				Class<?>[] valueTypes = null;
@@ -567,9 +585,9 @@ public class ConfigGenerator {
 					List<Object> vs = (List<Object>)f.get(o);
 					if (vs == null) {
 						if (skipUnchangedLines) return false;
-						builder.append("#");
+						builder.append("//");
 					} else if (unchanged) {
-						builder.append("#");
+						builder.append("//");
 					}
 					generateList(builder, name, vs, valueTypes, unchanged);
 				} else if (type == Set.class) {
@@ -577,9 +595,9 @@ public class ConfigGenerator {
 					Set<Object> vs = (Set<Object>)f.get(o);
 					if (vs == null) {
 						if (skipUnchangedLines) return false;
-						builder.append("#");
+						builder.append("//");
 					} else if (unchanged) {
-						builder.append("#");
+						builder.append("//");
 					}
 					generateSet(builder, name, vs, valueTypes, unchanged);
 				} else { // Map.class
@@ -587,9 +605,9 @@ public class ConfigGenerator {
 					Map<String, Object> vs = (Map<String, Object>) f.get(o);
 					if (vs == null) {
 						if (skipUnchangedLines) return false;
-						builder.append("#");
+						builder.append("//");
 					} else if (unchanged) {
-						builder.append("#");
+						builder.append("//");
 					}
 					generateMap(builder, name, vs, valueTypes, unchanged);
 				}
@@ -598,89 +616,89 @@ public class ConfigGenerator {
 				Integer v = (Integer) f.get(o);
 				if (v == null || v.intValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Boolean.class) {
 				Boolean v = (Boolean) f.get(o);
 				if (v == null || v.booleanValue() == false) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Long.class) {
 				Long v = (Long) f.get(o);
 				if (v == null || v.longValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Double.class) {
 				Double v = (Double) f.get(o);
 				if (v == null || v.doubleValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Float.class) {
 				Float v = (Float) f.get(o);
 				if (v == null || v.floatValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Short.class) {
 				Short v = (Short) f.get(o);
 				if (v == null || v.shortValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Byte.class) {
 				Byte v = (Byte) f.get(o);
 				if (v == null || v.byteValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else if (type == Character.class) {
 				Character v = (Character) f.get(o);
 				if (v == null || v.charValue() == 0) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
-				builder.append(name).append("=").append(v == null ? Config.$null : v);
+				builder.append(name).append(":").append(v == null ? $null : v);
 				return true;
 			} else {
 				Object v = f.get(o);
 				if (v == null) {
 					if (skipUnchangedLines) return false;
-					builder.append("#");
+					builder.append("//");
 				} else if (unchanged) {
-					builder.append("#");
+					builder.append("//");
 				}
 				generateObject(builder, name, v, unchanged);
 				return true;
@@ -691,12 +709,41 @@ public class ConfigGenerator {
 		return false;
 	}
 	
+	static String getPrefixIndent(String prefix) {
+		int nameLength = prefix.length();
+		StringBuilder builder = new StringBuilder();
+		for (int i = 0; i < nameLength; i++) {
+			if (prefix.charAt(i) == '\t') {
+				builder.append('\t');
+			}
+		}
+		return builder.toString();
+	}
+
+	static Set<String> keywords = new HashSet<String>(Arrays.asList(new String[] {
+			"class", /*"java", "javax", "sun", */"for", "while", "do", "in", "return", "function", "var", 
+			"class", "pubic", "protected", "private", "new", "delete",
+			"static", "package", "import", "extends", "implements",
+			"instanceof", "typeof", "void", "if", "this", "super",
+			"prototype", "else", "break", "true", "fasle", "try",
+			"catch", "throw", "throws", "continue", "switch", "default",
+			"case", "export", "import", "const", /*"label", */"with",
+			"arguments",
+			"valueOf"
+	}));
+
 	static void generateObject(StringBuilder builder, String keyPrefix, Object o, boolean unchanged) {
 		if (o instanceof Object[]) {
 			generateArray(builder, keyPrefix, (Object[]) o, new Class<?>[] { o.getClass().getComponentType() }, unchanged);
 			return;
 		}
-		builder.append(keyPrefix).append("=");
+		char ch = builder.charAt(builder.length() - 1);
+		if (ch == '\n' || ch == '\t') {
+			builder.append(keyPrefix);
+		}
+		if (hasNames(keyPrefix)) {
+			builder.append(":");
+		}
 		if (o != null) {
 			boolean multipleLines = readableObjectFormat || !isPlainObject(o);
 			boolean generated = false;
@@ -708,6 +755,7 @@ public class ConfigGenerator {
 			if (filter != null && filter.modifiers >= 0) {
 				filteringModifiers = filter.modifiers;
 			}
+			builder.append($objectOpen);
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
 				if (f == null) {
@@ -738,17 +786,16 @@ public class ConfigGenerator {
 				}
 				if (multipleLines) {
 					if (!generated) {
-						builder.append(Config.$object);
 						builder.append("\r\n");
 						separatorGenerated = true;
 						generated = true;
 					}
 					if (fieldGenerated && !separatorGenerated) {
-						builder.append("\r\n");
+						builder.append(",\r\n");
 						separatorGenerated = true;
 					}
 					if (keyPrefix != null)  {
-						name = keyPrefix + "." + name;
+						name = getPrefixIndent(keyPrefix) + "\t" + (keywords.contains(name) ? "\"" + name + "\"" : name);
 					}
 					fieldGenerated = generateField(f, name, builder, o, unchanged);
 					if (fieldGenerated) {
@@ -757,7 +804,7 @@ public class ConfigGenerator {
 					}
 				} else {
 					if (fieldGenerated && !separatorGenerated) {
-						builder.append(";"); // separatorGenerated was false by default
+						builder.append(","); // separatorGenerated was false by default
 						separatorGenerated = true;
 					}
 					Class<?> type = f.getType();
@@ -765,272 +812,272 @@ public class ConfigGenerator {
 						if (type == int.class) {
 							int v = f.getInt(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == String.class) {
 							String v = (String)f.get(o);
 							if (v == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(generatePlainString(v));
+							builder.append(name).append(":").append(generatePlainString(v));
 							fieldGenerated = true;
 						} else if (type == boolean.class) {
 							boolean v = f.getBoolean(o);
 							if (v == false && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == long.class) {
 							long v = f.getLong(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == int[].class) {
 							int[] vs = (int[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == long[].class) {
 							long[] vs = (long[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == boolean[].class) {
 							boolean[] vs = (boolean[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == double[].class) {
 							double[] vs = (double[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == float[].class) {
 							float[] vs = (float[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == short[].class) {
 							short[] vs = (short[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == byte[].class) {
 							byte[] vs = (byte[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == char[].class) {
 							char[] vs = (char[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								builder.append(vs[0]);
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type.isArray()) {
 							Object[] vs = (Object[]) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.length == 1) {
 								Object v = vs[0];
 								if (v == null) {
-									builder.append(Config.$null);
+									builder.append($null);
 								} else if (v instanceof String) {
 									builder.append(generatePlainString((String) v));
 								} else if (isBasicType(v.getClass())) {
-									builder.append(v == null ? Config.$null : v);
+									builder.append(v == null ? $null : v);
 								} else { // v is empty
-									builder.append(Config.$empty);
+									builder.append($empty);
 								}
 							} else { // vs.length == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == double.class) {
 							double v = f.getDouble(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == float.class) {
 							float v = f.getFloat(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == short.class) {
 							short v = f.getShort(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == byte.class) {
 							byte v = f.getByte(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == char.class) {
 							char v = f.getChar(o);
 							if (v == 0 && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v);
+							builder.append(name).append(":").append(v);
 							fieldGenerated = true;
 						} else if (type == List.class) { // List<Object>
 							@SuppressWarnings("unchecked")
 							List<String> vs = (List<String>)f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.size() == 1) {
 								Object v = vs.get(0);
 								if (v instanceof String) {
 									builder.append(generatePlainString((String) v));
 								} else if (isBasicType(v.getClass())) {
-									builder.append(v == null ? Config.$null : v);
+									builder.append(v == null ? $null : v);
 								} else {
-									builder.append(Config.$empty);
+									builder.append($empty);
 								}
 							} else { // vs.size() == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == Set.class) { // Set<Object>
 							@SuppressWarnings("unchecked")
 							Set<String> vs = (Set<String>)f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.size() == 1) {
 								Object v = vs.iterator().next();
 								if (v instanceof String) {
 									builder.append(generatePlainString((String) v));
 								} else if (isBasicType(v.getClass())) {
-									builder.append(v == null ? Config.$null : v);
+									builder.append(v == null ? $null : v);
 								} else {
-									builder.append(Config.$empty);
+									builder.append($empty);
 								}
 							} else { // vs.size() == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == Map.class) { // Map<String, Object>
 							@SuppressWarnings("unchecked")
 							Map<String, Object> vs = (Map<String, Object>) f.get(o);
 							if (vs == null && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (vs == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else if (vs.size() == 1) {
 								Object v = vs.values().iterator().next();
 								if (v instanceof String) {
 									builder.append(generatePlainString((String) v));
 								} else if (isBasicType(v.getClass())) {
-									builder.append(v == null ? Config.$null : v);
+									builder.append(v == null ? $null : v);
 								} else {
-									builder.append(Config.$empty);
+									builder.append($empty);
 								}
 							} else { // vs.size() == 0
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						} else if (type == Integer.class) {
 							Integer v = (Integer) f.get(o);
 							if ((v == null || v.intValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Boolean.class) {
 							Boolean v = (Boolean) f.get(o);
 							if ((v == null || v.booleanValue() == false) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Long.class) {
 							Long v = (Long) f.get(o);
 							if ((v == null || v.longValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Double.class) {
 							Double v = (Double) f.get(o);
 							if ((v == null || v.doubleValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Float.class) {
 							Float v = (Float) f.get(o);
 							if ((v == null || v.floatValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Short.class) {
 							Short v = (Short) f.get(o);
 							if ((v == null || v.shortValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Byte.class) {
 							Byte v = (Byte) f.get(o);
 							if ((v == null || v.byteValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else if (type == Character.class) {
 							Character v = (Character) f.get(o);
 							if ((v == null || v.charValue() == 0) && (skipUnchangedLines || skipObjectUnchangedFields)) continue;
-							builder.append(name).append(">").append(v == null ? Config.$null : v);
+							builder.append(name).append(":").append(v == null ? $null : v);
 							fieldGenerated = true;
 						} else {
 							Object v = f.get(o);
-							builder.append(name).append(">");
+							builder.append(name).append(":");
 							if (v == null) {
-								builder.append(Config.$null);
+								builder.append($null);
 							} else { // no fields
-								builder.append(Config.$empty);
+								builder.append($empty);
 							}
 							fieldGenerated = true;
 						}
@@ -1043,73 +1090,105 @@ public class ConfigGenerator {
 					}
 				} // end of if multiple/single line configuration
 			} // end of for fields
-			if (!fieldGenerated && !separatorGenerated && !generated) { // length == 0
-				builder.append(Config.$empty);
+//			if (!fieldGenerated && !separatorGenerated && !generated) { // length == 0
+//				builder.append($empty);
+//			}
+			if (multipleLines) {
+				if (builder.length() > 3 && ",\r\n".equals(builder.substring(builder.length() - 3, builder.length()))) {
+					builder.delete(builder.length() - 3, builder.length());
+				}
+				if (builder.length() > 2 && !"\r\n".equals(builder.substring(builder.length() - 2, builder.length()))) {
+					builder.append("\r\n");
+				}
+				builder.append(getPrefixIndent(keyPrefix));
 			}
+			builder.append($objectClose);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateMap(StringBuilder builder, String name, Map<String, Object> vs, Class<?>[] valueTypes, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null) {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			Set<Entry<String, Object>> entries = vs.entrySet();
 			if (entries.size() > 0) {
-				if (readableMapFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
-					builder.append(Config.$map);
+				builder.append($mapOpen);
+				//if (readableMapFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
+					boolean generated = false;
 					for (Entry<String, Object> entry : entries) {
+						if (generated) {
+							builder.append(",");
+						}
 						builder.append("\r\n");
 						if (unchanged) {
-							builder.append("#");
+							builder.append("//");
 						}
 						String k = entry.getKey().trim();
+						String prefix = getPrefixIndent(name) + "\t" + (keywords.contains(k) ? "\"" + k + "\"" : k);
 						if (isTypeString) {
 							String v = (String) entry.getValue();
-							generateString(builder, name + "." + k, v != null ? v.trim() : null);
+							generateString(builder, prefix, v != null ? v.trim() : null);
 						} else {
-							generateTypeObject(builder, name + "." + k, entry.getValue(), valueTypes, unchanged);
+							generateTypeObject(builder, prefix, entry.getValue(), valueTypes, unchanged);
 						}
+						generated = true;
 					}
+					if (builder.length() > 3 && ",\r\n".equals(builder.substring(builder.length() - 3, builder.length()))) {
+						builder.delete(builder.length() - 3, builder.length());
+					}
+					if (builder.length() > 2 && !"\r\n".equals(builder.substring(builder.length() - 2, builder.length()))) {
+						builder.append("\r\n");
+					}
+					builder.append(getPrefixIndent(name));
+				/*
 				} else {
 					boolean first = true;
 					for (Entry<String, Object> entry : entries) {
 						if (!first) {
-							builder.append(";");
+							builder.append(",");
 						}
 						String k = entry.getKey().trim();
 						Object v = entry.getValue();
-						builder.append(configFormat(k))
+						String keyStr = configFormat(k);
+						keyStr = keywords.contains(keyStr) ? "\"" + keyStr + "\"" : keyStr;
+						builder.append(keyStr)
 								.append('>')
-								.append(isTypeString ? generatePlainString((String) v) : (v == null ? Config.$null : v));
+								.append(isTypeString ? generatePlainString((String) v) : (v == null ? $null : v));
 						first = false;
 					}
 				}
+				// */
+				builder.append($mapClose);
 			} else { // length == 0
-				builder.append(Config.$empty);
+				builder.append($empty);
 			}
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateSet(StringBuilder builder, String name, Set<Object> vs, Class<?>[] valueTypes, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.size() > 0) {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			boolean first = true;
+			builder.append($setOpen);
+			/*
 			if (readableSetFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
-				builder.append(Config.$set);
 				int size = vs.size();
 				int length = String.valueOf(size).length();
 				int index = 1;
 				for (Object o : vs) {
+					if (index != 1) {
+						builder.append(",");
+					}
 					builder.append("\r\n");
 					if (unchanged) {
-						builder.append("#");
+						builder.append("//");
 					}
 					StringBuilder sb = new StringBuilder(name);
 					sb.append('.');
@@ -1126,37 +1205,44 @@ public class ConfigGenerator {
 					}
 					index++;
 				}
+				builder.append("\r\n").append(getPrefixIndent(name));
 			} else {
+			// */
 				for (Object o : vs) {
 					if (!first) {
-						builder.append(";");
+						builder.append(",");
 					}
 					first = false;
-					builder.append(isTypeString ? generatePlainString((String) o) : (o == null ? Config.$null : o));
+					builder.append(isTypeString ? generatePlainString((String) o) : (o == null ? $null : o));
 				}
-			}
+			// }
+			builder.append($setClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateList(StringBuilder builder, String name, List<Object> vs, Class<?>[] valueTypes, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.size() > 0) {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			boolean first = true;
+			builder.append($listOpen);
+			/*
 			if (readableListFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
-				builder.append(Config.$list);
 				int size = vs.size();
 				int length = String.valueOf(size).length();
 				int index = 1;
 				for (Object o : vs) {
+					if (index != 1) {
+						builder.append(",");
+					}
 					builder.append("\r\n");
 					if (unchanged) {
-						builder.append("#");
+						builder.append("//");
 					}
 					StringBuilder sb = new StringBuilder(name).append('.');
 					int deltaLen = length - String.valueOf(index).length();
@@ -1172,372 +1258,240 @@ public class ConfigGenerator {
 					}
 					index++;
 				}
+				builder.append("\r\n").append(getPrefixIndent(name));
 			} else {
+			// */
 				for (Object o : vs) {
 					if (!first) {
-						builder.append(";");
+						builder.append(",");
 					}
 					first = false;
-					builder.append(isTypeString ? generatePlainString((String) o) : (o == null ? Config.$null : o));
+					builder.append(isTypeString ? generatePlainString((String) o) : (o == null ? $null : o));
 				}
-			}
+			// }
+			builder.append($listClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateCharArray(StringBuilder builder, String name, char[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append('\'').append(vs[k]).append('\'');
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateByteArray(StringBuilder builder, String name, byte[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateShortArray(StringBuilder builder, String name, short[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateFloatArray(StringBuilder builder, String name, float[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateDoubleArray(StringBuilder builder, String name, double[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateBooleanArray(StringBuilder builder, String name, boolean[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateLongArray(StringBuilder builder, String name, long[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateIntegerArray(StringBuilder builder, String name, int[] vs, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name).append(":");
 		if (vs != null && vs.length > 0) {
-			if (readableArrayFormat) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
-				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
-					if (unchanged) {
-						builder.append('#');
-					}
-					builder.append(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						builder.append('0');
-					}
-					builder.append(index).append("=");
-					builder.append(vs[k]);
-					index++;
+			builder.append($arrayOpen);
+			for (int k = 0; k < vs.length; k++) {
+				if (k > 0) {
+					builder.append(",");
 				}
-			} else {
-				for (int k = 0; k < vs.length; k++) {
-					if (k > 0) {
-						builder.append(";");
-					}
-					builder.append(vs[k]);
-				}
+				builder.append(vs[k]);
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
+	static boolean hasNames(String name) {
+		int nameLength = name.length();
+		for (int i = 0; i < nameLength; i++) {
+			char c = name.charAt(i);
+			if (c != '\t') {
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	static void generateArray(StringBuilder builder, String name, Object[] vs, Class<?>[] valueTypes, boolean unchanged) {
-		builder.append(name).append("=");
+		builder.append(name);
+		if (hasNames(name)) {
+			builder.append(":");
+		}
 		if (vs != null && vs.length > 0) {
+			builder.append($arrayOpen);
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
 			if (readableArrayFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
-				builder.append(Config.$array);
-				int size = vs.length;
-				int length = String.valueOf(size).length();
-				int index = 1;
+				String prefixIndent = getPrefixIndent(name);
+				if (vs.length > 1 && isTypeString) {
+					prefixIndent += "\t";
+				}
 				for (int k = 0; k < vs.length; k++) {
-					builder.append("\r\n");
+					if (k != 0) {
+						builder.append(",");
+					}
+					if (vs.length > 1 && isTypeString) {
+						builder.append("\r\n");
+					}
 					if (unchanged) {
-						builder.append('#');
+						builder.append("//");
 					}
-					StringBuilder sb = new StringBuilder(name).append('.');
-					int deltaLen = length - String.valueOf(index).length();
-					for (int i = 0; i < deltaLen; i++) {
-						sb.append('0');
-					}
-					sb.append(index);
 					if (isTypeString) {
-						builder.append(sb).append("=").append(generatePlainString((String) vs[k]));
+						builder.append(prefixIndent).append(generatePlainString((String) vs[k]));
 					} else {
-						generateTypeObject(builder, sb.toString(), vs[k], valueTypes, unchanged);
+						generateTypeObject(builder, prefixIndent, vs[k], valueTypes, unchanged);
 					}
-					index++;
+				}
+				if (vs.length > 1 && isTypeString) {
+					builder.append("\r\n").append(prefixIndent).delete(builder.length() - 1, builder.length());
 				}
 			} else {
 				for (int k = 0; k < vs.length; k++) {
 					if (k > 0) {
-						builder.append(";");
+						builder.append(",");
 					}
-					builder.append(isTypeString ? generatePlainString((String) vs[k]) : (vs[k] == null ? Config.$null : vs[k]));
+					builder.append(isTypeString ? generatePlainString((String) vs[k]) : (vs[k] == null ? $null : vs[k]));
 				}
 			}
+			builder.append($arrayClose);
 		} else if (vs != null) { // vs.length == 0
-			builder.append(Config.$empty);
+			builder.append($empty);
 		} else {
-			builder.append(Config.$null);
+			builder.append($null);
 		}
 	}
 
 	static void generateString(StringBuilder builder, String name, String v) {
-		builder.append(name).append("=").append(generatePlainString(v));
+		builder.append(name).append(":").append(generatePlainString(v));
 	}
 
 	static String generatePlainString(String v) {
 		if (v != null && v.length() > 0) {
-			return configFormat(v);
+			return "\"" + configFormat(v) + "\"";
 		} else if (v != null) { // v.length() == 0
-			return Config.$empty;
+			return $empty;
 		} else {
-			return Config.$null;
+			return $null;
 		}
 	}
 
@@ -1664,7 +1618,7 @@ public class ConfigGenerator {
 				if (builder.length() > 0) {
 					builder.append("\r\n");
 				}
-				builder.append("# ").append(clz.getSimpleName()).append("\r\n");
+				builder.append("// ").append(clz.getSimpleName()).append("\r\n");
 			} else {
 				builder = new StringBuilder();
 			}
@@ -1747,7 +1701,7 @@ public class ConfigGenerator {
 	 */
 	public static void main(String[] args) {
 		if (args == null || args.length < 2) {
-			System.out.println("Usage: " + ConfigGenerator.class.getName()
+			System.out.println("Usage: " + ConfigJSGenerator.class.getName()
 					+ " [--multiple-configs] [--compact-object] [--compact-array] [--compact-list] [--compact-set] [--compact-map]"
 					+ " <target config file> [old config file] <config class> [config class ...] [checking class]");
 			return;
@@ -1755,30 +1709,30 @@ public class ConfigGenerator {
 
 		boolean multipleConfigs = false;
 		int index = 0;
-		ConfigGenerator.readableArrayFormat = true;
-		ConfigGenerator.readableListFormat = true;
-		ConfigGenerator.readableMapFormat = true;
-		ConfigGenerator.readableObjectFormat = true;
-		ConfigGenerator.readableSetFormat = true;
+		ConfigJSGenerator.readableArrayFormat = true;
+		ConfigJSGenerator.readableListFormat = true;
+		ConfigJSGenerator.readableMapFormat = true;
+		ConfigJSGenerator.readableObjectFormat = true;
+		ConfigJSGenerator.readableSetFormat = true;
 		do {
 			String nextArg = args[index];
 			if ("--multiple-configs".equals(nextArg)) {
 				multipleConfigs = true;
 				index++;
 			} else if ("--compact-object".equals(nextArg)) {
-				ConfigGenerator.readableObjectFormat = false;
+				ConfigJSGenerator.readableObjectFormat = false;
 				index++;
 			} else if ("--compact-array".equals(nextArg)) {
-				ConfigGenerator.readableArrayFormat = false;
+				ConfigJSGenerator.readableArrayFormat = false;
 				index++;
 			} else if ("--compact-list".equals(nextArg)) {
-				ConfigGenerator.readableListFormat = false;
+				ConfigJSGenerator.readableListFormat = false;
 				index++;
 			} else if ("--compact-set".equals(nextArg)) {
-				ConfigGenerator.readableSetFormat = false;
+				ConfigJSGenerator.readableSetFormat = false;
 				index++;
 			} else if ("--compact-map".equals(nextArg)) {
-				ConfigGenerator.readableMapFormat = false;
+				ConfigJSGenerator.readableMapFormat = false;
 				index++;
 			} else {
 				break;
@@ -1786,7 +1740,7 @@ public class ConfigGenerator {
 		} while (true);
 		String targetFile = args[index];
 		if (targetFile == null || targetFile.length() <= 0) {
-			System.out.println("Usage: " + ConfigGenerator.class.getName() + " [--multiple-configs] <target config file> [old config file] <config class> [config class ...] [checking class]");
+			System.out.println("Usage: " + ConfigJSGenerator.class.getName() + " [--multiple-configs] <target config file> [old config file] <config class> [config class ...] [checking class]");
 			System.out.println("Target config file path can not be empty.");
 			return;
 		}

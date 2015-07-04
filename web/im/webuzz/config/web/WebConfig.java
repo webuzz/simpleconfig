@@ -5,6 +5,9 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *
+ * Source hosted at
+ * https://github.com/webuzz/simpleconfig
+ * 
  * Contributors:
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
@@ -66,6 +69,7 @@ public class WebConfig {
 	 * Target URL with template support.
 	 * 
 	 * Static file pattern: "${server.url.prefix}/configs/${local.server.name}/${config.key.prefix}.ini"
+	 * Static file pattern: "${server.url.prefix}/configs/${local.server.name}/${config.key.prefix}${config.file.extension}"
 	 * Dynamic URL pattern: "${server.url.prefix}/config?server=${local.server.name}&prefix=${config.key.prefix}"
 	 * Server authorization pattern: "${server.auth.user}:${server.auth.password}"
 	 */
@@ -91,4 +95,24 @@ public class WebConfig {
 	 * Interval of checking web remote server for configuration file update.
 	 */
 	public static long webRequestInterval = 10000;
+
+	/**
+	 * Supports MD5 ETag for HTTP request or not.
+	 */
+	public static boolean webRequestSupportsMD5ETag = true;
+	
+	/**
+	 * Try to synchronize other resource files from remote server.
+	 */
+	public static String[] extraResourceFiles = null;
+
+	/**
+	 * Target URL with template support.
+	 * 
+	 * Static file pattern: "${server.url.prefix}/configs/${local.server.name}/${extra.file.path}"
+	 * Dynamic URL pattern: "${server.url.prefix}/config?server=${local.server.name}&path=${extra.file.path}"
+	 * Server authorization pattern: "${server.auth.user}:${server.auth.password}"
+	 */
+	public static String extraTargetURLPattern = null;
+
 }

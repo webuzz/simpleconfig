@@ -5,6 +5,9 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *
+ * Source hosted at
+ * https://github.com/webuzz/simpleconfig
+ * 
  * Contributors:
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
@@ -49,6 +52,11 @@ public class Config {
 
 	public static String configurationFile = null;
 	public static String configurationFileExtension = ".ini";
+	/**
+	 * Supporting multiple configuration formats. The scanning extension order will be used
+	 * to find configuration file and will decide the priority of which file will be used.
+	 */
+	public static String[] configurationScanningExtensions = new String[] { ".js", ".json", ".xml", ".ini", ".properties", ".props", ".config", ".conf", ".cfg" };
 	public static String configurationFolder = null;
 	public static boolean configurationMultipleFiles = true;
 	
@@ -57,6 +65,14 @@ public class Config {
 	public static Map<String, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<String, ConfigFieldFilter>();
 	
 	public static int configurationMapSearchingDots = 10;
+
+	/**
+	 * The class for configured password decryption.
+	 * If not set, password is in plain text. 
+	 * 
+	 * im.webuzz.config.security.SecurityKit is a reference implementation.
+	 */
+	public static String configurationSecurityDecrypter = "im.webuzz.config.security.SecurityKit";
 	
 	public static boolean configurationLogging = false;
 	
@@ -233,15 +249,16 @@ public class Config {
 	public static String getKeyPrefix(Class<?> clz) {
 		Field f = null;
 		try {
-			f = clz.getField(keyPrefixFieldName);
+			f = clz.getDeclaredField(keyPrefixFieldName);
 			if (f == null) {
 				return null;
 			}
 			int modifiers = f.getModifiers();
-			if ((modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) != 0
-					&& (modifiers & Modifier.STATIC) != 0
+			if (/*(modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) != 0
+					&& */(modifiers & Modifier.STATIC) != 0
 					&& (modifiers & Modifier.FINAL) != 0
 					&& f.getType() == String.class) {
+				f.setAccessible(true);
 				String keyPrefix = (String) f.get(clz);
 				if (keyPrefix.length() == 0) {
 					keyPrefix = null;
@@ -252,6 +269,13 @@ public class Config {
 		} catch (NoSuchFieldException e) {
 		} catch (IllegalArgumentException e) {
 		} catch (IllegalAccessException e) {
+		}
+		ConfigKeyPrefix prefixAnn = clz.getAnnotation(ConfigKeyPrefix.class);
+		if (prefixAnn != null) {
+			String prefix = prefixAnn.value();
+			if (prefix != null && prefix.length() > 0) {
+				return prefix;
+			}
 		}
 		return null;
 	}
@@ -336,7 +360,8 @@ public class Config {
 		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
 			Field[] fields = type.getDeclaredFields();
 			int filteringModifiers = Modifier.PUBLIC;
-			ConfigFieldFilter filter = configurationFilters.get(type.getName());
+			Map<String, ConfigFieldFilter> configFilter = configurationFilters;
+			ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
 			if (filter != null && filter.modifiers >= 0) {
 				filteringModifiers = filter.modifiers;
 			}
@@ -383,7 +408,8 @@ public class Config {
 		// Single line configuration
 		String[] arr = p.split("\\s*;\\s*");
 		int filteringModifiers = Modifier.PUBLIC;
-		ConfigFieldFilter filter = configurationFilters.get(type.getName());
+		Map<String, ConfigFieldFilter> configFilter = configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
 		if (filter != null && filter.modifiers >= 0) {
 			filteringModifiers = filter.modifiers;
 		}
@@ -1082,7 +1108,7 @@ public class Config {
 		}
 	}
 	
-	public static void parseConfiguration(Class<?> clz, boolean combinedConfigs, Properties prop) {
+	public static void parseConfiguration(Class<?> clz, boolean combinedConfigs, Properties prop, boolean callUpdating) {
 		if (clz == null) {
 			return;
 		}
@@ -1093,7 +1119,8 @@ public class Config {
 		}
 		Field[] fields = clz.getDeclaredFields();
 		int filteringModifiers = Modifier.PUBLIC;
-		ConfigFieldFilter filter = configurationFilters.get(clz.getName());
+		Map<String, ConfigFieldFilter> configFilter = configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz.getName()) : null;
 		if (filter != null && filter.modifiers >= 0) {
 			filteringModifiers = filter.modifiers;
 		}
@@ -1139,15 +1166,17 @@ public class Config {
 				}
 			}
 		}
-		try {
-			Method method = clz.getMethod("update", Properties.class);
-			if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
-				method.invoke(null, prop);
+		if (callUpdating || keyPrefix == null || keyPrefix.length() == 0) {
+			try {
+				Method method = clz.getMethod("update", Properties.class);
+				if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
+					method.invoke(null, prop);
+				}
+			} catch (NoSuchMethodException e) {
+				// ignore
+			} catch (Throwable e) {
+				e.printStackTrace();
 			}
-		} catch (NoSuchMethodException e) {
-			// ignore
-		} catch (Throwable e) {
-			e.printStackTrace();
 		}
 	}
 	
@@ -1694,6 +1723,38 @@ public class Config {
 	        return false;
 	    }
 		return true;
+	}
+
+	/**
+	 * If secret is encrypted and security decrypter is configured, try decrypt
+	 * given secret to raw secret.
+	 * 
+	 * @param secret
+	 * @return
+	 */
+	public static String parseSecret(final String secret) {
+		if (secret == null || secret.length() == 0) {
+			return secret;
+		}
+		String decrypterClass = configurationSecurityDecrypter;
+		if (decrypterClass != null && decrypterClass.length() > 0) {
+			Class<?> clz = loadConfigurationClass(decrypterClass);
+			if (clz != null) {
+				try {
+					Method m = clz.getMethod("decrypt", String.class); // password
+					Object result = m.invoke(clz, secret);
+					if (result instanceof String) {
+						return (String) result;
+					}
+				} catch (NoSuchMethodException e) {
+					// do nothing
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			// password = SecurityKit.decrypt(password);
+		}
+		return secret;
 	}
 	
 }

@@ -5,6 +5,9 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *
+ * Source hosted at
+ * https://github.com/webuzz/simpleconfig
+ * 
  * Contributors:
  *     Zhou Renjian - initial API and implementation
  *******************************************************************************/
