@@ -152,6 +152,8 @@ public class ConfigFileWatchman {
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
+		} catch (Throwable e) {
+			e.printStackTrace();
 		} finally {
 			if (fis != null) {
 				try {
