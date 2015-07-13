@@ -428,6 +428,7 @@ public class ConfigMerger {
 		return false;
 	}
 
+	// FIXME: Multiple lines of given configuration item are not correctly kept or commented out.
 	public static byte[] mergeWithIgnoringFields(byte[] responseBytes, byte[] localBytes, String keyPrefix, String[] ignoringFields) {
 		if (ignoringFields == null || ignoringFields.length == 0) {
 			return localBytes;

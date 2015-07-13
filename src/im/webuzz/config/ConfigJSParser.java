@@ -18,8 +18,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
+import java.util.List;
 
 import javax.script.ScriptEngine;
+import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
@@ -49,8 +52,10 @@ public class ConfigJSParser {
 			"function visit(builder, ignoringProps, prefix, o) {\r\n" +
 			"	if (o == null) {\r\n" +
 			"		builder[builder.length] = prefix + \"=[null]\"; \r\n" +
-			"	} else if (typeof o == \"string\" || typeof o == \"number\" || typeof o == \"boolean\") {\r\n" +
+			"	} else if (typeof o == \"string\") {\r\n" +
 			"		builder[builder.length] = prefix + \"=\" + ((o == \"\") ? \"[empty]\" : o); \r\n" +
+			"	} else if (typeof o == \"number\" || typeof o == \"boolean\") {\r\n" +
+			"		builder[builder.length] = prefix + \"=\" + o; \r\n" +
 			"	} else if (o instanceof Array) {\r\n" +
 			"		var length = o.length;\r\n" +
 			"		if (length == 0) {\r\n" +
@@ -132,16 +137,64 @@ public class ConfigJSParser {
 			baos.write(buffer, 0, read);
 		}
 		String js = new String(baos.toByteArray(), Config.configFileEncoding);
+		// ATTENTION: js might be malicious script
+		String script = convertJS + "\r\n$config = " + js.trim() + ";\r\nconvertToProperties($config);";
+		// script =
+		// "Packages.java.lang.System.exit(0);" +
+		// "java.lang.System.exit(0);" +
+		// "f = new java.io.File('./.project'); " +
+		// "java.lang.System.out.println('hello ' + f); " +
+		// "java.lang.System.out.println('hello ' + f.lastModified()); " +
+		// "importPackage(\"java.lang\");" +
+		// "i = java.lang.Integer.valueOf('5');" +
+		// "sb=i.getClass().forName("java.lang.StringBuffer").newInstance();" +
+		// script;
+		
+		Object o = null;
+		
 		ScriptEngineManager mgr = new ScriptEngineManager();
-		ScriptEngine jsEngine = mgr.getEngineByName("JavaScript");
-		try {
-			Object o = jsEngine.eval(convertJS + "\r\n$config = " + js.trim() + ";\r\nconvertToProperties($config);");
-			if (o instanceof String) {
-				String props = (String) o;
-				return new ByteArrayInputStream(props.getBytes(Config.configFileEncoding));
+		String factoryName = null;
+		for (ScriptEngineFactory f : mgr.getEngineFactories()) {
+			List<String> names = f.getNames();
+			if (names != null) {
+				for (String name : names) {
+					if ("JavaScript".equalsIgnoreCase(name)) {
+						factoryName = f.getClass().getName();
+						break;
+					}
+				}
+				if (factoryName != null) {
+					break;
+				}
 			}
-		} catch (ScriptException ex) {
-			ex.printStackTrace();
+		}
+		if (factoryName.indexOf(".nashorn.") != -1) {
+			// For JDK 8+, Nashorn is secure, throwing exceptions on evaluating malicious script
+			ScriptEngine jsEngine = mgr.getEngineByName("JavaScript");
+			try {
+				if (jsEngine != null) {
+					// eval script directly will have security problems.
+					o = jsEngine.eval(script);
+				}
+			} catch (ScriptException ex) {
+				ex.printStackTrace();
+			}
+		} else {
+			// For JDK 1.6, load script engine without Java adapters or members
+			Object engine = ConfigJSClassLoader.loadScriptEngine(factoryName);
+			if (engine != null) {
+				try {
+					Method evalMethod = engine.getClass().getMethod("eval", String.class);
+					if (evalMethod != null) {
+						o = evalMethod.invoke(engine, script);
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		if (o instanceof String) {
+			return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 		}
 		return null;
 	}

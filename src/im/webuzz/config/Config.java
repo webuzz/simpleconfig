@@ -258,7 +258,9 @@ public class Config {
 					&& */(modifiers & Modifier.STATIC) != 0
 					&& (modifiers & Modifier.FINAL) != 0
 					&& f.getType() == String.class) {
-				f.setAccessible(true);
+				if ((modifiers & Modifier.PUBLIC) == 0) {
+					f.setAccessible(true);
+				}
 				String keyPrefix = (String) f.get(clz);
 				if (keyPrefix.length() == 0) {
 					keyPrefix = null;
