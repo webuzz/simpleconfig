@@ -33,6 +33,7 @@ public class WebConfig {
 		configKeyPrefix + ".ignoringFields", // ignoring fields can not be updated from remote server
 		configKeyPrefix + ".synchronizing", // could not be set to false from remote configuration server. or won't be able to re-synchronizing
 		configKeyPrefix + ".localServerName", // changing local server name from remote server makes no sense
+		configKeyPrefix + ".extraResourceExtensions", // resource extensions is limited to given extensions
 	};
 	
 	/**
@@ -100,7 +101,22 @@ public class WebConfig {
 	 * Supports MD5 ETag for HTTP request or not.
 	 */
 	public static boolean webRequestSupportsMD5ETag = true;
+
+	public static int webCoreWorkers = 1;
 	
+	public static int webMaxWorkers = 50; // 50 for configuration web synchronizing is considered as enough
+	
+	public static int webWorkerIdleInterval = 30;
+	
+	/**
+	 * Only allows specified extensions. Ignore others extension file.
+	 */
+	public static String[] extraResourceExtensions = new String[] {
+		".xml", ".properties", ".props", ".ini", ".txt", ".config", ".conf", ".cfg", ".js", ".json",
+		".key", ".crt", ".pem", ".keystore", // HTTPS
+		".html", ".htm", ".css", // web pages
+	};
+
 	/**
 	 * Try to synchronize other resource files from remote server.
 	 */

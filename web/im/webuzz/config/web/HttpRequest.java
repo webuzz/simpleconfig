@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -460,14 +461,20 @@ public class HttpRequest {
 	public void send(String str) {
 		content = str;
 		if (asynchronous) {
-			//SimpleThreadHelper.runTask(new Runnable() {
-			new Thread(new Runnable() {
+			Runnable requestTask = new Runnable() {
 				public void run() {
 					if (!toAbort) {
 						request();
 					}
 				}
-			}, "Java2Script HTTP Request Worker").start();
+			};
+			ThreadPoolExecutor executor = ConfigWebWatchman.executor;
+			if (executor != null) {
+				executor.execute(requestTask);
+			} else {
+				//SimpleThreadHelper.runTask(requestTask);
+				new Thread(requestTask, "Java2Script HTTP Request Worker").start();
+			}
 		} else {
 			request();
 		}
