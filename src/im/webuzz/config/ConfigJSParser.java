@@ -21,10 +21,8 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import javax.script.ScriptEngine;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 
 public class ConfigJSParser {
 
@@ -129,29 +127,14 @@ public class ConfigJSParser {
 			"	return configProps.join(\"\\r\\n\");\r\n" +
 			"}\r\n";
 
-	public static InputStream convertJS2Properties(InputStream fis) throws IOException {
-		byte[] buffer = new byte[8096];
-		int read = -1;
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		while ((read = fis.read(buffer)) != -1) {
-			baos.write(buffer, 0, read);
+	private static Object jsEngine = null;
+	private static Method evalMethod = null;
+	private static boolean initialized = false;
+	
+	private static boolean checkInitialize() {
+		if (initialized) {
+			return true;
 		}
-		String js = new String(baos.toByteArray(), Config.configFileEncoding);
-		// ATTENTION: js might be malicious script
-		String script = convertJS + "\r\n$config = " + js.trim() + ";\r\nconvertToProperties($config);";
-		// script =
-		// "Packages.java.lang.System.exit(0);" +
-		// "java.lang.System.exit(0);" +
-		// "f = new java.io.File('./.project'); " +
-		// "java.lang.System.out.println('hello ' + f); " +
-		// "java.lang.System.out.println('hello ' + f.lastModified()); " +
-		// "importPackage(\"java.lang\");" +
-		// "i = java.lang.Integer.valueOf('5');" +
-		// "sb=i.getClass().forName("java.lang.StringBuffer").newInstance();" +
-		// script;
-		
-		Object o = null;
-		
 		ScriptEngineManager mgr = new ScriptEngineManager();
 		String factoryName = null;
 		for (ScriptEngineFactory f : mgr.getEngineFactories()) {
@@ -170,31 +153,57 @@ public class ConfigJSParser {
 		}
 		if (factoryName.indexOf(".nashorn.") != -1) {
 			// For JDK 8+, Nashorn is secure, throwing exceptions on evaluating malicious script
-			ScriptEngine jsEngine = mgr.getEngineByName("JavaScript");
-			try {
-				if (jsEngine != null) {
-					// eval script directly will have security problems.
-					o = jsEngine.eval(script);
-				}
-			} catch (ScriptException ex) {
-				ex.printStackTrace();
-			}
+			jsEngine = mgr.getEngineByName("JavaScript");
 		} else {
 			// For JDK 1.6, load script engine without Java adapters or members
-			Object engine = ConfigJSClassLoader.loadScriptEngine(factoryName);
-			if (engine != null) {
-				try {
-					Method evalMethod = engine.getClass().getMethod("eval", String.class);
-					if (evalMethod != null) {
-						o = evalMethod.invoke(engine, script);
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
+			jsEngine = ConfigJSClassLoader.loadScriptEngine(factoryName);
+		}
+		if (jsEngine != null) {
+			try {
+				evalMethod = jsEngine.getClass().getMethod("eval", String.class);
+				if (evalMethod != null) {
+					evalMethod.invoke(jsEngine, convertJS);
+					initialized = true;
 				}
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
 		}
-		if (o instanceof String) {
-			return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
+		return initialized;
+	}
+	
+	public static InputStream convertJS2Properties(InputStream fis) throws IOException {
+		byte[] buffer = new byte[8096];
+		int read = -1;
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		while ((read = fis.read(buffer)) != -1) {
+			baos.write(buffer, 0, read);
+		}
+		String js = new String(baos.toByteArray(), Config.configFileEncoding).trim();
+		if (!js.endsWith(";")) {
+			js += ";";
+		}
+		try {
+			if (checkInitialize()) {
+				Object o = evalMethod.invoke(jsEngine, "$config = " + js + "\r\nconvertToProperties($config);");
+				if (o instanceof String) {
+					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
+				}
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+			// If malicious js (last) modifies #convertToProperties, try to correct it to original JavaScript.
+			// So normal js configuration won't be affected.
+			try {
+				if (checkInitialize()) {
+					Object o = evalMethod.invoke(jsEngine, convertJS + "$config = " + js + "\r\nconvertToProperties($config);");
+					if (o instanceof String) {
+						return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
+					}
+				}
+			} catch (Exception ex2) {
+				ex2.printStackTrace();
+			}
 		}
 		return null;
 	}
