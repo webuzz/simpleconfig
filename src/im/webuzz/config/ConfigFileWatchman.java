@@ -104,7 +104,7 @@ public class ConfigFileWatchman {
 		if (exts != null) {
 			for (String ext : exts) {
 				if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
-					file = new File(folder, keyPrefix + ext);
+					file = new File(folder, Config.parseFilePath(keyPrefix + ext));
 					if (file.exists()) {
 						extension = ext;
 						existed = true;
@@ -115,7 +115,7 @@ public class ConfigFileWatchman {
 		}
 		if (!existed) {
 			extension = Config.configurationFileExtension;
-			file = new File(folder, keyPrefix + extension);
+			file = new File(folder, Config.parseFilePath(keyPrefix + extension));
 			existed = file.exists();
 		}
 		if (!existed) {
@@ -286,7 +286,7 @@ public class ConfigFileWatchman {
 			if (exts != null) {
 				for (String ext : exts) {
 					if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
-						file = new File(folder, keyPrefix + ext);
+						file = new File(folder, Config.parseFilePath(keyPrefix + ext));
 						if (file.exists()) {
 							extension = ext;
 							existed = true;
@@ -297,16 +297,12 @@ public class ConfigFileWatchman {
 			}
 			if (!existed) {
 				extension = Config.configurationFileExtension;
-				file = new File(folder, keyPrefix + extension);
+				file = new File(folder, Config.parseFilePath(keyPrefix + extension));
 				existed = file.exists();
 			}
 			if (!existed) {
 				continue;
 			}
-			//File file = new File(folder, keyPrefix + Config.configurationFileExtension);
-			//if (!file.exists()) {
-			//	continue;
-			//}
 			long lastUpdated = 0;
 			String absolutePath = file.getAbsolutePath();
 			Long v = fileLastUpdateds.get(absolutePath);
@@ -317,7 +313,7 @@ public class ConfigFileWatchman {
 				continue;
 			}
 			if (Config.configurationLogging && lastUpdated > 0) {
-				System.out.println("[Config] Configuration " + clz.getName() + "/" + absolutePath + " updated.");
+				System.out.println("[Config] Configuration " + clz.getName() + " at " + absolutePath + " updated.");
 			}
 			Properties prop = new Properties();
 			FileInputStream fis = null;

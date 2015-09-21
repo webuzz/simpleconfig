@@ -99,10 +99,6 @@ public class ConfigJSClassLoader extends ClassLoader {
 		if (clazz != null) {
 			return clazz;
 		}
-		clazz = loadedClasses.get(clazzName);
-		if (clazz != null) {
-			return clazz;
-		}
 		if (!clazzName.startsWith("java.") && !clazzName.startsWith("javax.")) {
 			// The following lines are IO sensitive
 			InputStream is = getParent().getResourceAsStream(clazzName.replace('.', '/') + ".class");

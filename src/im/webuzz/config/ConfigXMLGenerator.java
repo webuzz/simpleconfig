@@ -1654,7 +1654,7 @@ public class ConfigXMLGenerator {
 				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
 					folder = folderFile.getParent();
 				}
-				File oldConfigFile = new File(folder, keyPrefix + fileExt);
+				File oldConfigFile = new File(folder, Config.parseFilePath(keyPrefix + fileExt));
 				String oldSource = readFile(oldConfigFile);
 				if (!source.equals(oldSource)) {
 					boolean newFile = oldSource == null || oldSource.length() == 0;
@@ -1668,7 +1668,7 @@ public class ConfigXMLGenerator {
 						if (newFile || overwritingSubConfigs) {
 							fos = new FileOutputStream(oldConfigFile);
 						} else {
-							File newConfigFile = new File(folder, keyPrefix + ".new" + fileExt);
+							File newConfigFile = new File(folder, Config.parseFilePath(keyPrefix + ".new" + fileExt));
 							fos = new FileOutputStream(newConfigFile);
 							System.out.println(oldConfigFile.getAbsolutePath() + " is NOT updated with latest configuration.\r\n"
 									+ "Please try to merge it with " + newConfigFile.getAbsolutePath() + " manually.");
