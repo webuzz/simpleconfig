@@ -434,6 +434,7 @@ public class ConfigMerger {
 			return localBytes;
 		}
 		Map<String, String> filteredFields = new HashMap<String, String>();
+		List<String> filteredAllFields = new ArrayList<String>();
 		String localContent = new String(localBytes, Config.configFileEncoding);
 		String[] localLines = localContent.split("(\r\n|\n|\r)");
 		for (int i = 0; i < localLines.length; i++) {
@@ -455,13 +456,35 @@ public class ConfigMerger {
 				}
 				if (line.startsWith(f + "=")) {
 					filteredFields.put(f, line);
+					filteredAllFields.add(line);
 					break;
+				}
+				if (line.startsWith(f + ".")) {
+					int idx = line.indexOf('=');
+					if (idx != -1) {
+						String k = line.substring(0, idx);
+						filteredFields.put(k, line);
+						filteredAllFields.add(line);
+						break;
+					}
 				}
 				if (line.startsWith("#" + f + "=")) {
 					if (!filteredFields.containsKey(f)) {
 						filteredFields.put(f, line);
+						filteredAllFields.add(line);
 					}
 					break;
+				}
+				if (line.startsWith("#" + f + ".")) {
+					int idx = line.indexOf('=');
+					if (idx != -1) {
+						String k = line.substring(1, idx);
+						if (!filteredFields.containsKey(k)) {
+							filteredFields.put(k, line);
+							filteredAllFields.add(line);
+						}
+						break;
+					}
 				}
 			}
 		}
@@ -490,25 +513,156 @@ public class ConfigMerger {
 					String newLine = filteredFields.get(f);
 					if (newLine != null) {
 						lines[i] = newLine;
+						filteredAllFields.remove(newLine);
 					} else {
 						lines[i] = "#" + lines[i]; // comment it out
 					}
 					break;
+				}
+				if (line.startsWith(f + ".")) {
+					int idx = line.indexOf('=');
+					if (idx != -1) {
+						String k = line.substring(0, idx);
+						filtered = true;
+						String newLine = filteredFields.get(k);
+						if (newLine != null) {
+							lines[i] = newLine;
+							filteredAllFields.remove(newLine);
+						} else {
+							lines[i] = "#" + lines[i]; // comment it out
+						}
+						break;
+					}
 				}
 				if (line.startsWith("#" + f + "=")) {
 					filtered = true;
 					String newLine = filteredFields.get(f);
 					if (newLine != null) {
 						lines[i] = newLine;
+						filteredAllFields.remove(newLine);
 					}
 					break;
+				}
+				if (line.startsWith("#" + f + ".")) {
+					int idx = line.indexOf('=');
+					if (idx != -1) {
+						String k = line.substring(1, idx);
+						filtered = true;
+						String newLine = filteredFields.get(k);
+						if (newLine != null) {
+							lines[i] = newLine;
+							filteredAllFields.remove(newLine);
+						}
+						break;
+					}
 				}
 			}
 		}
 		if (filtered) {
+			for (int i = lines.length - 1; i >= 0; i--) {
+				String line = lines[i];
+				for (int j = 0; j < ignoringFields.length; j++) {
+					String f = ignoringFields[j];
+					if (f == null || f.length() == 0) {
+						continue;
+					}
+					if (keyPrefix == null && f.contains(".")) {
+						continue;
+					}
+					if (keyPrefix != null) {
+						String prefix = keyPrefix + ".";
+						if (!f.startsWith(prefix)) {
+							continue;
+						}
+						f = f.substring(prefix.length());
+					}
+					String newLine = null;
+					if (line.startsWith(f + "=")) {
+						newLine = filteredFields.get(f);
+					}
+					if (newLine == null && line.startsWith(f + ".")) {
+						int idx = line.indexOf('=');
+						if (idx != -1) {
+							String k = line.substring(0, idx);
+							newLine = filteredFields.get(k);
+						}
+					}
+					if (newLine == null && line.startsWith("#" + f + "=")) {
+						newLine = filteredFields.get(f);
+					}
+					if (newLine == null && line.startsWith("#" + f + ".")) {
+						int idx = line.indexOf('=');
+						if (idx != -1) {
+							String k = line.substring(1, idx);
+							newLine = filteredFields.get(k);
+						}
+					}
+					int size = filteredAllFields.size();
+					if (newLine != null && size > 0) {
+						StringBuilder newLineBuilder = new StringBuilder(newLine);
+						for (String fLine : filteredAllFields.toArray(new String[size])) {
+							if (fLine.startsWith(f + "=") || fLine.startsWith(f + ".") || fLine.startsWith("#" + f + "=") || fLine.startsWith("#" + f + ".")) {
+								newLineBuilder.append("\r\n").append(fLine);
+								filteredAllFields.remove(fLine);
+							}
+						}
+						lines[i] = newLineBuilder.toString();
+					}
+				}
+			}
+			int size = filteredAllFields.size();
+			if (size > 0) {
+				// Insert missed local ignored configurations back to correct position, if possible
+				for (String fLine : filteredAllFields.toArray(new String[size])) {
+					String prevLine = null;
+					String nextLine = null;
+					for (int i = 0; i < localLines.length; i++) {
+						String line = localLines[i];
+						if (fLine.equals(line)) {
+							if (i > 0) {
+								prevLine = localLines[i - 1];
+							}
+							if (i < localLines.length - 1) {
+								nextLine = localLines[i + 1];
+							}
+							break;
+						}
+					}
+					boolean inserted = false;
+					if (nextLine != null) {
+						for (int i = lines.length - 1; i >= 0; i--) {
+							if (lines[i].startsWith(nextLine)) {
+								StringBuilder newLineBuilder = new StringBuilder(fLine);
+								newLineBuilder.append("\r\n").append(lines[i]);
+								lines[i] = newLineBuilder.toString();
+								inserted = true;
+								break;
+							}
+						}
+					}
+					if (!inserted && prevLine != null) {
+						for (int i = 0; i < lines.length; i++) {
+							if (lines[i].startsWith(prevLine)) {
+								StringBuilder newLineBuilder = new StringBuilder(lines[i]);
+								newLineBuilder.append("\r\n").append(fLine);
+								lines[i] = newLineBuilder.toString();
+								inserted = true;
+								break;
+							}
+						}
+					}
+					if (inserted) {
+						filteredAllFields.remove(fLine);
+					}
+				}
+			}
 			StringBuilder builder = new StringBuilder();
 			for (int i = 0; i < lines.length; i++) {
 				builder.append(lines[i]).append("\r\n");
+			}
+			// Append missed local ignored configurations to the end
+			for (String fLine : filteredAllFields) {
+				builder.append(fLine).append("\r\n");
 			}
 			return builder.toString().getBytes(Config.configFileEncoding);
 		} else {
@@ -556,7 +710,7 @@ public class ConfigMerger {
 				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
 					folder = folderFile.getParent();
 				}
-				File configFile = new File(folder, keyPrefix + fileExt);
+				File configFile = new File(folder, Config.parseFilePath(keyPrefix + fileExt));
 				if (!configFile.exists()) {
 					props = defaultProps;
 				} else {
@@ -711,7 +865,7 @@ public class ConfigMerger {
 				if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(fileExt)) {
 					folder = folderFile.getParent();
 				}
-				File configFile = new File(folder, keyPrefix + fileExt);
+				File configFile = new File(folder, Config.parseFilePath(keyPrefix + fileExt));
 				String oldSource = ConfigGenerator.readFile(configFile);
 				if (!source.equals(oldSource)) {
 					System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + keyPrefix + fileExt);
