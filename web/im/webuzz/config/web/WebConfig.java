@@ -131,4 +131,16 @@ public class WebConfig {
 	 */
 	public static String extraTargetURLPattern = null;
 
+	/**
+	 * Block #startWatchman until local files are considered as synchronized.
+	 * If local files are synchronized, there will be a *.timestamp file contains the last synchronized time stamp.
+	 */
+	public static boolean blockingBeforeSynchronized = false;
+
+	/**
+	 * If local files are older than synchronizedExpringInterval, and blockingBeforeSynchronized is true, then
+	 * #startWatchman will be blocked until being synchronized.
+	 */
+	public static long synchronizedExpiringInterval = 8 * 3600 * 1000; // 8 hours
+	
 }
