@@ -24,7 +24,7 @@ import java.util.List;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 
-public class ConfigJSParser {
+public class ConfigJSParser implements IConfigConverter {
 
 	private static final String convertJS = "function isPlainObject(o, ignoringProps) {\r\n" +
 			"	if (o == null) return true;\r\n" +
@@ -206,6 +206,11 @@ public class ConfigJSParser {
 			}
 		}
 		return null;
+	}
+
+	@Override
+	public InputStream convertToProperties(InputStream is) throws IOException {
+		return convertJS2Properties(is);
 	}
 
 }

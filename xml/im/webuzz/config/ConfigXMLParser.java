@@ -30,7 +30,7 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-public class ConfigXMLParser {
+public class ConfigXMLParser implements IConfigConverter {
 
 	private static boolean isPlainObject(Element o) {
 		if (o == null) return true;
@@ -260,5 +260,10 @@ public class ConfigXMLParser {
 		//System.out.println("==============");
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));
 	}
-	
+
+	@Override
+	public InputStream convertToProperties(InputStream is) throws IOException {
+		return convertXML2Properties(is);
+	}
+
 }

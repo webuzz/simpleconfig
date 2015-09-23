@@ -64,6 +64,9 @@ public class Config {
 	public static String[] configurationClasses = null;
 	public static Map<String, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<String, ConfigFieldFilter>();
 	
+	public static Map<String, String> converterExtensions = new ConcurrentHashMap<String, String>();
+	protected static Map<String, IConfigConverter> converters = new ConcurrentHashMap<String, IConfigConverter>();
+	
 	public static int configurationMapSearchingDots = 10;
 
 	/**

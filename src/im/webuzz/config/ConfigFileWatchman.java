@@ -127,23 +127,7 @@ public class ConfigFileWatchman {
 		InputStream fis = null;
 		try {
 			fis = new FileInputStream(file);
-			if (extension.startsWith(".js")) {
-				InputStream pIS = ConfigJSParser.convertJS2Properties(fis);
-				if (pIS != null) {
-					prop.load(pIS);
-				} else {
-					prop.load(fis);
-				}
-			} else if (extension.startsWith(".xml")) {
-				InputStream pIS = ConfigXMLParser.convertXML2Properties(fis);
-				if (pIS != null) {
-					prop.load(pIS);
-				} else {
-					prop.load(fis);
-				}
-			} else {
-				prop.load(fis);
-			}
+			loadConfig(prop, fis, extension);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(absolutePath, lastUpdated);
 			Config.parseConfiguration(clazz, false, prop, true);
@@ -181,23 +165,7 @@ public class ConfigFileWatchman {
 		FileInputStream fis = null;
 		try {
 			fis = new FileInputStream(file);
-			if (extension.startsWith(".js")) {
-				InputStream pIS = ConfigJSParser.convertJS2Properties(fis);
-				if (pIS != null) {
-					prop.load(pIS);
-				} else {
-					prop.load(fis);
-				}
-			} else if (extension.startsWith(".xml")) {
-				InputStream pIS = ConfigXMLParser.convertXML2Properties(fis);
-				if (pIS != null) {
-					prop.load(pIS);
-				} else {
-					prop.load(fis);
-				}
-			} else {
-				prop.load(fis);
-			}
+			loadConfig(prop, fis, extension);
 			lastUpdated = file.lastModified();
 			return prop;
 		} catch (FileNotFoundException e) {
@@ -319,23 +287,7 @@ public class ConfigFileWatchman {
 			FileInputStream fis = null;
 			try {
 				fis = new FileInputStream(file);
-				if (extension.startsWith(".js")) {
-					InputStream pIS = ConfigJSParser.convertJS2Properties(fis);
-					if (pIS != null) {
-						prop.load(pIS);
-					} else {
-						prop.load(fis);
-					}
-				} else if (extension.startsWith(".xml")) {
-					InputStream pIS = ConfigXMLParser.convertXML2Properties(fis);
-					if (pIS != null) {
-						prop.load(pIS);
-					} else {
-						prop.load(fis);
-					}
-				} else {
-					prop.load(fis);
-				}
+				loadConfig(prop, fis, extension);
 				lastUpdated = file.lastModified();
 				fileLastUpdateds.put(absolutePath, lastUpdated);
 				Config.parseConfiguration(clz, false, prop, true);
@@ -355,6 +307,41 @@ public class ConfigFileWatchman {
 					fis = null;
 				}
 			}
+		}
+	}
+
+	public static void loadConfig(Properties prop, InputStream fis, String extension) throws IOException {
+		String ext = extension.substring(1);
+		IConfigConverter converter = Config.converters.get(ext);
+		if (converter == null) {
+			String converterClass = Config.converterExtensions.get(ext);
+			if (converterClass != null && converterClass.length() > 0) {
+				try {
+					//Class<?> clazz = Class.forName(converterClass);
+					Class<?> clazz = Config.loadConfigurationClass(converterClass);
+					if (clazz != null) {
+						Object instance = clazz.newInstance();
+						if (instance instanceof IConfigConverter) {
+							converter = (IConfigConverter) instance;
+							Config.converters.put(ext, converter);
+						}
+					}
+				} catch (InstantiationException e) {
+					e.printStackTrace();
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		if (converter != null) {
+			InputStream pIS = converter.convertToProperties(fis);
+			if (pIS != null) {
+				prop.load(pIS);
+			} else {
+				prop.load(fis);
+			}
+		} else {
+			prop.load(fis);
 		}
 	}
 	

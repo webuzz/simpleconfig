@@ -376,6 +376,7 @@ public class ConfigWebWatchman implements Runnable {
 						if (extraPath == null) {
 							String[] ignoringFields = WebConfig.ignoringFields;
 							if (ignoringFields != null && ignoringFields.length > 0
+									// TODO: Skip all extensions which need conversions
 									&& (fileExtension == null || !fileExtension.startsWith(".js") || !fileExtension.startsWith(".xml"))) {
 								responseBytes = ConfigMerger.mergeWithIgnoringFields(responseBytes, localBytes,
 										globalConfig ? null : keyPrefix, ignoringFields);
