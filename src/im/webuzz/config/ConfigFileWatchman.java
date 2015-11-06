@@ -19,6 +19,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
@@ -333,16 +334,14 @@ public class ConfigFileWatchman {
 				}
 			}
 		}
+		InputStream is = fis;
 		if (converter != null) {
 			InputStream pIS = converter.convertToProperties(fis);
 			if (pIS != null) {
-				prop.load(pIS);
-			} else {
-				prop.load(fis);
+				is = pIS;
 			}
-		} else {
-			prop.load(fis);
 		}
+		prop.load(new InputStreamReader(is, Config.configFileEncoding));
 	}
 	
 	public static void stopWatchman() {
