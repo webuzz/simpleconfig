@@ -24,11 +24,11 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -50,6 +50,7 @@ public class ConfigGenerator {
 	public static boolean readableListFormat = false; // For true
 	public static boolean readableMapFormat = false; // For true
 	public static boolean readableObjectFormat = false; // For true
+	public static boolean sortedMapFormat = true;
 	public static boolean skipUnchangedLines = false;
 	public static boolean skipObjectUnchangedFields = true;
 
@@ -1056,31 +1057,32 @@ public class ConfigGenerator {
 		if (vs != null) {
 			boolean isTypeString = valueTypes == null || valueTypes.length == 0
 					|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-			Set<Entry<String, Object>> entries = vs.entrySet();
-			if (entries.size() > 0) {
+			String[] keys = (String[]) vs.keySet().toArray(new String[vs.size()]);
+			if (sortedMapFormat) {
+				Arrays.sort(keys);
+			}
+			if (keys.length > 0) {
 				if (readableMapFormat || !isBasicType(isTypeString ? String.class : valueTypes[0])) {
 					builder.append(Config.$map);
-					for (Entry<String, Object> entry : entries) {
+					for (String k : keys) {
 						builder.append("\r\n");
 						if (unchanged) {
 							builder.append("#");
 						}
-						String k = entry.getKey().trim();
 						if (isTypeString) {
-							String v = (String) entry.getValue();
+							String v = (String) vs.get(k);
 							generateString(builder, name + "." + k, v != null ? v.trim() : null);
 						} else {
-							generateTypeObject(builder, name + "." + k, entry.getValue(), valueTypes, unchanged);
+							generateTypeObject(builder, name + "." + k, vs.get(k), valueTypes, unchanged);
 						}
 					}
 				} else {
 					boolean first = true;
-					for (Entry<String, Object> entry : entries) {
+					for (String k : keys) {
 						if (!first) {
 							builder.append(";");
 						}
-						String k = entry.getKey().trim();
-						Object v = entry.getValue();
+						Object v = vs.get(k);
 						builder.append(configFormat(k))
 								.append('>')
 								.append(isTypeString ? generatePlainString((String) v) : (v == null ? Config.$null : v));
