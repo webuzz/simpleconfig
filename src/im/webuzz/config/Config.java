@@ -138,6 +138,9 @@ public class Config {
 		allConfigs.put(Config.class.getName(), Config.class);
 		
 		String configPath = configurationFile;
+		if (configPath == null) {
+			configPath = configurationFile = "./config.ini";
+		}
 		int idx = configPath.lastIndexOf('.');
 		if (idx != -1) {
 			String ext = configPath.substring(idx + 1);

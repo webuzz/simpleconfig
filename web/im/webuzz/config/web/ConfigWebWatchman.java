@@ -501,7 +501,7 @@ public class ConfigWebWatchman implements Runnable {
 			
 		});
 
-		Thread webThread = new Thread(new ConfigWebWatchman(), "Configuration Remote Web Wathman");
+		Thread webThread = new Thread(new ConfigWebWatchman(), "Configuration Remote Web Watchman");
 		webThread.setDaemon(true);
 		webThread.start();
 	}
