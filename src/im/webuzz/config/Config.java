@@ -516,7 +516,9 @@ public class Config {
 							}
 							String v = (String) prop.getProperty(propName);
 							value.put(k, parseTypedObject(valueTypes, v, propName, prop));
-							parsedKeys.add(propName + ".");
+							if (v == null || v.length() <= 0 || (v.startsWith("[") && v.endsWith("]"))) {
+								parsedKeys.add(propName + ".");
+							} // else given v is a line for object, no need to put it into parsed keys set
 						}
 					}
 					dots++;
@@ -1473,7 +1475,7 @@ public class Config {
 					return true;
 				}
 			} else {
-				Object newObj = parseObject(p, null, keyName, prop);
+				Object newObj = parseObject(p, type, keyName, prop);
 				Object oldObj = f.get(obj);
 				if ((newObj == null && oldObj != null) || (newObj != null && !newObj.equals(oldObj))) {
 					if (diffBuilder != null)
