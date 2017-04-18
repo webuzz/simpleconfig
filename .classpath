@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-  <classpathentry kind="src" path="src" including="**/*.java"/>
-  <classpathentry kind="src" path="web" including="**/*.java"/>
-  <classpathentry kind="src" path="security" including="**/*.java"/>
-  <classpathentry kind="output" path="target/classes"/>
-  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry including="**/*.java" kind="src" path="src"/>
+	<classpathentry kind="src" path="generator"/>
+	<classpathentry kind="src" path="js"/>
+	<classpathentry kind="src" path="jsgenerator"/>
+	<classpathentry kind="src" path="xml"/>
+	<classpathentry kind="src" path="xmlgenerator"/>
+	<classpathentry including="**/*.java" kind="src" path="web"/>
+	<classpathentry including="**/*.java" kind="src" path="security"/>
+	<classpathentry kind="src" path="agent"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry kind="output" path="target/classes"/>
 </classpath>

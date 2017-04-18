@@ -81,9 +81,9 @@ public class Config {
 	
 	protected static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<String, Class<?>>();
 	
-	private static ClassLoader configurationLoader = null;
+	private static volatile ClassLoader configurationLoader = null;
 	
-	private static long initializedTime = 0;
+	private static volatile long initializedTime = 0;
 	
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
@@ -1113,6 +1113,8 @@ public class Config {
 			return null;
 		} else if ($empty.equals(p)) {
 			return "";
+		} else if (p.indexOf("[secret:") == 0) { // "[secret:#######]";
+			return parseSecret(p.substring(8, p.length() - 1));
 		} else {
 			return p;
 		}
