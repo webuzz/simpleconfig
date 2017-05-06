@@ -288,16 +288,140 @@ public class Config {
 		return null;
 	}
 	
+	static int compare(long x, long y) {
+        return (x < y) ? -1 : ((x == y) ? 0 : 1);
+    }
+	
+	static int compareUnsigned(long x, long y) {
+        return compare(x + Long.MIN_VALUE, y + Long.MIN_VALUE);
+    }
+	
+	static long parseUnsignedLong(String s, int radix) throws NumberFormatException {
+		if (s == null) {
+			throw new NumberFormatException("null");
+		}
+
+		int len = s.length();
+		if (len > 0) {
+			char firstChar = s.charAt(0);
+			if (firstChar == '-') {
+				throw new NumberFormatException(
+						String.format("Illegal leading minus sign on unsigned string %s.", s));
+			} else {
+				if (len <= 12 || // Long.MAX_VALUE in Character.MAX_RADIX is 13 digits
+						(radix == 10 && len <= 18)) { // Long.MAX_VALUE in base 10 is 19 digits
+					return Long.parseLong(s, radix);
+				}
+
+				// No need for range checks on len due to testing above.
+				long first = Long.parseLong(s.substring(0, len - 1), radix);
+				int second = Character.digit(s.charAt(len - 1), radix);
+				if (second < 0) {
+					throw new NumberFormatException("Bad digit at end of " + s);
+				}
+				long result = first * radix + second;
+				if (compareUnsigned(result, first) < 0) {
+					/*
+					 * The maximum unsigned value, (2^64)-1, takes at most one
+					 * more digit to represent than the maximum signed value,
+					 * (2^63)-1. Therefore, parsing (len - 1) digits will be
+					 * appropriately in-range of the signed parsing. In other
+					 * words, if parsing (len -1) digits overflows signed
+					 * parsing, parsing len digits will certainly overflow
+					 * unsigned parsing.
+					 *
+					 * The compareUnsigned check above catches situations where
+					 * an unsigned overflow occurs incorporating the
+					 * contribution of the final digit.
+					 */
+					throw new NumberFormatException(
+							String.format("String value %s exceeds range of unsigned long.", s));
+				}
+				return result;
+			}
+		} else {
+			throw new NumberFormatException("For input string: \"" + s + "\"");
+		}
+	}
+
+	static int parseUnsignedInt(String s, int radix) throws NumberFormatException {
+		if (s == null) {
+			throw new NumberFormatException("null");
+		}
+
+		int len = s.length();
+		if (len > 0) {
+			char firstChar = s.charAt(0);
+			if (firstChar == '-') {
+				throw new NumberFormatException(
+						String.format("Illegal leading minus sign " + "on unsigned string %s.", s));
+			} else {
+				if (len <= 5 || // Integer.MAX_VALUE in Character.MAX_RADIX is 6 digits
+						(radix == 10 && len <= 9)) { // Integer.MAX_VALUE in base 10 is 10 digits
+					return Integer.parseInt(s, radix);
+				} else {
+					long ell = Long.parseLong(s, radix);
+					if ((ell & 0xffffffff00000000L) == 0) {
+						return (int) ell;
+					} else {
+						throw new NumberFormatException(
+								String.format("String value %s exceeds " + "range of unsigned int.", s));
+					}
+				}
+			}
+		} else {
+			throw new NumberFormatException("For input string: \"" + s + "\"");
+		}
+	}
+
+	static short parseUnsignedShort(String s, int radix) throws NumberFormatException {
+		int v = Integer.parseInt(s, radix);
+		if ((v & 0xffff0000) == 0) {
+			return (short) v;
+		} else {
+			throw new NumberFormatException(
+					String.format("String value %s exceeds range of unsigned short.", s));
+		}
+	}
+
+	static byte parseUnsignedByte(String s, int radix) throws NumberFormatException {
+		int v = Integer.parseInt(s, radix);
+		if ((v & 0xffffff00) == 0) {
+			return (byte) v;
+		} else {
+			throw new NumberFormatException(
+					String.format("String value %s exceeds range of unsigned byte.", s));
+		}
+	}
+
 	static Object parseTypedObject(Class<?>[] types, String p, String keyName, Properties prop) {
 		Class<?> type = types[0];
 		if (type == Integer.class) {
-			return $null.equals(p) ? null : Integer.valueOf(p);
+			if ($null.equals(p)) return null;
+			try {
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					return Integer.valueOf(parseUnsignedInt(p.substring(2), 16));
+				} else {
+					return Integer.valueOf(p);
+				}
+			} catch (Exception e) {
+				return null;
+			}
 		} else if (type == String.class) {
 			return $null.equals(p) ? null : parseString(p);
 		} else if (type == Boolean.class) {
 			return $null.equals(p) ? null : Boolean.valueOf(p);
 		} else if (type == Long.class) {
-			return $null.equals(p) ? null : Long.valueOf(p);
+			if ($null.equals(p)) return null;
+			try {
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					return Long.valueOf(parseUnsignedLong(p.substring(2), 16));
+				} else {
+					return Long.valueOf(p);
+				}
+			} catch (Exception e) {
+				return null;
+			}
 		} else if (type == int[].class) {
 			return parseIntegerArray(p, keyName, prop);
 		} else if (type == long[].class) {
@@ -329,9 +453,27 @@ public class Config {
 		} else if (type == Float.class) {
 			return $null.equals(p) ? null : Float.valueOf(p);
 		} else if (type == Short.class) {
-			return $null.equals(p) ? null : Short.valueOf(p);
+			if ($null.equals(p)) return null;
+			try {
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					return Short.valueOf(parseUnsignedShort(p.substring(2), 16));
+				} else {
+					return Short.valueOf(p);
+				}
+			} catch (Exception e) {
+				return null;
+			}
 		} else if (type == Byte.class) {
-			return $null.equals(p) ? null : Byte.valueOf(p);
+			if ($null.equals(p)) return null;
+			try {
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					return Byte.valueOf(parseUnsignedByte(p.substring(2), 16));
+				} else {
+					return Byte.valueOf(p);
+				}
+			} catch (Exception e) {
+				return null;
+			}
 		} else if (type == Character.class) {
 			return $null.equals(p) ? null : Character.valueOf(p.charAt(0));
 		} else if (type == List.class || type == Set.class || type == Map.class) {
@@ -724,7 +866,11 @@ public class Config {
 				String v = (String) prop.getProperty(keyName + "." + propName);
 				if (v != null) {
 					try {
-						bs[j] = Byte.parseByte(v);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							bs[j] = parseUnsignedByte(v.substring(2), 16);
+						} else {
+							bs[j] = Byte.parseByte(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -738,9 +884,14 @@ public class Config {
 		if (ss != null) {
 			bs = new byte[ss.length];
 			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
+				String v = ss[j];
+				if (v != null) {
 					try {
-						bs[j] = Byte.parseByte(ss[j]);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							bs[j] = parseUnsignedByte(v.substring(2), 16);
+						} else {
+							bs[j] = Byte.parseByte(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -775,7 +926,11 @@ public class Config {
 				String v = (String) prop.getProperty(keyName + "." + propName);
 				if (v != null) {
 					try {
-						ns[j] = Short.parseShort(v);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							ns[j] = parseUnsignedShort(v.substring(2), 16);
+						} else {
+							ns[j] = Short.parseShort(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -789,9 +944,14 @@ public class Config {
 		if (ss != null) {
 			ns = new short[ss.length];
 			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
+				String v = ss[j];
+				if (v != null) {
 					try {
-						ns[j] = Short.parseShort(ss[j]);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							ns[j] = parseUnsignedShort(v.substring(2), 16);
+						} else {
+							ns[j] = Short.parseShort(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -979,7 +1139,11 @@ public class Config {
 				String v = (String) prop.getProperty(keyName + "." + propName);
 				if (v != null) {
 					try {
-						ls[j] = Long.parseLong(v);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							ls[j] = parseUnsignedLong(v.substring(2), 16);
+						} else {
+							ls[j] = Long.parseLong(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -993,9 +1157,14 @@ public class Config {
 		if (ss != null) {
 			ls = new long[ss.length];
 			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
+				String v = ss[j];
+				if (v != null) {
 					try {
-						ls[j] = Long.parseLong(ss[j]);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							ls[j] = parseUnsignedLong(v.substring(2), 16);
+						} else {
+							ls[j] = Long.parseLong(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -1030,7 +1199,11 @@ public class Config {
 				String v = (String) prop.getProperty(keyName + "." + propName);
 				if (v != null) {
 					try {
-						is[j] = Integer.parseInt(v);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							is[j] = parseUnsignedInt(v.substring(2), 16);
+						} else {
+							is[j] = Integer.parseInt(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -1044,9 +1217,14 @@ public class Config {
 		if (ss != null) {
 			is = new int[ss.length];
 			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
+				String v = ss[j];
+				if (v != null) {
 					try {
-						is[j] = Integer.parseInt(ss[j]);
+						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
+							is[j] = parseUnsignedInt(v.substring(2), 16);
+						} else {
+							is[j] = Integer.parseInt(v);
+						}
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -1226,10 +1404,16 @@ public class Config {
 		Class<?> type = f.getType();
 		try {
 			if (type == int.class) {
-				if (!p.equals(String.valueOf(f.getInt(obj)))) {
+				int v = 0;
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					v = parseUnsignedInt(p.substring(2), 16);
+				} else {
+					v = Integer.parseInt(p);
+				}
+				if (v != f.getInt(obj)) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.getInt(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setInt(obj, Integer.parseInt(p));
+					if (updatingField) f.setInt(obj, v);
 					return true;
 				}
 			} else if (type == String.class) {
@@ -1249,10 +1433,16 @@ public class Config {
 					return true;
 				}
 			} else if (type == long.class) {
-				if (!p.equals(String.valueOf(f.getLong(obj)))) {
+				long v = 0;
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					v = parseUnsignedLong(p.substring(2), 16);
+				} else {
+					v = Long.parseLong(p);
+				}
+				if (v != f.getLong(obj)) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.getLong(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setLong(obj, Long.parseLong(p));
+					if (updatingField) f.setLong(obj, v);
 					return true;
 				}
 			} else if (type == int[].class) {
@@ -1352,17 +1542,29 @@ public class Config {
 					return true;
 				}
 			} else if (type == short.class) {
-				if (!p.equals(String.valueOf(f.getShort(obj)))) {
+				short v = 0;
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					v = parseUnsignedShort(p.substring(2), 16);
+				} else {
+					v = Short.parseShort(p);
+				}
+				if (v != f.getShort(obj)) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.getShort(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setShort(obj, Short.parseShort(p));
+					if (updatingField) f.setShort(obj, v);
 					return true;
 				}
 			} else if (type == byte.class) {
-				if (!p.equals(String.valueOf(f.getByte(obj)))) {
+				byte v = 0;
+				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+					v = parseUnsignedByte(p.substring(2), 16);
+				} else {
+					v = Byte.parseByte(p);
+				}
+				if (v != f.getByte(obj)) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.getByte(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setByte(obj, Byte.parseByte(p));
+					if (updatingField) f.setByte(obj, v);
 					return true;
 				}
 			} else if (type == char.class) {
@@ -1414,10 +1616,22 @@ public class Config {
 				}
 			} else if (type == Integer.class) {
 				Integer v = (Integer) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+				boolean changed = false;
+				int vv = 0;
+				if (!p.equals($null)) {
+					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+						vv = parseUnsignedInt(p.substring(2), 16);
+					} else {
+						vv = Integer.parseInt(p);
+					}
+					changed = v == null ? true : v.intValue() != vv;
+				} else {
+					changed = v != null;
+				}
+				if (changed) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, $null.equals(p) ? null : Integer.valueOf(p));
+					if (updatingField) f.set(obj, $null.equals(p) ? null : Integer.valueOf(vv));
 					return true;
 				}
 			} else if (type == Boolean.class) {
@@ -1430,10 +1644,22 @@ public class Config {
 				}
 			} else if (type == Long.class) {
 				Long v = (Long) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+				boolean changed = false;
+				long vv = 0;
+				if (!p.equals($null)) {
+					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+						vv = parseUnsignedLong(p.substring(2), 16);
+					} else {
+						vv = Long.parseLong(p);
+					}
+					changed = v == null ? true : v.longValue() != vv;
+				} else {
+					changed = v != null;
+				}
+				if (changed) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, $null.equals(p) ? null : Long.valueOf(p));
+					if (updatingField) f.set(obj, $null.equals(p) ? null : Long.valueOf(vv));
 					return true;
 				}
 			} else if (type == Double.class) {
@@ -1454,18 +1680,42 @@ public class Config {
 				}
 			} else if (type == Short.class) {
 				Short v = (Short) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+				boolean changed = false;
+				short vv = 0;
+				if (!p.equals($null)) {
+					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+						vv = parseUnsignedShort(p.substring(2), 16);
+					} else {
+						vv = Short.parseShort(p);
+					}
+					changed = v == null ? true : v.shortValue() != vv;
+				} else {
+					changed = v != null;
+				}
+				if (changed) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setShort(obj, $null.equals(p) ? null : Short.valueOf(p));
+					if (updatingField) f.setShort(obj, $null.equals(p) ? null : Short.valueOf(vv));
 					return true;
 				}
 			} else if (type == Byte.class) {
 				Byte v = (Byte) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
+				boolean changed = false;
+				byte vv = 0;
+				if (!p.equals($null)) {
+					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
+						vv = parseUnsignedByte(p.substring(2), 16);
+					} else {
+						vv = Byte.parseByte(p);
+					}
+					changed = v == null ? true : v.intValue() != vv;
+				} else {
+					changed = v != null;
+				}
+				if (changed) {
 					if (diffBuilder != null)
 						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setByte(obj, $null.equals(p) ? null : Byte.valueOf(p));
+					if (updatingField) f.setByte(obj, $null.equals(p) ? null : Byte.valueOf(vv));
 					return true;
 				}
 			} else if (type == Character.class) {
