@@ -29,6 +29,6 @@ public interface WebCallback {
 	 * @param responseCode HTTP response code: 200 is OK, 304 is not modified
 	 * @param responseBytes
 	 */
-	public void got(int responseCode, byte[] responseBytes);
+	public void got(int responseCode, byte[] responseBytes, long lastModified);
 	
 }
