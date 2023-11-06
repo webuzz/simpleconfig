@@ -41,6 +41,8 @@ public class ConfigJSParser implements IConfigConverter {
 			"		if (isCustomized) {\r\n" +
 			"			if (o[p] != null && typeof o[p] != \"string\" && typeof o[p] != \"number\" && typeof o[p] != \"boolean\") {\r\n" +
 			"				return false;\r\n" +
+			"			} else if (o[p] != null && typeof o[p] == \"string\" && (o[p].indexOf(\">\") != -1 || o[p].indexOf(\";\") != -1)) {\r\n" +
+			"				return false;\r\n" +
 			"			}\r\n" +
 			"		}\r\n" +
 			"	}\r\n" +
@@ -83,7 +85,13 @@ public class ConfigJSParser implements IConfigConverter {
 			"				}\r\n" +
 			"			}\r\n" +
 			"			if (isCustomized) {\r\n" +
-			"				objBuilder[objBuilder.length] = p + \">\" + o[p];\r\n" +
+			"				var pv = o[p];\r\n" +
+			"				if (pv == null) {\r\n" +
+			"					pv = \"[null]\";\r\n" +
+			"				} else if (typeof pv == \"string\" && pv == \"\") {\r\n" +
+			"					pv = \"[empty]\";\r\n" +
+			"				}\r\n" +
+			"				objBuilder[objBuilder.length] = p + \">\" + pv;\r\n" +
 			"			}\r\n" +
 			"		}\r\n" +
 			"		builder[builder.length] = prefix + \"=\" + (objBuilder.length == 0 ? \"[empty]\" : objBuilder.join(\";\"));\r\n" +
@@ -151,6 +159,10 @@ public class ConfigJSParser implements IConfigConverter {
 				}
 			}
 		}
+		if (factoryName == null ) {
+			System.out.println("You need to include nashorn Javascript engine after Java 15!");
+			return false;
+		}
 		if (factoryName.indexOf(".nashorn.") != -1) {
 			// For JDK 8+, Nashorn is secure, throwing exceptions on evaluating malicious script
 			jsEngine = mgr.getEngineByName("JavaScript");
@@ -187,6 +199,8 @@ public class ConfigJSParser implements IConfigConverter {
 			if (checkInitialize()) {
 				Object o = evalMethod.invoke(jsEngine, "$config = " + js + "\r\nconvertToProperties($config);");
 				if (o instanceof String) {
+					//System.out.println("js->ini");
+					//System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
 			}

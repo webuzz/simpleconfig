@@ -9,7 +9,7 @@ public class ConfigAgent {
 	public static long agentSleepInterval = 10000;
 	
 	public static void main(String[] args) {
-		if (args == null || args.length < 0 || args[0] == null || args[0].length() < 0) {
+		if (args == null || args.length <= 0 || args[0] == null || args[0].length() < 0) {
 			System.out.println("Usage: java -cp . " + ConfigAgent.class.getName() + " <config.ini>");
 			return;
 		}

@@ -508,8 +508,6 @@ public class Config {
 			return obj;
 		}
 		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
-			// TODO: Use similar net.sf.j2s.ajax.SimpleSerializable.getSerializableFields(String, Class<?>),
-			// so class inheritance is supported
 			Field[] fields = type.getDeclaredFields();
 			int filteringModifiers = Modifier.PUBLIC;
 			Map<String, ConfigFieldFilter> configFilter = configurationFilters;
@@ -777,6 +775,9 @@ public class Config {
 					value.add(parseString(v));
 				} else {
 					Object o = parseTypedObject(valueTypes, v, keyName + "." + propName, prop);
+					//if (o == null) {
+					//	System.out.println(v + ": " + keyName + "." + propName);
+					//}
 					value.add(o);
 				}
 			}

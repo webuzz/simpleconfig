@@ -559,7 +559,7 @@ public class HttpRequest {
 				is = connection.getInputStream();
 			} catch (IOException e) {
 				if (checkAbort()) return; // exception caused by abort action
-				//e.printStackTrace();
+				e.printStackTrace();
 				status = connection.getResponseCode();
 				readyState = 4;
 				if (onreadystatechange != null) {
@@ -631,7 +631,7 @@ public class HttpRequest {
 			*/
 		} catch (Exception e) {
 			if (checkAbort()) return; // exception caused by abort action
-			//e.printStackTrace();
+			e.printStackTrace();
 			readyState = 4;
 			if (onreadystatechange != null) {
 				onreadystatechange.onLoaded();

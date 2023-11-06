@@ -37,15 +37,17 @@ import java.util.concurrent.TimeUnit;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigMerger;
+//import im.webuzz.nio.NioHttpRequest;
+//import net.sf.j2s.ajax.XHRCallbackAdapter;
 
 /**
  * Synchronize configuration files from given server to local file system.
  */
 public class ConfigWebWatchman implements Runnable {
 
-	private static boolean running = false;
+	protected static boolean running = false;
 	
-	private static BlockingQueue<Class<?>> queue = new LinkedBlockingQueue<Class<?>>();
+	protected static BlockingQueue<Class<?>> queue = new LinkedBlockingQueue<Class<?>>();
 
 	private final static String[] WEEK_DAYS_ABBREV = new String[] {
 		"Sun", "Mon", "Tue", "Wed", "Thu",  "Fri", "Sat"
@@ -53,7 +55,7 @@ public class ConfigWebWatchman implements Runnable {
 	
 	static ThreadPoolExecutor executor = null;
 	
-	static ConfigWebWatchman defaultWatchman = null;
+	protected static ConfigWebWatchman defaultWatchman = null;
 	
 	@SuppressWarnings("deprecation")
 	protected static String getHTTPDateString(long time) {
@@ -121,13 +123,20 @@ public class ConfigWebWatchman implements Runnable {
 	}
 	
 	private long currentRequestTime = 0;
-	private Map<String, Integer> inQueueRequests = new ConcurrentHashMap<String, Integer>();
-	private boolean loopMode = true;
+	protected Map<String, Integer> inQueueRequests = new ConcurrentHashMap<String, Integer>();
+	protected boolean loopMode = true;
 	
 	private long latestModified = -1;
 	
 	@Override
 	public void run() {
+		if (running) {
+			if (!loopMode) { // block waiting
+				loopMode = true;
+			} else {
+				refreshAll(true, WebConfig.webRequestTimeout);
+			}
+		}
 		while (running) {
 			try {
 				int seconds = Math.max(1, (int) (WebConfig.webRequestInterval / 1000));
@@ -161,7 +170,7 @@ public class ConfigWebWatchman implements Runnable {
 		}
 	}
 	
-	void refreshAll(boolean firstRefresh, long timeout) {
+	protected void refreshAll(boolean firstRefresh, long timeout) {
 		currentRequestTime = System.currentTimeMillis();
 		if (firstRefresh) {
 			inQueueRequests.clear();
@@ -232,7 +241,8 @@ public class ConfigWebWatchman implements Runnable {
 		if (running && inQueueRequests.isEmpty()) {
 			String cfgPath = Config.configurationFile;
 			if (cfgPath != null) {
-				File file = new File(cfgPath + ".timestamp");
+				String tsPath = WebConfig.timestampFilePath;
+				File file = new File(tsPath != null && tsPath.length() > 0 ? tsPath : (cfgPath + ".timestamp"));
 				FileOutputStream fos = null;
 				try {
 					fos = new FileOutputStream(file);
@@ -253,7 +263,7 @@ public class ConfigWebWatchman implements Runnable {
 		}
 	}
 	
-	void synchronizeClass(Class<?> clz, long timeout) {
+	protected void synchronizeClass(Class<?> clz, long timeout) {
 		String keyPrefix = Config.getKeyPrefix(clz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
@@ -376,7 +386,7 @@ public class ConfigWebWatchman implements Runnable {
 						}
 					}
 				}
-				if (responseCode == 200 && requestTime == currentRequestTime) { // HTTP OK
+				if (responseCode == 200 && (lastModified < 0 || requestTime == currentRequestTime)) { // HTTP OK
 					if (responseBytes != null && responseBytes.length > 0) {
 						byte[] localBytes = readFile(file);
 						if (extraPath == null) {
@@ -389,29 +399,33 @@ public class ConfigWebWatchman implements Runnable {
 							}
 						}
 						if (!Arrays.equals(responseBytes, localBytes)) {
-							File folderFile = file.getParentFile();
-							if (!folderFile.exists()) {
-								folderFile.mkdirs();
-							}
-							FileOutputStream fos = null;
-							try {
-								fos = new FileOutputStream(file);
-								fos.write(responseBytes);
-							} catch (IOException e) {
-								e.printStackTrace();
-							} finally {
-								if (fos != null) {
-									try {
-										fos.close();
-									} catch (IOException e) {
-										e.printStackTrace();
-									}
-									fos = null;
-									file.setLastModified(lastModified);
+							if (WebConfig.synchronizing) {
+								File folderFile = file.getParentFile();
+								if (!folderFile.exists()) {
+									folderFile.mkdirs();
 								}
-							}
-							if (Config.configurationLogging) {
-								System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " content synchronized remotely.");
+								FileOutputStream fos = null;
+								try {
+									fos = new FileOutputStream(file);
+									fos.write(responseBytes);
+								} catch (IOException e) {
+									e.printStackTrace();
+								} finally {
+									if (fos != null) {
+										try {
+											fos.close();
+										} catch (IOException e) {
+											e.printStackTrace();
+										}
+										fos = null;
+										file.setLastModified(Math.abs(lastModified));
+									}
+								}
+								if (Config.configurationLogging) {
+									System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " content synchronized remotely.");
+								}
+							} else {
+								System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " content need to be synchronized remotely.");
 							}
 						} else {
 							if (WebConfig.synchronizing) {
@@ -439,14 +453,16 @@ public class ConfigWebWatchman implements Runnable {
 		};
 		sendWebRequest(url, user, password, file.exists() ? file.lastModified() : -1, getFileMD5ETag(file), callback);
 		
-		try {
-			synchronized (builder) {
-				if (builder.length() <= 0) {
-					builder.wait(timeout);
+		if (timeout > 0) {
+			try {
+				synchronized (builder) {
+					if (builder.length() <= 0) {
+						builder.wait(timeout);
+					}
 				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
-		} catch (InterruptedException e) {
-			e.printStackTrace();
 		}
 	}
 
@@ -457,20 +473,28 @@ public class ConfigWebWatchman implements Runnable {
 		running = true;
 		Config.registerUpdatingListener(WebConfig.class);
 		
+		if (executor == null) {
+			executor = new ThreadPoolExecutor(WebConfig.webCoreWorkers, WebConfig.webMaxWorkers, WebConfig.webWorkerIdleInterval,
+					TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new ThreadFactory() {
+				@Override
+				public Thread newThread(Runnable r) {
+					return new Thread(r, "Web Watchman Worker");
+				}
+			});
+		}
+		
 		ConfigWebWatchman watchman = new ConfigWebWatchman();
 		defaultWatchman = watchman;
 		if (WebConfig.blockingBeforeSynchronized) {
 			boolean blocking = true; // blocking until all configurations or resources synchronized from remote servers
 			String cfgPath = Config.configurationFile;
 			if (cfgPath != null) {
-				File file = new File(cfgPath + ".timestamp");
+				String tsPath = WebConfig.timestampFilePath;
+				File file = new File(tsPath != null && tsPath.length() > 0 ? tsPath : (cfgPath + ".timestamp"));
 				if (file.exists()) {
 					byte[] ts = readFile(file);
-					if (ts != null) {
-						long timestamp = Long.parseLong(new String(ts));
-						if (System.currentTimeMillis() - timestamp < WebConfig.synchronizedExpiringInterval) { // default: less than 8 hours
-							blocking = false;
-						}
+					if (ts != null && System.currentTimeMillis() - Long.parseLong(new String(ts)) < WebConfig.synchronizedExpiringInterval) { // default: less than 8 hours
+						blocking = false;
 					}
 				}
 			}
@@ -499,21 +523,7 @@ public class ConfigWebWatchman implements Runnable {
 				}
 			}
 		}
-		
-		executor = new ThreadPoolExecutor(WebConfig.webCoreWorkers, WebConfig.webMaxWorkers, WebConfig.webWorkerIdleInterval, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new ThreadFactory() {
-			
-			@Override
-			public Thread newThread(Runnable r) {
-				return new Thread(r, "Web Watchman Worker");
-			}
-			
-		});
 
-		if (!watchman.loopMode) { // block waiting
-			watchman.loopMode = true;
-		} else {
-			watchman.refreshAll(true, WebConfig.webRequestTimeout);
-		}
 		Thread webThread = new Thread(watchman, "Configuration Remote Web Watchman");
 		webThread.setDaemon(true);
 		webThread.start();
@@ -547,7 +557,7 @@ public class ConfigWebWatchman implements Runnable {
 		}
 	}
 
-	static void sendWebRequest(String url, String user, String password, long lastModified, String eTag, WebCallback callback) {
+	protected void sendWebRequest(String url, String user, String password, long lastModified, String eTag, WebCallback callback) {
 		boolean done = false;
 		String reqClass = WebConfig.webRequestClient;
 		if (reqClass != null && reqClass.length() > 0) {
@@ -581,7 +591,8 @@ public class ConfigWebWatchman implements Runnable {
 	 * Default HTTP client to request remote configuration file.
 	 */
 	public static void asyncWebRequest(String url, String user, String password, long lastModified, String eTag, final Object callback) {
-		//HttpRequest.DEFAULT_USER_AGENT = "SimpleConfig/2.1";
+		HttpRequest.DEFAULT_USER_AGENT = "SimpleConfig/2.1";
+		//final NioHttpRequest req = new NioHttpRequest();
 		final HttpRequest req = new HttpRequest();
 		req.setRequestHeader("User-Agent", "SimpleConfig/2.1");
 		req.open("GET", url, true, user, password);

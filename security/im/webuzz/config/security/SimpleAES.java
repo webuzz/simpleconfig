@@ -147,7 +147,8 @@ public class SimpleAES {
 	private static byte[] doAES(int mode, SecretKeySpec key, byte[] bytes) throws Exception {
 		Cipher cipher = Cipher.getInstance("AES");
 		cipher.init(mode, key);
-		return cipher.doFinal(bytes);
+		byte[] r = cipher.doFinal(bytes);
+		return r;
 	}
 
 	private static byte[] encryptBytes(byte[] sBytes) {

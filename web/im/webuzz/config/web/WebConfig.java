@@ -49,6 +49,11 @@ public class WebConfig {
 	public static String localServerName = null;
 
 	/**
+	 * Local server port which is used to identifier different server session.
+	 */
+	public static int localServerPort = 0;
+	
+	/**
 	 * Global configuration center URL.
 	 * Marked as ${server.url.prefix} in {@link #targetURLPattern}. Usually it is 
 	 * an HTTP server URL.
@@ -130,6 +135,9 @@ public class WebConfig {
 	 * Server authorization pattern: "${server.auth.user}:${server.auth.password}"
 	 */
 	public static String extraTargetURLPattern = null;
+
+	
+	public static String timestampFilePath = null;
 
 	/**
 	 * Block #startWatchman until local files are considered as synchronized.
