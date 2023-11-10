@@ -132,6 +132,12 @@ public class ConfigJSParser implements IConfigConverter {
 			"	}\r\n" +
 			"	var configProps = [];\r\n" +
 			"	visit(configProps, ignoringProps, null, configObj);\r\n" +
+			"	for (var i = 0; i < configProps.length; i++) {\r\n" +
+			"		var line = configProps[i];\r\n" +
+			"		line = line.replace(new RegExp(\"\\n\", \"gm\"), \"\\\\n\");\r\n" +
+			"		line = line.replace(new RegExp(\"\\r\", \"gm\"), \"\\\\r\");\r\n" +
+			"		configProps[i] = line;\r\n" +
+			"	}\r\n" +
 			"	return configProps.join(\"\\r\\n\");\r\n" +
 			"}\r\n";
 
@@ -199,8 +205,9 @@ public class ConfigJSParser implements IConfigConverter {
 			if (checkInitialize()) {
 				Object o = evalMethod.invoke(jsEngine, "$config = " + js + "\r\nconvertToProperties($config);");
 				if (o instanceof String) {
-					//System.out.println("js->ini");
-					//System.out.println(o);
+//					System.out.println(convertJS);
+//					System.out.println("js->ini");
+//					System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
 			}
