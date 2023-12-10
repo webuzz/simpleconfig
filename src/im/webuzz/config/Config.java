@@ -508,7 +508,7 @@ public class Config {
 			return obj;
 		}
 		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
-			Field[] fields = type.getDeclaredFields();
+			Field[] fields = type.getFields();
 			int filteringModifiers = Modifier.PUBLIC;
 			Map<String, ConfigFieldFilter> configFilter = configurationFilters;
 			ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
@@ -588,7 +588,7 @@ public class Config {
 			}
 			Field f = null;
 			try {
-				f = type.getDeclaredField(k);
+				f = type.getField(k);
 			} catch (Exception e1) {
 				//e1.printStackTrace();
 			}
