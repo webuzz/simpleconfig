@@ -37,6 +37,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Document;
 
+import im.webuzz.config.Base64;
+
 /**
  * This class is a Java implementation of browser's XMLHttpRequest object.
  * This class can be considered as a bridge of Java's AJAX programming and
@@ -47,80 +49,6 @@ import org.w3c.dom.Document;
  * 2006-2-11
  */
 public class HttpRequest {
-	/*
-	 * @(#)Base64.java	1.4 03/01/23
-	 *
-	 * Copyright 2003 Sun Microsystems, Inc. All rights reserved.
-	 * SUN PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
-	 */
-
-	/**
-	 * Static methods for translating Base64 encoded strings to byte arrays
-	 * and vice-versa.
-	 *
-	 * @author  Josh Bloch
-	 * @version 1.4, 01/23/03
-	 * @see     Preferences
-	 * @since   1.4
-	 */
-	protected static class Base64 {
-	    /**
-	     * Translates the specified byte array into a Base64 string as per
-	     * Preferences.put(byte[]).
-	     */
-	    public static String byteArrayToBase64(byte[] a) {
-	        int aLen = a.length;
-	        int numFullGroups = aLen/3;
-	        int numBytesInPartialGroup = aLen - 3*numFullGroups;
-	        int resultLen = 4*((aLen + 2)/3);
-	        StringBuilder result = new StringBuilder(resultLen);
-	        char[] intToAlpha = intToBase64;
-
-	        // Translate all full groups from byte array elements to Base64
-	        int inCursor = 0;
-	        for (int i=0; i<numFullGroups; i++) {
-	            int byte0 = a[inCursor++] & 0xff;
-	            int byte1 = a[inCursor++] & 0xff;
-	            int byte2 = a[inCursor++] & 0xff;
-	            result.append(intToAlpha[byte0 >> 2]);
-	            result.append(intToAlpha[(byte0 << 4)&0x3f | (byte1 >> 4)]);
-	            result.append(intToAlpha[(byte1 << 2)&0x3f | (byte2 >> 6)]);
-	            result.append(intToAlpha[byte2 & 0x3f]);
-	        }
-
-	        // Translate partial group if present
-	        if (numBytesInPartialGroup != 0) {
-	            int byte0 = a[inCursor++] & 0xff;
-	            result.append(intToAlpha[byte0 >> 2]);
-	            if (numBytesInPartialGroup == 1) {
-	                result.append(intToAlpha[(byte0 << 4) & 0x3f]);
-	                result.append("==");
-	            } else {
-	                // assert numBytesInPartialGroup == 2;
-	                int byte1 = a[inCursor++] & 0xff;
-	                result.append(intToAlpha[(byte0 << 4)&0x3f | (byte1 >> 4)]);
-	                result.append(intToAlpha[(byte1 << 2)&0x3f]);
-	                result.append('=');
-	            }
-	        }
-	        // assert inCursor == a.length;
-	        // assert result.length() == resultLen;
-	        return result.toString();
-	    }
-
-	    /**
-	     * This array is a lookup table that translates 6-bit positive integer
-	     * index values into their "Base64 Alphabet" equivalents as specified 
-	     * in Table 1 of RFC 2045.
-	     */
-	    private static final char intToBase64[] = {
-	        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-	        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-	        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-	        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-	        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
-	    };
-	}
 	
 	/**
 	 * This class is used to monitoring data-receiving process.
@@ -533,7 +461,7 @@ public class HttpRequest {
 			}
 			if (user != null) {
 				String auth = user + ":" + (password != null ? password : "");
-				String base64Auth = HttpRequest.Base64.byteArrayToBase64(auth.getBytes());
+				String base64Auth = Base64.byteArrayToBase64(auth.getBytes());
 				connection.setRequestProperty("Authorization", "Basic " + base64Auth);
 			}
 			for (Iterator<String> iter = headers.keySet().iterator(); iter.hasNext();) {

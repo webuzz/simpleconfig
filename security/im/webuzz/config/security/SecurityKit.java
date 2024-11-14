@@ -14,6 +14,7 @@
 
 package im.webuzz.config.security;
 
+import im.webuzz.config.Base64;
 import im.webuzz.config.Config;
 
 import java.io.BufferedReader;
@@ -123,7 +124,9 @@ public class SecurityKit {
 		}
 		int length = password.length();
 		for (int i = length - 1; i >= 0; i--) { // Mix and double password length
-			char c = Base64.intToBase64[(int) Math.floor(Math.random() * Base64.intToBase64.length)];
+			int base64Len = Base64.intToBase64.length;
+			int idx = SecurityConfig.generateRandomness ? (int) Math.floor(Math.random() * base64Len) : i % base64Len;
+			char c = Base64.intToBase64[idx];
 			passwordBuilder.append(password.charAt(i)).append(c);
 		}
 		String newPassword = passwordBuilder.toString();
@@ -140,29 +143,18 @@ public class SecurityKit {
 	 * Only keep those hackers who won't try decompiling classes.
 	 */
 	public static void main(String[] args) {
-		if (args == null || args.length == 0 || args[0] == null) {
-			System.out.println("Protecting password by private encryption.\r\n"
-					+ "Usage: java -cp . " + SecurityKit.class.getName() + " [-c | --console] [config path] [password]");
+		args = Config.initialize(args);
+		if (args == null) {
+			System.out.println("Security kit for protecting password or other critical data using private encryption.");
+			System.out.println("Usage:");
+			System.out.println("\t... " + SecurityKit.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini> [password or critical data]");
 			return;
 		}
-		int index = 0;
-		boolean consoling = false;
-		if ("-c".equals(args[index]) || "--console".equals(args[index])) {
-			consoling = true;
-			index++;
-		}
-		if (args.length > index + 1 // at least 2+
-				|| (consoling && args.length > index)) {
-			String configPath = args[index];
-			if (configPath != null && configPath.length() > 0) {
-				Config.initialize(configPath);
-				Config.registerUpdatingListener(SecurityConfig.class);
-			}
-			index++;
-		}
+		// args shifted
+		Config.registerUpdatingListener(SecurityConfig.class);
 		
-		if (!consoling) {
-			String password = args[index];
+		if (args.length > 0 && args[0] != null && args[0].length() != 0) {
+			String password = args[0];
 			String decryptedPassword = SecurityKit.decrypt(password);
 			if (decryptedPassword != null && !decryptedPassword.equals(password)) {
 				System.out.println("Decrypted password: " + decryptedPassword);

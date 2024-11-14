@@ -35,14 +35,14 @@ public class ConfigFileWatchman {
 
 	private static boolean running = false;
 	
-	private static Properties prop;
+	private static Properties props;
 	private static long lastUpdated = 0;
 
 	private static Map<String, Long> fileLastUpdateds = new ConcurrentHashMap<String, Long>();
 	
 	public static void startWatchman() {
 		lastUpdated = 0;
-		updateFromConfigurationFiles(Config.configurationFile, Config.configurationFolder);
+		updateFromConfigurationFiles(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
 		
 		if (running) {
 			return;
@@ -66,7 +66,7 @@ public class ConfigFileWatchman {
 						}
 					}
 					if (running) {
-						updateFromConfigurationFiles(Config.configurationFile, Config.configurationFolder);
+						updateFromConfigurationFiles(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
 					}
 				}
 			}
@@ -76,62 +76,38 @@ public class ConfigFileWatchman {
 		thread.start();
 	}
 	
+	/**
+	 * This method will be invoked by {@link Config#registerUpdatingListener(Class)}
+	 * @param clazz
+	 */
 	public static void loadConfigClass(Class<?> clazz) {
-		if (prop != null) {
-			Config.parseConfiguration(clazz, true, prop, !Config.configurationMultipleFiles);
+		if (props != null) {
+			ConfigINIParser.parseConfiguration(props, clazz, true, true); //!Config.configurationMultipleFiles);
 		}
 		
-		if (!Config.configurationMultipleFiles) {
-			return;
-		}
+		//if (!Config.configurationMultipleFiles) return;
 		
 		String keyPrefix = Config.getKeyPrefix(clazz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
 		}
 		
-		String folder = Config.configurationFolder;
-		if (folder == null || folder.length() == 0) {
-			String file = Config.configurationFile;
-			if (file == null) {
-				return;
-			}
-			folder = new File(file).getParent();
-		}
-		boolean existed = false;
-		File file = null;
-		String extension = null;
-		String[] exts = Config.configurationScanningExtensions;
-		if (exts != null) {
-			for (String ext : exts) {
-				if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
-					file = new File(folder, Config.parseFilePath(keyPrefix + ext));
-					if (file.exists()) {
-						extension = ext;
-						existed = true;
-						break;
-					}
-				}
-			}
-		}
-		if (!existed) {
-			extension = Config.configurationFileExtension;
-			file = new File(folder, Config.parseFilePath(keyPrefix + extension));
-			existed = file.exists();
-		}
-		if (!existed) {
-			return;
-		}
+		File file = Config.getConfigruationFile(keyPrefix);
+		if (!file.exists()) return;
+		String fileName = file.getName();
+		String extension = fileName.substring(fileName.lastIndexOf('.'));
+
 		long lastUpdated = 0;
 		String absolutePath = file.getAbsolutePath();
-		Properties prop = new Properties();
+		Properties fileProps = new Properties();
 		InputStream fis = null;
 		try {
 			fis = new FileInputStream(file);
-			loadConfig(prop, fis, extension);
+			loadConfig(fileProps, fis, extension);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(absolutePath, lastUpdated);
-			Config.parseConfiguration(clazz, false, prop, true);
+			Config.recordConfigExtension(clazz, extension); // always update the configuration class' file extension
+			ConfigINIParser.parseConfiguration(fileProps, clazz, false, true);
 			if (Config.configurationLogging) {
 				System.out.println("[Config] Configuration " + clazz.getName() + "/" + absolutePath + " loaded.");
 			}
@@ -162,13 +138,13 @@ public class ConfigFileWatchman {
 		if (Config.configurationLogging && lastUpdated > 0) {
 			System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " updated.");
 		}
-		prop = new Properties();
+		props = new Properties();
 		FileInputStream fis = null;
 		try {
 			fis = new FileInputStream(file);
-			loadConfig(prop, fis, extension);
+			loadConfig(props, fis, extension);
 			lastUpdated = file.lastModified();
-			return prop;
+			return props;
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -183,59 +159,59 @@ public class ConfigFileWatchman {
 				fis = null;
 			}
 		}
-		prop = null;
+		props = null;
 		return null;
 	}
 	
-	private static void updateFromConfigurationFiles(String configPath, String extraFolder) {
+	private static void updateFromConfigurationFiles(String configPath, String configExtension, String extraFolder) {
 		String[] oldWatchmen = Config.configurationWatchmen;
-		boolean configurationSwitched = false;
-		int loopLoadings = 5;
-		do {
-			configurationSwitched = false;
-			String extension = null;
-			int idx = configPath.lastIndexOf('.');
-			if (idx == -1) {
-				extension = Config.configurationFileExtension;
-			} else {
-				extension = configPath.substring(idx);
-			}
-			Properties mainProp = readConfigurations(configPath, extension);
+//		boolean configurationSwitched = false;
+//		int loopLoadings = 5;
+//		do {
+//			configurationSwitched = false;
+//			String extension = null;
+//			int idx = configPath.lastIndexOf('.');
+//			if (idx == -1) {
+//				extension = Config.configurationFileExtension;
+//			} else {
+//				extension = configPath.substring(idx);
+//			}
+			Properties mainProp = readConfigurations(configPath, configExtension);
 			if (mainProp != null) {
 				Class<?>[] configs = Config.getAllConfigurations();
 				for (int i = 0; i < configs.length; i++) {
-					Config.parseConfiguration(configs[i], true, mainProp, !Config.configurationMultipleFiles);
+					if (ConfigINIParser.parseConfiguration(mainProp, configs[i], true, true)) {
+						Config.recordConfigExtension(configs[i], configExtension);
+					}
 				}
 			}
 			
-			if (configPath != null && !configPath.equals(Config.configurationFile)) {
-				if (Config.configurationLogging) {
-					System.out.println("[Config] Switch configuration file from " + configPath + " to " + Config.configurationFile + ".");
-				}
-				configPath = Config.configurationFile;
-				lastUpdated = 0;
-				configurationSwitched = true;
-			}
-		} while (configurationSwitched && loopLoadings-- > 0);
-		
-		if (loopLoadings <= 0 && Config.configurationLogging) {
-			System.out.println("[Config] Configuration file is being redirected for too many times (5).");
-		}
+//			if (configPath != null && !configPath.equals(Config.configurationFile)) {
+//				if (Config.configurationLogging) {
+//					System.out.println("[Config] Switch configuration file from " + configPath + " to " + Config.configurationFile + ".");
+//				}
+//				configPath = Config.configurationFile;
+//				lastUpdated = 0;
+//				configurationSwitched = true;
+//			}
+//		} while (configurationSwitched && loopLoadings-- > 0);
+//		
+//		if (loopLoadings <= 0 && Config.configurationLogging) {
+//			System.out.println("[Config] Configuration file is being redirected for too many times (5).");
+//		}
 		
 		if (!Arrays.equals(oldWatchmen, Config.configurationWatchmen)) {
 			Config.loadWatchmen();
 		}
 		
-		if (extraFolder != null && !extraFolder.equals(Config.configurationFolder)) {
-			if (Config.configurationLogging) {
-				System.out.println("[Config] Switch configuration folder from " + extraFolder + " to " + Config.configurationFolder + ".");
-			}
-			fileLastUpdateds.clear();
-		}
+//		if (extraFolder != null && !extraFolder.equals(Config.configurationFolder)) {
+//			if (Config.configurationLogging) {
+//				System.out.println("[Config] Switch configuration folder from " + extraFolder + " to " + Config.configurationFolder + ".");
+//			}
+//			fileLastUpdateds.clear();
+//		}
 		
-		if (!Config.configurationMultipleFiles) {
-			return;
-		}
+		//if (!Config.configurationMultipleFiles) return;
 		
 		String folder = extraFolder;
 		if (folder == null || folder.length() == 0) {
@@ -248,39 +224,18 @@ public class ConfigFileWatchman {
 			if (keyPrefix == null || keyPrefix.length() == 0) {
 				continue;
 			}
-			boolean existed = false;
-			File file = null;
-			String extension = null;
-			String[] exts = Config.configurationScanningExtensions;
-			if (exts != null) {
-				for (String ext : exts) {
-					if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
-						file = new File(folder, Config.parseFilePath(keyPrefix + ext));
-						if (file.exists()) {
-							extension = ext;
-							existed = true;
-							break;
-						}
-					}
-				}
-			}
-			if (!existed) {
-				extension = Config.configurationFileExtension;
-				file = new File(folder, Config.parseFilePath(keyPrefix + extension));
-				existed = file.exists();
-			}
-			if (!existed) {
-				continue;
-			}
+			File file = Config.getConfigruationFile(keyPrefix);
+			if (!file.exists()) continue;
+			String fileName = file.getName();
+			String extension = fileName.substring(fileName.indexOf('.') + 1);
+			
 			long lastUpdated = 0;
 			String absolutePath = file.getAbsolutePath();
 			Long v = fileLastUpdateds.get(absolutePath);
 			if (v != null) {
 				lastUpdated = v.longValue();
 			}
-			if (file.lastModified() == lastUpdated) {
-				continue;
-			}
+			if (file.lastModified() == lastUpdated) continue;
 			if (Config.configurationLogging && lastUpdated > 0) {
 				System.out.println("[Config] Configuration " + clz.getName() + " at " + absolutePath + " updated.");
 			}
@@ -291,7 +246,8 @@ public class ConfigFileWatchman {
 				loadConfig(prop, fis, extension);
 				lastUpdated = file.lastModified();
 				fileLastUpdateds.put(absolutePath, lastUpdated);
-				Config.parseConfiguration(clz, false, prop, true);
+				Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
+				ConfigINIParser.parseConfiguration(prop, clz, false, true);
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 				continue;

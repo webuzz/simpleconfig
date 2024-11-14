@@ -16,6 +16,8 @@ package im.webuzz.config.security;
 
 import java.util.Properties;
 
+import im.webuzz.config.ConfigComment;
+
 public class SecurityConfig {
 	
 	public static final String configKeyPrefix = "security";
@@ -32,6 +34,9 @@ public class SecurityConfig {
 	// 3: k0=B, k1=B, k2=A (t=+1d) // Use key B as encrypt key, wait until all servers no longer get session encrypted by key A
 	// 4: K0=B, k1=B, k2=null (t=+3d) // Use key B totally, and remove key A for ever
 	// ...
+	
+	@ConfigComment({ "Add randomness on encrypting given message or not."})
+	public static boolean generateRandomness = true;
 	
 	public static void update(Properties prop) {
 		if (key0 != null && key1 == null && key2 == null) {

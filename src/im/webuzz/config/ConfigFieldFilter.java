@@ -14,6 +14,7 @@
 
 package im.webuzz.config;
 
+import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,26 +32,26 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ConfigFieldFilter {
 
-	/**
-	 * Modifiers are used to filter fields.
-	 * If modifiers is less than or equals to 0, modifier filter is ignored.
-	 * If modifiers is 1, Modifier#PUBLIC, only public fields are configurable.
-	 * If modifiers is 2, Modifier#PRIVATE, only private fields are configurable.
-	 * If modifiers is 4, Modifier#PROTECTED, only protected fields are configurable.
-	 */
+	@ConfigComment({
+		"Modifiers are used to filter fields.",
+		"If modifiers is less than or equals to 0, modifier filter is ignored.",
+		"If modifiers is 1, Modifier#PUBLIC, only public fields are configurable.",
+		"If modifiers is 2, Modifier#PRIVATE, only private fields are configurable.",
+		"If modifiers is 4, Modifier#PROTECTED, only protected fields are configurable.",
+	})
 	public int modifiers;
 
-	/**
-	 * Included fields filter.
-	 * If fields are in this set, they are configurable.
-	 * If fields are not in this set, ignore them.
-	 */
+	@ConfigComment({
+		"Included fields filter.",
+		"If fields are in this set, they are configurable.",
+		"If fields are not in this set, ignore them.",
+	})
 	public Set<String> includes;
 	
-	/**
-	 * Excluded fields filter.
-	 * If fields are not listed in this set, they are configurable.
-	 */
+	@ConfigComment({
+		"Excluded fields filter.",
+		"If fields are not listed in this set, they are configurable.",
+	})
 	public Set<String> excludes;
 
 	public ConfigFieldFilter() {
@@ -88,6 +89,43 @@ public class ConfigFieldFilter {
 		this.excludes = arrayToSet(excludes);
 	}
 
+	/**
+	 * Check if given field is filtered/skipped or not.
+	 * @param fieldName
+	 * @return true, should be skipped; false, should not be skipped.
+	 */
+	public boolean filterName(String fieldName) {
+		if (excludes != null && excludes.contains(fieldName)) return true;
+		// skip fields not included in #includes
+		if (includes != null && !includes.contains(fieldName)) return true;
+		return false;
+	}
+	
+	/**
+	 * Check if given field is filtered/skipped or not.
+	 * @param modifiers
+	 * @param filterStatic
+	 * @return true, should be skipped; false, should not be skipped.
+	 */
+	public static boolean filterModifiers(ConfigFieldFilter filter, int modifiers, boolean filterStatic) {
+		int filteringModifiers = Modifier.PUBLIC;
+		if (filter != null && filter.modifiers > 0) {
+			filteringModifiers = filter.modifiers;
+		}
+		if ((filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0)
+				|| (modifiers & Modifier.FINAL) != 0) {
+			// Ignore static, final fields
+			return true;
+		}
+		if (filterStatic) {
+			if ((modifiers & Modifier.STATIC) != 0) return true;
+		} else {
+			// not filter static fields
+			if ((modifiers & Modifier.STATIC) == 0) return true;
+		}
+		return false;
+	}
+	
 	private static Set<String> arrayToSet(String[] array) {
 		if (array != null && array.length > 0) {
 			Set<String> resultSet = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());

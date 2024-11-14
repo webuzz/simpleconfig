@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2010 - 2015 java2script.org, webuzz.im and others
+ * Copyright (c) 2010 - 2024 webuzz.im and others
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,80 +14,117 @@
 
 package im.webuzz.config;
 
-import java.lang.reflect.Array;
+import java.io.File;
 import java.lang.reflect.Field;
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+@ConfigComment({
+	"All configurations here are to control the class Config's behaviors.",
+	"The configurations are considered as the entry of all other configurations."
+})
 public class Config {
 	
 	public static final Charset configFileEncoding = Charset.forName("UTF-8");
 
 	protected static final String keyPrefixFieldName = "configKeyPrefix";
-	
-	protected static final String $null = "[null]";
-	protected static final String $empty = "[empty]";
-	protected static final String $array = "[array]";
-	protected static final String $list = "[list]";
-	protected static final String $set = "[set]";
-	protected static final String $map = "[map]";
-	protected static final String $object = "[object]";
 
-	public static String configurationFile = null;
-	public static String configurationFileExtension = ".ini";
-	/**
-	 * Supporting multiple configuration formats. The scanning extension order will be used
-	 * to find configuration file and will decide the priority of which file will be used.
-	 */
-	public static String[] configurationScanningExtensions = new String[] { ".js", ".json", ".xml", ".ini", ".properties", ".props", ".config", ".conf", ".cfg", ".txt" };
-	public static String configurationFolder = null;
-	public static boolean configurationMultipleFiles = true;
+	//public static boolean configurationMultipleFiles = true;
+	private static String configurationFolder = null;
+	private static String configurationFile = null;
+	private static String configurationFileExtension = ".ini";
+	
+	@ConfigComment({
+		"Supporting multiple configuration formats. The scanning extension order will be used",
+		"to find configuration file and will decide the priority of which file will be used.",
+		"The first extension will be the default file extension."
+	})
+	public static String[] configurationScanningExtensions = new String[] {
+			".ini", // default file extension
+			".js", ".json",
+			".conf", ".config", ".cfg",
+			".props", ".properties",
+			".xml",
+			".txt"
+		};
 	
 	public static String[] configurationWatchmen = new String[] { "im.webuzz.config.ConfigFileWatchman" };
+
+	@ConfigComment({
+		"Array of configuration class names, listing all classes which are to be configured via files.",
+		"e.g im.webuzz.config.Config;im.webuzz.config.web.WebConfig"
+	})
 	public static String[] configurationClasses = null;
+
 	public static Map<String, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<String, ConfigFieldFilter>();
 	
 	public static Map<String, String> converterExtensions = new ConcurrentHashMap<String, String>();
 	protected static Map<String, IConfigConverter> converters = new ConcurrentHashMap<String, IConfigConverter>();
+
+	public static Map<String, String> generatorExtensions = new ConcurrentHashMap<String, String>();
+	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<String, IConfigGenerator>();
 	
+	static {
+		//converterExtensions.put("ini", "im.webuzz.config.ConfigINIParser");
+		converterExtensions.put("js", "im.webuzz.config.ConfigJSParser");
+		converterExtensions.put("xml", "im.webuzz.config.ConfigXMLParser");
+		
+		generatorExtensions.put("ini", "im.webuzz.config.ConfigINIGenerator");
+		generatorExtensions.put("js", "im.webuzz.config.ConfigJSGenerator");
+		generatorExtensions.put("xml", "im.webuzz.config.ConfigXMLGenerator");
+	}
 	public static int configurationMapSearchingDots = 10;
 
-	/**
-	 * The class for configured password decryption.
-	 * If not set, password is in plain text. 
-	 * 
-	 * im.webuzz.config.security.SecurityKit is a reference implementation.
-	 */
+	@ConfigComment({
+		"The class for configured password decryption.",
+		"If not set, password is in plain text. ",
+		"",
+		"im.webuzz.config.security.SecurityKit is a reference implementation.",
+	})
 	public static String configurationSecurityDecrypter = "im.webuzz.config.security.SecurityKit";
 	
-	public static boolean configurationLogging = false;
+	public static boolean configurationLogging = true;
 	
 	protected static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<String, Class<?>>();
 	
+	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<Class<?>, String>();
+
 	private static volatile ClassLoader configurationLoader = null;
 	
-	private static volatile long initializedTime = 0;
+	protected static volatile long initializedTime = 0;
 	
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+	private static Map<String, Class<?>> loadedClasses = new ConcurrentHashMap<String, Class<?>>(50);
 	
+	private static Properties argProps = null;
+
+	/*
+	 * In case configurations got updated from file, try to add class into configuration system
+	 */
+	public static void update(Properties prop) {
+		String[] configClasses = configurationClasses;
+		if (configClasses == null) return;
+		for (int i = 0; i < configClasses.length; i++) {
+			String clazz = configClasses[i];
+			if (!allConfigs.containsKey(clazz)) {
+				Class<?> clz = loadConfigurationClass(clazz);
+				if (clz != null) {
+					registerUpdatingListener(clz);
+				}
+			}
+		}
+	}
+
 	// May dependent on disk IO
 	public static void registerUpdatingListener(Class<?> clazz) {
 		if (clazz == null) {
@@ -96,6 +133,9 @@ public class Config {
 		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
 		if (updating) {
 			initializedTime = System.currentTimeMillis();
+			if (argProps != null && argProps.size() > 0) {
+				ConfigINIParser.parseConfiguration(argProps, clazz, true, true);
+			}
 			// Load watchman classes and start loadConfigClass task
 			String[] syncClasses = configurationWatchmen;
 			if (syncClasses != null && syncClasses.length > 0) {
@@ -119,24 +159,145 @@ public class Config {
 			}
 		}
 	}
-
-	public static void initialize(String configPath) {
-		initialize(configPath, null, true);
+	
+	/**
+	 * Record configuration class's existing file extension.
+	 * @param configClass
+	 * @param configExtension
+	 * @return whether file extension is changed or not.
+	 */
+	protected static boolean recordConfigExtension(Class<?> configClass, String configExtension) {
+		String existedConfigExt = configExtensions.put(configClass, configExtension);
+		if (existedConfigExt != null && !existedConfigExt.equals(configExtension)) {
+			return true;
+		}
+		return false;
+	}
+	
+	protected static String getConfigExtension(Class<?> configClass) {
+		String ext = configExtensions.get(configClass);
+		if (ext == null) ext = configurationFileExtension;
+		return ext;
+	}
+	
+	public static String getConfigurationMainFile() {
+		return configurationFile;
+	}
+	
+	public static String getConfigurationMainExtension() {
+		return configurationFileExtension;
+	}
+	
+	public static String getConfigurationFolder() {
+		String folder = configurationFolder;
+		if (folder == null) {
+			folder = configurationFile;
+			File folderFile = new File(folder);
+			if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(configurationFileExtension)) {
+				folder = folderFile.getParent();
+			}
+		}
+		return folder;
 	}
 
-	public static void initialize(String configPath, String extraFolder, boolean multipleConfigs) {
-		configurationFile = configPath;
-		configurationFolder = extraFolder;
-		configurationMultipleFiles = multipleConfigs;
-		initialize(); // call default initialize method
+	public static File getConfigruationFile(String keyPrefix) {
+		String folder = getConfigurationFolder();
+		File file = null;
+		String[] exts = Config.configurationScanningExtensions;
+		if (exts == null || exts.length == 0) {
+			exts = new String[] { ".ini" };
+		}
+		if (exts != null) {
+			for (String ext : exts) {
+				if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
+					file = new File(folder, Config.parseFilePath(keyPrefix + ext));
+					if (file.exists()) {
+						return file;
+					}
+				}
+			}
+		}
+		return new File(folder, Config.parseFilePath(keyPrefix + exts[0]));
+	}
+
+	protected static IConfigGenerator getConfigurationGenerator(String extension) {
+		String ext = extension.substring(1);
+		IConfigGenerator generator = generators.get(ext);
+		if (generator != null) return generator;
+		
+		String converterClass = generatorExtensions.get(ext);
+		if (converterClass != null && converterClass.length() > 0) {
+			try {
+				//Class<?> clazz = Class.forName(converterClass);
+				Class<?> clazz = Config.loadConfigurationClass(converterClass);
+				if (clazz != null) {
+					Object instance = clazz.newInstance();
+					if (instance instanceof IConfigGenerator) {
+						generator = (IConfigGenerator) instance;
+						generators.put(ext, generator);
+					}
+				}
+			} catch (InstantiationException e) {
+				e.printStackTrace();
+			} catch (IllegalAccessException e) {
+				e.printStackTrace();
+			}
+		}
+		if (generator == null) generator = new ConfigINIGenerator();
+		return generator;
+	}
+	
+	public static void initialize(String configPath) {
+		//initialize(configPath, null, true);
+		initialize(new String[] { configPath });
 	}
 
 	/**
 	 * Need to set configurationFile and configurationExtraPath before calling this method.
 	 */
-	public static void initialize() {
+	public static String[] initialize(String[] args) {
 		allConfigs.put(Config.class.getName(), Config.class);
+		argProps = new Properties();
+		String[] retArgs = ConfigINIParser.parseArguments(args, argProps);
+
+		if (argProps.size() > 0) {
+			ConfigINIParser.parseConfiguration(argProps, Config.class, false, true);
+			Class<?>[] configs = Config.getAllConfigurations();
+			for (int i = 0; i < configs.length; i++) {
+				ConfigINIParser.parseConfiguration(argProps, configs[i], true, true);
+			}
+		}
 		
+		if (retArgs != null && retArgs.length > 0) {
+			String firstArg = retArgs[0];
+			if (firstArg != null && firstArg.length() > 0) {
+				File f = new File(firstArg);
+				if (f.exists()) {
+					if (f.isDirectory()) {
+						configurationFolder = firstArg;
+						File cfgFile = new File(f, "config.js");
+						if (!cfgFile.exists()) {
+							cfgFile = new File(f, "config.ini");
+						}
+						f = cfgFile;
+						configurationFolder = f.getAbsolutePath();
+						configurationFile = cfgFile.getAbsolutePath();
+					} else { // File
+						configurationFolder = f.getParentFile().getAbsolutePath();
+						configurationFile = firstArg;
+					}
+					String name = f.getName();
+					int idx = name.lastIndexOf('.');
+					if (idx != -1) {
+						configurationFileExtension = name.substring(idx);
+					}
+					// Shift the first argument
+					String[] newRetArgs = new String[retArgs.length - 1];
+					System.arraycopy(retArgs, 1, newRetArgs, 0, newRetArgs.length);
+					retArgs = newRetArgs;
+				}
+			}
+		}
 		String configPath = configurationFile;
 		if (configPath == null) {
 			configPath = configurationFile = "./config.ini";
@@ -169,9 +330,10 @@ public class Config {
 		if (configurationLogging) {
 			System.out.println("[Config] Configuration initialized.");
 		}
+		return retArgs;
 	}
 
-	public static void loadWatchmen() {
+	protected static void loadWatchmen() {
 		// Load watchman classes and start synchronizing task
 		Set<String> loadedWatchmen = new HashSet<String>();
 		int loopLoadings = 5;
@@ -180,9 +342,7 @@ public class Config {
 			// by default, there is a watchman: im.webuzz.config.ConfigFileWatchman
 			for (int i = 0; i < syncClasses.length; i++) {
 				String clazz = syncClasses[i];
-				if (loadedWatchmen.contains(clazz)) {
-					continue;
-				}
+				if (loadedWatchmen.contains(clazz)) continue;
 				Class<?> clz = loadConfigurationClass(clazz);
 				if (clz != null) {
 					try {
@@ -200,9 +360,7 @@ public class Config {
 				}
 			}
 			String[] updatedClasses = configurationWatchmen;
-			if (Arrays.equals(updatedClasses, syncClasses)) {
-				break;
-			}
+			if (Arrays.equals(updatedClasses, syncClasses)) break;
 			// Config.configurationWatchmen may be updated from file
 			syncClasses = updatedClasses;
 		}
@@ -228,14 +386,16 @@ public class Config {
 	}
 
 	public static Class<?> loadConfigurationClass(String clazz) {
-		Class<?> clz = null;
+		Class<?> clz = loadedClasses.get(clazz);
+		if (clz != null) return clz;
 		if (configurationLoader != null) {
 			try {
 				clz = configurationLoader.loadClass(clazz);
 			} catch (ClassNotFoundException e) {
 				if (!notFoundClasses.contains(clazz)) {
 					notFoundClasses.add(clazz);
-					e.printStackTrace();
+					//e.printStackTrace();
+					System.err.println("Class " + clazz + " not found!");
 				}
 			}
 		}
@@ -245,1787 +405,15 @@ public class Config {
 			} catch (ClassNotFoundException e) {
 				if (!notFoundClasses.contains(clazz)) {
 					notFoundClasses.add(clazz);
-					e.printStackTrace();
+					//e.printStackTrace();
+					System.err.println("Class " + clazz + " not found!");
 				}
 			}
 		}
+		if (clz != null) loadedClasses.put(clazz, clz);
 		return clz;
 	}
 
-	public static String getKeyPrefix(Class<?> clz) {
-		Field f = null;
-		try {
-			f = clz.getDeclaredField(keyPrefixFieldName);
-			if (f == null) {
-				return null;
-			}
-			int modifiers = f.getModifiers();
-			if (/*(modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) != 0
-					&& */(modifiers & Modifier.STATIC) != 0
-					&& (modifiers & Modifier.FINAL) != 0
-					&& f.getType() == String.class) {
-				if ((modifiers & Modifier.PUBLIC) == 0) {
-					f.setAccessible(true);
-				}
-				String keyPrefix = (String) f.get(clz);
-				if (keyPrefix.length() == 0) {
-					keyPrefix = null;
-				}
-				return parseFilePath(keyPrefix);
-			}
-		} catch (SecurityException e) {
-		} catch (NoSuchFieldException e) {
-		} catch (IllegalArgumentException e) {
-		} catch (IllegalAccessException e) {
-		}
-		ConfigKeyPrefix prefixAnn = clz.getAnnotation(ConfigKeyPrefix.class);
-		if (prefixAnn != null) {
-			String prefix = prefixAnn.value();
-			if (prefix != null && prefix.length() > 0) {
-				return parseFilePath(prefix);
-			}
-		}
-		return null;
-	}
-	
-	static int compare(long x, long y) {
-        return (x < y) ? -1 : ((x == y) ? 0 : 1);
-    }
-	
-	static int compareUnsigned(long x, long y) {
-        return compare(x + Long.MIN_VALUE, y + Long.MIN_VALUE);
-    }
-	
-	static long parseUnsignedLong(String s, int radix) throws NumberFormatException {
-		if (s == null) {
-			throw new NumberFormatException("null");
-		}
-
-		int len = s.length();
-		if (len > 0) {
-			char firstChar = s.charAt(0);
-			if (firstChar == '-') {
-				throw new NumberFormatException(
-						String.format("Illegal leading minus sign on unsigned string %s.", s));
-			} else {
-				if (len <= 12 || // Long.MAX_VALUE in Character.MAX_RADIX is 13 digits
-						(radix == 10 && len <= 18)) { // Long.MAX_VALUE in base 10 is 19 digits
-					return Long.parseLong(s, radix);
-				}
-
-				// No need for range checks on len due to testing above.
-				long first = Long.parseLong(s.substring(0, len - 1), radix);
-				int second = Character.digit(s.charAt(len - 1), radix);
-				if (second < 0) {
-					throw new NumberFormatException("Bad digit at end of " + s);
-				}
-				long result = first * radix + second;
-				if (compareUnsigned(result, first) < 0) {
-					/*
-					 * The maximum unsigned value, (2^64)-1, takes at most one
-					 * more digit to represent than the maximum signed value,
-					 * (2^63)-1. Therefore, parsing (len - 1) digits will be
-					 * appropriately in-range of the signed parsing. In other
-					 * words, if parsing (len -1) digits overflows signed
-					 * parsing, parsing len digits will certainly overflow
-					 * unsigned parsing.
-					 *
-					 * The compareUnsigned check above catches situations where
-					 * an unsigned overflow occurs incorporating the
-					 * contribution of the final digit.
-					 */
-					throw new NumberFormatException(
-							String.format("String value %s exceeds range of unsigned long.", s));
-				}
-				return result;
-			}
-		} else {
-			throw new NumberFormatException("For input string: \"" + s + "\"");
-		}
-	}
-
-	static int parseUnsignedInt(String s, int radix) throws NumberFormatException {
-		if (s == null) {
-			throw new NumberFormatException("null");
-		}
-
-		int len = s.length();
-		if (len > 0) {
-			char firstChar = s.charAt(0);
-			if (firstChar == '-') {
-				throw new NumberFormatException(
-						String.format("Illegal leading minus sign " + "on unsigned string %s.", s));
-			} else {
-				if (len <= 5 || // Integer.MAX_VALUE in Character.MAX_RADIX is 6 digits
-						(radix == 10 && len <= 9)) { // Integer.MAX_VALUE in base 10 is 10 digits
-					return Integer.parseInt(s, radix);
-				} else {
-					long ell = Long.parseLong(s, radix);
-					if ((ell & 0xffffffff00000000L) == 0) {
-						return (int) ell;
-					} else {
-						throw new NumberFormatException(
-								String.format("String value %s exceeds " + "range of unsigned int.", s));
-					}
-				}
-			}
-		} else {
-			throw new NumberFormatException("For input string: \"" + s + "\"");
-		}
-	}
-
-	static short parseUnsignedShort(String s, int radix) throws NumberFormatException {
-		int v = Integer.parseInt(s, radix);
-		if ((v & 0xffff0000) == 0) {
-			return (short) v;
-		} else {
-			throw new NumberFormatException(
-					String.format("String value %s exceeds range of unsigned short.", s));
-		}
-	}
-
-	static byte parseUnsignedByte(String s, int radix) throws NumberFormatException {
-		int v = Integer.parseInt(s, radix);
-		if ((v & 0xffffff00) == 0) {
-			return (byte) v;
-		} else {
-			throw new NumberFormatException(
-					String.format("String value %s exceeds range of unsigned byte.", s));
-		}
-	}
-
-	static Object parseTypedObject(Class<?>[] types, String p, String keyName, Properties prop) {
-		Class<?> type = types[0];
-		if (type == Integer.class) {
-			if ($null.equals(p)) return null;
-			try {
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					return Integer.valueOf(parseUnsignedInt(p.substring(2), 16));
-				} else {
-					return Integer.valueOf(p);
-				}
-			} catch (Exception e) {
-				return null;
-			}
-		} else if (type == String.class) {
-			return $null.equals(p) ? null : parseString(p);
-		} else if (type == Boolean.class) {
-			return $null.equals(p) ? null : Boolean.valueOf(p);
-		} else if (type == Long.class) {
-			if ($null.equals(p)) return null;
-			try {
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					return Long.valueOf(parseUnsignedLong(p.substring(2), 16));
-				} else {
-					return Long.valueOf(p);
-				}
-			} catch (Exception e) {
-				return null;
-			}
-		} else if (type == int[].class) {
-			return parseIntegerArray(p, keyName, prop);
-		} else if (type == long[].class) {
-			return parseLongArray(p, keyName, prop);
-		} else if (type == boolean[].class) {
-			return parseBooleanArray(p, keyName, prop);
-		} else if (type == double[].class) {
-			return parseDoubleArray(p, keyName, prop);
-		} else if (type == float[].class) {
-			return parseFloatArray(p, keyName, prop);
-		} else if (type == short[].class) {
-			return parseShortArray(p, keyName, prop);
-		} else if (type == byte[].class) {
-			return parseByteArray(p, keyName, prop);
-		} else if (type == char[].class) {
-			return parseCharArray(p, keyName, prop);
-		} else if (type.isArray()) {
-			Class<?> compType = type.getComponentType();
-			Class<?>[] nextValueTypes = null;
-			if (types.length > 1) {
-				nextValueTypes = new Class<?>[types.length - 1];
-				System.arraycopy(types, 1, nextValueTypes, 0, nextValueTypes.length);
-			} else {
-				nextValueTypes = new Class<?>[] { compType };
-			}
-			return parseArray(p, nextValueTypes, keyName, prop);
-		} else if (type == Double.class) {
-			return $null.equals(p) ? null : Double.valueOf(p);
-		} else if (type == Float.class) {
-			return $null.equals(p) ? null : Float.valueOf(p);
-		} else if (type == Short.class) {
-			if ($null.equals(p)) return null;
-			try {
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					return Short.valueOf(parseUnsignedShort(p.substring(2), 16));
-				} else {
-					return Short.valueOf(p);
-				}
-			} catch (Exception e) {
-				return null;
-			}
-		} else if (type == Byte.class) {
-			if ($null.equals(p)) return null;
-			try {
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					return Byte.valueOf(parseUnsignedByte(p.substring(2), 16));
-				} else {
-					return Byte.valueOf(p);
-				}
-			} catch (Exception e) {
-				return null;
-			}
-		} else if (type == Character.class) {
-			return $null.equals(p) ? null : Character.valueOf(p.charAt(0));
-		} else if (type == List.class || type == Set.class || type == Map.class) {
-			Class<?>[] nextValueTypes = null;
-			if (types.length > 1) {
-				nextValueTypes = new Class<?>[types.length - 1];
-				System.arraycopy(types, 1, nextValueTypes, 0, nextValueTypes.length);
-			}
-			if (type == List.class) { // List<Object>
-				return parseList(p, nextValueTypes, keyName, prop);
-			} else if (type == Set.class) { // Set<Object>
-				return parseSet(p, nextValueTypes, keyName, prop);
-			} else { // if (type == Map.class) { // Map<String, Object>
-				return parseMap(p, nextValueTypes, keyName, prop);
-			}
-		} else {
-			return parseObject(p, type, keyName, prop);
-		}
-	}
-
-	static Object parseObject(String p, Class<?> type, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		Object obj = null;
-		try {
-			obj = type.newInstance();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		if ($empty.equals(p) || p.length() == 0 || obj == null) {
-			return obj;
-		}
-		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
-			Field[] fields = type.getFields();
-			int filteringModifiers = Modifier.PUBLIC;
-			Map<String, ConfigFieldFilter> configFilter = configurationFilters;
-			ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
-			if (filter != null && filter.modifiers >= 0) {
-				filteringModifiers = filter.modifiers;
-			}
-			for (int i = 0; i < fields.length; i++) {
-				Field f = fields[i];
-				if (f == null) continue; // never happen
-				int modifiers = f.getModifiers();
-				if (filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0
-						|| (modifiers & Modifier.STATIC) != 0
-						|| (modifiers & Modifier.FINAL) != 0) {
-					// Ignore static, final fields
-					continue;
-				}
-				String name = f.getName();
-				if (filter != null) {
-					if (filter.excludes != null) {
-						if (filter.excludes.contains(name)) {
-							continue;
-						}
-					}
-					if (filter.includes != null) {
-						if (!filter.includes.contains(name)) {
-							// skip fields not included in #includes
-							continue;
-						}
-					}
-				}
-				String fieldKeyName = keyName + "." + name;
-				String pp = prop.getProperty(fieldKeyName);
-				if (pp == null) {
-					continue;
-				}
-				pp = pp.trim();
-				if (pp.length() == 0) {
-					continue;
-				}
-				if ((modifiers & Modifier.PUBLIC) == 0) {
-					f.setAccessible(true);
-				}
-				checkAndUpdateField(f, obj, pp, fieldKeyName, prop, true);
-			}
-			return obj;
-		}
-		// Single line configuration
-		String[] arr = p.split("\\s*;\\s*");
-		int filteringModifiers = Modifier.PUBLIC;
-		Map<String, ConfigFieldFilter> configFilter = configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
-		if (filter != null && filter.modifiers >= 0) {
-			filteringModifiers = filter.modifiers;
-		}
-		for (int j = 0; j < arr.length; j++) {
-			String item = arr[j].trim();
-			if (item.length() == 0) {
-				continue;
-			}
-			String[] kv = item.split("\\s*>+\\s*");
-			if (kv.length != 2) {
-				continue;
-			}
-			String k = kv[0].trim();
-			if (filter != null) {
-				if (filter.excludes != null) {
-					if (filter.excludes.contains(k)) {
-						continue;
-					}
-				}
-				if (filter.includes != null) {
-					if (!filter.includes.contains(k)) {
-						// skip fields not included in #includes
-						continue;
-					}
-				}
-			}
-			Field f = null;
-			try {
-				f = type.getField(k);
-			} catch (Exception e1) {
-				//e1.printStackTrace();
-			}
-			if (f == null) {
-				continue;
-			}
-			int modifiers = f.getModifiers();
-			if (filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0
-					|| (modifiers & Modifier.STATIC) != 0
-					|| (modifiers & Modifier.FINAL) != 0) {
-				// Ignore static, final, private fields
-				continue;
-			}
-			if ((modifiers & Modifier.PUBLIC) == 0) {
-				f.setAccessible(true);
-			}
-			String pp = kv[1].trim();
-			checkAndUpdateField(f, obj, pp, keyName + "." + k, prop, true);
-		}
-		return obj;
-	}
-
-	static Map<String, Object> parseMap(String p, Class<?>[] valueTypes, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		Map<String, Object> value = new ConcurrentHashMap<String, Object>();
-		if ($empty.equals(p) || p.length() == 0) {
-			return value;
-		}
-		boolean isTypeString = valueTypes == null || valueTypes.length == 0
-				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		if ($map.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable map, multiple line configuration
-			Set<String> names = prop.stringPropertyNames();
-			if (isTypeString) {
-				for (String propName : names) {
-					String prefix = keyName + ".";
-					if (propName.startsWith(prefix)) {
-						String k = propName.substring(prefix.length());
-						String v = (String) prop.getProperty(propName);
-						value.put(k, parseString(v));
-					}
-				}
-			} else {
-				int dots = 1;
-				boolean hasKey = false;
-				String prefix = keyName + ".";
-				Set<String> parsedKeys = new HashSet<String>();
-				do {
-					for (String propName : names) {
-						if (propName.startsWith(prefix)) {
-							hasKey = true;
-							boolean alreadyParsed = false;
-							for (String key : parsedKeys) {
-								if (propName.startsWith(key)) {
-									alreadyParsed = true;
-									break;
-								}
-							}
-							if (alreadyParsed) {
-								continue;
-							}
-							String k = propName.substring(prefix.length());
-							String[] split = k.split("\\.");
-							if (split.length > dots) {
-								continue;
-							}
-							String v = (String) prop.getProperty(propName);
-							value.put(k, parseTypedObject(valueTypes, v, propName, prop));
-							if (v == null || v.length() <= 0 || (v.startsWith("[") && v.endsWith("]"))) {
-								parsedKeys.add(propName + ".");
-							} // else given v is a line for object, no need to put it into parsed keys set
-						}
-					}
-					dots++;
-				} while (hasKey && dots < Math.max(1, configurationMapSearchingDots));
-			}
-			return value;
-		}
-		// single line configuration, should be simple like Map<String, String>
-		String[] arr = p.split("\\s*;\\s*");
-		for (int j = 0; j < arr.length; j++) {
-			String item = arr[j].trim();
-			if (item.length() == 0) {
-				continue;
-			}
-			String[] kv = item.split("\\s*>+\\s*");
-			if (kv.length != 2) {
-				if (kv.length != 1 || item.indexOf('>') == -1) { // 1.0.1>;1.2.0>true
-					continue;
-				}
-				// 1.0.1>
-				kv = new String[] { kv[0], "" };
-			}
-			String k = kv[0].trim();
-			String v = kv[1].trim();
-			if (isTypeString) {
-				value.put(k, parseString(v));
-			} else {
-				value.put(k, parseTypedObject(valueTypes, v, keyName, prop));
-			}
-		}
-		return value;
-	}
-
-	static List<Object> parseList(String p, Class<?> valueTypes[], String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new ArrayList<Object>();
-		}
-		boolean isTypeString = valueTypes == null || valueTypes.length == 0
-				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		if ($list.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable list, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					String[] split = k.split("\\.");
-					if (split.length > 1) {
-						continue;
-					}
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep list order
-			List<Object> value = new ArrayList<Object>(keyNames.length);
-			for (String propName : keyNames) {
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (isTypeString) {
-					value.add(parseString(v));
-				} else {
-					value.add(parseTypedObject(valueTypes, v, keyName + "." + propName, prop));
-				}
-			}
-			return value;
-		}
-		// single line configuration, should be simple structure, like List<String>
-		String[] arr = p.split("\\s*;\\s*");
-		List<Object> value = new ArrayList<Object>(arr.length);
-		for (int j = 0; j < arr.length; j++) {
-			String v = arr[j].trim();
-			if (isTypeString) {
-				value.add(parseString(v));
-			} else {
-				value.add(parseTypedObject(valueTypes, v, keyName, prop));
-			}
-		}
-		return value;
-	}
-
-	static Set<Object> parseSet(String p, Class<?>[] valueTypes, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
-		}
-		boolean isTypeString = valueTypes == null || valueTypes.length == 0
-				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		if ($set.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable map
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					String[] split = k.split("\\.");
-					if (split.length > 1) {
-						continue;
-					}
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Set<Object> value = Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>(keyNames.length << 2));
-			for (String propName : keyNames) {
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (isTypeString) {
-					value.add(parseString(v));
-				} else {
-					Object o = parseTypedObject(valueTypes, v, keyName + "." + propName, prop);
-					//if (o == null) {
-					//	System.out.println(v + ": " + keyName + "." + propName);
-					//}
-					value.add(o);
-				}
-			}
-			return value;
-		}
-		// single line configuration
-		String[] arr = p.split("\\s*;\\s*");
-		Set<Object> value = Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>(arr.length << 2));
-		for (int j = 0; j < arr.length; j++) {
-			String v = arr[j].trim();
-			if (isTypeString) {
-				value.add(parseString(v));
-			} else {
-				value.add(parseTypedObject(valueTypes, v, keyName, prop));
-			}
-		}
-		return value;
-	}
-
-	static char[] parseCharArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new char[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable char array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			char[] cs = new char[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null && v.length() > 0) {
-					try {
-						cs[j] = v.charAt(0);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return cs;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		char[] cs = null;
-		if (ss != null) {
-			cs = new char[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
-					try {
-						cs[j] = ss[j].charAt(0);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return cs;
-	}
-
-	static byte[] parseByteArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new byte[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable byte array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			byte[] bs = new byte[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							bs[j] = parseUnsignedByte(v.substring(2), 16);
-						} else {
-							bs[j] = Byte.parseByte(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return bs;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		byte[] bs = null;
-		if (ss != null) {
-			bs = new byte[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				String v = ss[j];
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							bs[j] = parseUnsignedByte(v.substring(2), 16);
-						} else {
-							bs[j] = Byte.parseByte(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return bs;
-	}
-
-	static short[] parseShortArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new short[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable short array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			short[] ns = new short[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							ns[j] = parseUnsignedShort(v.substring(2), 16);
-						} else {
-							ns[j] = Short.parseShort(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return ns;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		short[] ns = null;
-		if (ss != null) {
-			ns = new short[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				String v = ss[j];
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							ns[j] = parseUnsignedShort(v.substring(2), 16);
-						} else {
-							ns[j] = Short.parseShort(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return ns;
-	}
-
-	static float[] parseFloatArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new float[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable float array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			float[] fs = new float[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						fs[j] = Float.parseFloat(v);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return fs;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		float[] fs = null;
-		if (ss != null) {
-			fs = new float[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
-					try {
-						fs[j] = Float.parseFloat(ss[j]);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return fs;
-	}
-
-	static double[] parseDoubleArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new double[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable double array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			double[] ds = new double[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						ds[j] = Double.parseDouble(v);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return ds;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		double[] ds = null;
-		if (ss != null) {
-			ds = new double[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
-					try {
-						ds[j] = Double.parseDouble(ss[j]);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return ds;
-	}
-
-	static boolean[] parseBooleanArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new boolean[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable boolean array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			boolean[] bs = new boolean[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						bs[j] = Boolean.parseBoolean(v);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return bs;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		boolean[] bs = null;
-		if (ss != null) {
-			bs = new boolean[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				if (ss[j] != null) {
-					try {
-						bs[j] = Boolean.parseBoolean(ss[j]);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return bs;
-	}
-
-	static long[] parseLongArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new long[0];
-		} 
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable long array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			long[] ls = new long[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							ls[j] = parseUnsignedLong(v.substring(2), 16);
-						} else {
-							ls[j] = Long.parseLong(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return ls;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		long[] ls = null;
-		if (ss != null) {
-			ls = new long[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				String v = ss[j];
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							ls[j] = parseUnsignedLong(v.substring(2), 16);
-						} else {
-							ls[j] = Long.parseLong(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return ls;
-	}
-
-	static int[] parseIntegerArray(String p, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		if ($empty.equals(p) || p.length() == 0) {
-			return new int[0];
-		}
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable integer array, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			for (String propName : names) {
-				String prefix = keyName + ".";
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			int[] is = new int[keyNames.length];
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							is[j] = parseUnsignedInt(v.substring(2), 16);
-						} else {
-							is[j] = Integer.parseInt(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-			return is;
-		}
-		// single line configuration
-		String[] ss = p.split("\\s*;\\s*");
-		int[] is = null;
-		if (ss != null) {
-			is = new int[ss.length];
-			for (int j = 0; j < ss.length; j++) {
-				String v = ss[j];
-				if (v != null) {
-					try {
-						if (v.length() > 2 && v.charAt(0) == '0' && (v.charAt(1) == 'x' || v.charAt(1) == 'X')) {
-							is[j] = parseUnsignedInt(v.substring(2), 16);
-						} else {
-							is[j] = Integer.parseInt(v);
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return is;
-	}
-
-	static Object[] parseArray(String p, Class<?>[] valueTypes, String keyName, Properties prop) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		}
-		boolean isTypeString = valueTypes == null || valueTypes.length == 0
-				|| (valueTypes.length == 1 && valueTypes[0] == String.class);
-		Class<? extends Object> componentType = isTypeString ? String.class : valueTypes[0];
-		if ($empty.equals(p) || p.length() == 0) {
-			return (Object[]) Array.newInstance(componentType, 0);
-		}
-		if ($array.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // readable map, multiple line configuration
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			String prefix = keyName + ".";
-			for (String propName : names) {
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					String[] split = k.split("\\.");
-					if (split.length > 1) {
-						continue;
-					}
-					filteredNames.add(k);
-				}
-			}
-			String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-			Arrays.sort(keyNames); // keep array's order
-			Object[] value = (Object[]) Array.newInstance(componentType, keyNames.length);
-			for (int j = 0; j < keyNames.length; j++) {
-				String propName = keyNames[j];
-				String v = (String) prop.getProperty(keyName + "." + propName);
-				if (isTypeString) {
-					value[j] = parseString(v);
-				} else {
-					value[j] = parseTypedObject(valueTypes, v, keyName + "." + propName, prop);
-				}
-			}
-			return value;
-		}
-		// single line configuration
-		String[] arr = p.split("\\s*;\\s*");
-		Object[] value = (Object[]) Array.newInstance(componentType, arr.length);
-		for (int j = 0; j < arr.length; j++) {
-			String v = arr[j].trim();
-			if (isTypeString) {
-				value[j] = parseString(v);
-			} else {
-				value[j] = parseTypedObject(valueTypes, v, keyName, prop);
-			}
-		}
-		return value;
-	}
-
-	static String parseString(String p) {
-		if ($null.equals(p) || p == null) {
-			return null;
-		} else if ($empty.equals(p)) {
-			return "";
-		} else if (p.indexOf("[secret:") == 0) { // "[secret:#######]";
-			return parseSecret(p.substring(8, p.length() - 1));
-		} else {
-			return p;
-		}
-	}
-	
-	public static void parseConfiguration(Class<?> clz, boolean combinedConfigs, Properties prop, boolean callUpdating) {
-		if (clz == null) {
-			return;
-		}
-		long now = System.currentTimeMillis();
-		String keyPrefix = null;
-		if (combinedConfigs) { // all configuration items are in one file, use key prefix to distinguish fields
-			keyPrefix = getKeyPrefix(clz);
-		}
-		Field[] fields = clz.getDeclaredFields();
-		int filteringModifiers = Modifier.PUBLIC;
-		Map<String, ConfigFieldFilter> configFilter = configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz.getName()) : null;
-		if (filter != null && filter.modifiers >= 0) {
-			filteringModifiers = filter.modifiers;
-		}
-		for (int i = 0; i < fields.length; i++) {
-			Field f = fields[i];
-			if (f != null) {
-				int modifiers = f.getModifiers();
-				if (filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0
-						|| (modifiers & Modifier.STATIC) == 0
-						|| (modifiers & Modifier.FINAL) != 0) {
-					continue;
-				}
-				String name = f.getName();
-				if (filter != null) {
-					if (filter.excludes != null) {
-						if (filter.excludes.contains(name)) {
-							continue;
-						}
-					}
-					if (filter.includes != null) {
-						if (!filter.includes.contains(name)) {
-							// skip fields not included in #includes
-							continue;
-						}
-					}
-				}
-				String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
-				String p = prop.getProperty(keyName);
-				if (p == null) {
-					continue;
-				}
-				p = p.trim();
-				if (p.length() == 0) {
-					continue;
-				}
-				if ((modifiers & Modifier.PUBLIC) == 0) {
-					f.setAccessible(true);
-				}
-				boolean updated = checkAndUpdateField(f, clz, p, keyName, prop, true);
-				if (updated && configurationLogging && initializedTime > 0
-						&& now - initializedTime > 3000) { // start monitoring fields after 3s
-					System.out.println("[Config] Configuration " + clz.getName() + "#" + name + " updated.");
-				}
-			}
-		}
-		if (callUpdating || keyPrefix == null || keyPrefix.length() == 0) {
-			try {
-				Method method = clz.getMethod("update", Properties.class);
-				if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
-					method.invoke(null, prop);
-				}
-			} catch (NoSuchMethodException e) {
-				// ignore
-			} catch (Throwable e) {
-				e.printStackTrace();
-			}
-		}
-	}
-	
-	protected static Class<?>[] getValueTypes(Class<?> type, ParameterizedType paramType) {
-		List<Class<?>> valueTypes = new ArrayList<Class<?>>();
-		do {
-			Type vType = paramType.getActualTypeArguments()[type == Map.class ? 1 : 0]; // For map, second generic type
-			if (vType instanceof GenericArrayType) {
-				GenericArrayType aType = (GenericArrayType) vType;
-				Class<?> valueType = (Class<?>) aType.getGenericComponentType();
-				valueTypes.add(Array.newInstance(valueType, 0).getClass());
-				break;
-			} else if (vType instanceof ParameterizedType) {
-				paramType = (ParameterizedType) vType; 
-				type = (Class<?>) paramType.getRawType();
-				valueTypes.add(type);
-			} else {
-				valueTypes.add((Class<?>) vType);
-				break;
-			}
-		} while (true);
-		return valueTypes.toArray(new Class<?>[valueTypes.size()]);
-	}
-
-	protected static boolean checkAndUpdateField(Field f, Object obj, String p, String keyName, Properties prop, boolean updatingField) {
-		return checkAndUpdateField(f, obj, p, keyName, prop, updatingField, null);
-	}
-	
-	private static StringBuilder diffFieldPrefix(StringBuilder diffBuilder, Object obj, Field f) {
-		return diffBuilder.append((obj instanceof Class<?> ? (Class<?>) obj : obj.getClass()).getSimpleName())
-			.append('.').append(f.getName()).append(':');
-	}
-
-	protected static boolean checkAndUpdateField(Field f, Object obj, String p, String keyName, Properties prop, boolean updatingField, StringBuilder diffBuilder) {
-		Class<?> type = f.getType();
-		try {
-			if (type == int.class) {
-				int v = 0;
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					v = parseUnsignedInt(p.substring(2), 16);
-				} else {
-					v = Integer.parseInt(p);
-				}
-				if (v != f.getInt(obj)) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getInt(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setInt(obj, v);
-					return true;
-				}
-			} else if (type == String.class) {
-				String newStr = parseString(p);
-				String oldStr = (String) f.get(obj);
-				if ((newStr == null && oldStr != null) || (newStr != null && !newStr.equals(oldStr))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, newStr);
-					return true;
-				}
-			} else if (type == boolean.class) {
-				if (!p.equals(String.valueOf(f.getBoolean(obj)))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getBoolean(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setBoolean(obj, Boolean.parseBoolean(p));
-					return true;
-				}
-			} else if (type == long.class) {
-				long v = 0;
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					v = parseUnsignedLong(p.substring(2), 16);
-				} else {
-					v = Long.parseLong(p);
-				}
-				if (v != f.getLong(obj)) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getLong(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setLong(obj, v);
-					return true;
-				}
-			} else if (type == int[].class) {
-				int[] newArr = parseIntegerArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (int[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == long[].class) {
-				long[] newArr = parseLongArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (long[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == boolean[].class) {
-				boolean[] newArr = parseBooleanArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (boolean[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == double[].class) {
-				double[] newArr = parseDoubleArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (double[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == float[].class) {
-				float[] newArr = parseFloatArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (float[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == short[].class) {
-				short[] newArr = parseShortArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (short[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == byte[].class) {
-				byte[] newArr = parseByteArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (byte[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == char[].class) {
-				char[] newArr = parseCharArray(p, keyName, prop);
-				if (!Arrays.equals(newArr, (char[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type.isArray()) {
-				Class<?> compType = type.getComponentType();
-				Object[] newArr = parseArray(p, new Class<?>[] { compType }, keyName, prop);
-				if (!Arrays.deepEquals(newArr, (Object[]) f.get(obj))) { // Only update necessary fields
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-							.append(newArr == null ? null : "[" + newArr.length + "]").append("\r\n");
-					if (updatingField) f.set(obj, newArr);
-					return true;
-				}
-			} else if (type == double.class) {
-				if (!p.equals(String.valueOf(f.getDouble(obj)))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getDouble(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setDouble(obj, Double.parseDouble(p));
-					return true;
-				}
-			} else if (type == float.class) {
-				if (!p.equals(String.valueOf(f.getFloat(obj)))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getFloat(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setFloat(obj, Float.parseFloat(p));
-					return true;
-				}
-			} else if (type == short.class) {
-				short v = 0;
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					v = parseUnsignedShort(p.substring(2), 16);
-				} else {
-					v = Short.parseShort(p);
-				}
-				if (v != f.getShort(obj)) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getShort(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setShort(obj, v);
-					return true;
-				}
-			} else if (type == byte.class) {
-				byte v = 0;
-				if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-					v = parseUnsignedByte(p.substring(2), 16);
-				} else {
-					v = Byte.parseByte(p);
-				}
-				if (v != f.getByte(obj)) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getByte(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setByte(obj, v);
-					return true;
-				}
-			} else if (type == char.class) {
-				if (!p.equals(String.valueOf(f.getChar(obj)))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.getChar(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setChar(obj, p.charAt(0));
-					return true;
-				}
-			} else if (type == List.class || type == Set.class || type == Map.class) {
-				Class<?>[] valueTypes = null;
-				Type genericType = f.getGenericType();
-				if (genericType instanceof ParameterizedType) {
-					valueTypes = getValueTypes(type, (ParameterizedType) genericType);
-				}
-				if (type == List.class) {
-					List<Object> newList = parseList(p, valueTypes, keyName, prop);
-					@SuppressWarnings("unchecked")
-					List<Object> oldList = (List<Object>) f.get(obj);
-					if (!listEquals(newList, oldList)) {
-						if (diffBuilder != null)
-							diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-								.append(newList == null ? null : "[" + newList.size() + "]").append("\r\n");
-						if (updatingField) f.set(obj, newList);
-						return true;
-					}
-				} else if (type == Set.class) {
-					Set<Object> newSet = parseSet(p, valueTypes, keyName, prop);
-					@SuppressWarnings("unchecked")
-					Set<Object> oldSet = (Set<Object>) f.get(obj);
-					if (!setEquals(newSet, oldSet)) {
-						if (diffBuilder != null)
-							diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-								.append(newSet == null ? null : "[" + newSet.size() + "]").append("\r\n");
-						if (updatingField) f.set(obj, newSet);
-						return true;
-					}
-				} else { // if (type == Map.class) {
-					Map<String, Object> newMap = parseMap(p, valueTypes, keyName, prop);
-					@SuppressWarnings("unchecked")
-					Map<String, Object> oldMap = (Map<String, Object>) f.get(obj);
-					if (!mapEquals(newMap, oldMap)) {
-						if (diffBuilder != null)
-							diffFieldPrefix(diffBuilder, obj, f).append("[...]").append('>')
-								.append(newMap == null ? null : "[" + newMap.size() + "]").append("\r\n");
-						if (updatingField) f.set(obj, newMap);
-						return true;
-					}
-				}
-			} else if (type == Integer.class) {
-				Integer v = (Integer) f.get(obj);
-				boolean changed = false;
-				int vv = 0;
-				if (!p.equals($null)) {
-					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-						vv = parseUnsignedInt(p.substring(2), 16);
-					} else {
-						vv = Integer.parseInt(p);
-					}
-					changed = v == null ? true : v.intValue() != vv;
-				} else {
-					changed = v != null;
-				}
-				if (changed) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, $null.equals(p) ? null : Integer.valueOf(vv));
-					return true;
-				}
-			} else if (type == Boolean.class) {
-				Boolean v = (Boolean) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, $null.equals(p) ? null : Boolean.valueOf(p));
-					return true;
-				}
-			} else if (type == Long.class) {
-				Long v = (Long) f.get(obj);
-				boolean changed = false;
-				long vv = 0;
-				if (!p.equals($null)) {
-					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-						vv = parseUnsignedLong(p.substring(2), 16);
-					} else {
-						vv = Long.parseLong(p);
-					}
-					changed = v == null ? true : v.longValue() != vv;
-				} else {
-					changed = v != null;
-				}
-				if (changed) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, $null.equals(p) ? null : Long.valueOf(vv));
-					return true;
-				}
-			} else if (type == Double.class) {
-				Double v = (Double) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setDouble(obj, $null.equals(p) ? null : Double.valueOf(p));
-					return true;
-				}
-			} else if (type == Float.class) {
-				Float v = (Float) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setFloat(obj, $null.equals(p) ? null : Float.valueOf(p));
-					return true;
-				}
-			} else if (type == Short.class) {
-				Short v = (Short) f.get(obj);
-				boolean changed = false;
-				short vv = 0;
-				if (!p.equals($null)) {
-					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-						vv = parseUnsignedShort(p.substring(2), 16);
-					} else {
-						vv = Short.parseShort(p);
-					}
-					changed = v == null ? true : v.shortValue() != vv;
-				} else {
-					changed = v != null;
-				}
-				if (changed) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setShort(obj, $null.equals(p) ? null : Short.valueOf(vv));
-					return true;
-				}
-			} else if (type == Byte.class) {
-				Byte v = (Byte) f.get(obj);
-				boolean changed = false;
-				byte vv = 0;
-				if (!p.equals($null)) {
-					if (p.length() > 2 && p.charAt(0) == '0' && (p.charAt(1) == 'x' || p.charAt(1) == 'X')) {
-						vv = parseUnsignedByte(p.substring(2), 16);
-					} else {
-						vv = Byte.parseByte(p);
-					}
-					changed = v == null ? true : v.intValue() != vv;
-				} else {
-					changed = v != null;
-				}
-				if (changed) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setByte(obj, $null.equals(p) ? null : Byte.valueOf(vv));
-					return true;
-				}
-			} else if (type == Character.class) {
-				Character v = (Character) f.get(obj);
-				if (!p.equals(v == null ? $null : String.valueOf(v))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.setChar(obj, $null.equals(p) ? null : Character.valueOf(p.charAt(0)));
-					return true;
-				}
-			} else {
-				Object newObj = parseObject(p, type, keyName, prop);
-				Object oldObj = f.get(obj);
-				if ((newObj == null && oldObj != null) || (newObj != null && !newObj.equals(oldObj))) {
-					if (diffBuilder != null)
-						diffFieldPrefix(diffBuilder, obj, f).append(f.get(obj)).append('>').append(p).append("\r\n");
-					if (updatingField) f.set(obj, newObj);
-					return true;
-				}
-			}
-		} catch (Throwable e) {
-			e.printStackTrace();
-		}
-		return false;
-	}
-
-	/*
-	 * In case configurations got updated from file, try to add class into configuration system
-	 */
-	public static void update(Properties prop) {
-		String[] configClasses = configurationClasses;
-		if (configClasses != null) {
-			for (int i = 0; i < configClasses.length; i++) {
-				String clazz = configClasses[i];
-				if (!allConfigs.containsKey(clazz)) {
-					Class<?> clz = loadConfigurationClass(clazz);
-					if (clz != null) {
-						registerUpdatingListener(clz);
-					}
-				}
-			}
-		}
-	}
-
-	// Support List#equals with array comparison
-	@SuppressWarnings("unchecked")
-	public static <T> boolean listEquals(List<T> l1, List<T> l2) {
-		if (l1 == l2)
-		    return true;
-		if ((l1 == null && l2 != null) || (l1 != null && l2 == null)) {
-			return false;
-		}
-		ListIterator<T> e1 = l1.listIterator();
-		ListIterator<T> e2 = l2.listIterator();
-		while(e1.hasNext() && e2.hasNext()) {
-		    T o1 = e1.next();
-		    T o2 = e2.next();
-		    if (o1 == null && o2 != null) {
-		    	return false;
-		    } else if (o1 != null) {
-		    	if (o1 instanceof Object[]) {
-		    		if (!Arrays.deepEquals((Object[])o1, (Object[])o2))
-		    			return false;
-		    	} else if (o1 instanceof List<?>) {
-		    		if (!listEquals((List<Object>)o1, (List<Object>)o2))
-		    			return false;
-		    	} else if (o1 instanceof Set<?>) {
-		    		if (!setEquals((Set<Object>)o1, (Set<Object>)o2))
-		    			return false;
-		    	} else if (o1 instanceof Map<?,?>) {
-		    		if (!mapEquals((Map<String, Object>)o1, (Map<String, Object>)o2))
-		    			return false;
-		    	} else if (o1 instanceof int[]) {
-		    		if (!Arrays.equals((int[])o1, (int[])o2))
-		    			return false;
-		    	} else if (o1 instanceof long[]) {
-		    		if (!Arrays.equals((long[])o1, (long[])o2))
-		    			return false;
-		    	} else if (o1 instanceof boolean[]) {
-		    		if (!Arrays.equals((boolean[])o1, (boolean[])o2))
-		    			return false;
-		    	} else if (o1 instanceof double[]) {
-		    		if (!Arrays.equals((double[])o1, (double[])o2))
-		    			return false;
-		    	} else if (o1 instanceof float[]) {
-		    		if (!Arrays.equals((float[])o1, (float[])o2))
-		    			return false;
-		    	} else if (o1 instanceof short[]) {
-		    		if (!Arrays.equals((short[])o1, (short[])o2))
-		    			return false;
-		    	} else if (o1 instanceof byte[]) {
-		    		if (!Arrays.equals((byte[])o1, (byte[])o2))
-		    			return false;
-		    	} else if (o1 instanceof char[]) {
-		    		if (!Arrays.equals((char[])o1, (char[])o2))
-		    			return false;
-		    	} else if (!o1.equals(o2)) {
-		    		return false;
-		    	}
-		    }
-		}
-		return !(e1.hasNext() || e2.hasNext());
-	}
-
-    @SuppressWarnings("unchecked")
-	static <T> boolean setContains(Set<T> s, Object o) {
-		Iterator<T> e = s.iterator();
-		if (o==null) {
-		    while (e.hasNext())
-				if (e.next()==null)
-				    return true;
-		} else if (o instanceof Object[]) {
-			Object[] os = (Object[]) o;
-		    while (e.hasNext())
-				if (Arrays.deepEquals(os, (Object[]) e.next()))
-				    return true;
-		} else if (o instanceof List<?>) {
-			List<Object> os = (List<Object>) o;
-		    while (e.hasNext())
-				if (listEquals(os, (List<Object>) e.next()))
-				    return true;
-		} else if (o instanceof Set<?>) {
-			Set<Object> os = (Set<Object>) o;
-		    while (e.hasNext())
-				if (setEquals(os, (Set<Object>) e.next()))
-				    return true;
-		} else if (o instanceof Map<?, ?>) {
-			Map<String, Object> os = (Map<String, Object>) o;
-		    while (e.hasNext())
-				if (mapEquals(os, (Map<String, Object>) e.next()))
-				    return true;
-		} else if (o instanceof int[]) {
-			int[] os = (int[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (int[]) e.next()))
-				    return true;
-		} else if (o instanceof long[]) {
-			long[] os = (long[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (long[]) e.next()))
-				    return true;
-		} else if (o instanceof boolean[]) {
-			boolean[] os = (boolean[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (boolean[]) e.next()))
-				    return true;
-		} else if (o instanceof double[]) {
-			double[] os = (double[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (double[]) e.next()))
-				    return true;
-		} else if (o instanceof float[]) {
-			float[] os = (float[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (float[]) e.next()))
-				    return true;
-		} else if (o instanceof short[]) {
-			short[] os = (short[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (short[]) e.next()))
-				    return true;
-		} else if (o instanceof byte[]) {
-			byte[] os = (byte[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (byte[]) e.next()))
-				    return true;
-		} else if (o instanceof char[]) {
-			char[] os = (char[]) o;
-		    while (e.hasNext())
-				if (Arrays.equals(os, (char[]) e.next()))
-				    return true;
-		} else {
-		    while (e.hasNext())
-				if (o.equals(e.next()))
-				    return true;
-		}
-		return false;
-    }
-
-	// Support Set#equals with array comparison
-	public static <T> boolean setEquals(Set<T> s1, Set<T> s2) {
-		if (s1 == s2)
-		    return true;
-		if ((s1 == null && s2 != null) || (s1 != null && s2 == null)) {
-			return false;
-		}
-		if (s2.size() != s1.size())
-		    return false;
-	    try {
-	    	Iterator<T> e2 = s2.iterator();
-	    	while (e2.hasNext()) {
-	    	    if (!setContains(s1, e2.next()))
-	    	    	return false;
-	    	}
-	    	return true;
-	    } catch (ClassCastException unused)   {
-	        return false;
-	    } catch (NullPointerException unused) {
-	        return false;
-	    }
-	}
-
-	// Support Map#equals with array comparison
-	@SuppressWarnings("unchecked")
-	public static <T> boolean mapEquals(Map<String, T> m1, Map<String, T> m2) {
-		if (m1 == m2)
-		    return true;
-		if ((m1 == null && m2 != null) || (m1 != null && m2 == null)) {
-			return false;
-		}
-		if (m2.size() != m1.size())
-		    return false;
-	
-	    try {
-	        Iterator<Entry<String, T>> i = m1.entrySet().iterator();
-	        while (i.hasNext()) {
-	            Entry<String, T> e = i.next();
-	            String key = e.getKey();
-	            Object value = e.getValue();
-	            if (value == null) {
-	                if (!(m2.get(key)==null && m2.containsKey(key)))
-	                    return false;
-	            } else if (value instanceof Object[]) {
-	                if (!Arrays.deepEquals((Object[])value, (Object[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof List<?>) {
-	                if (!listEquals((List<Object>)value, (List<Object>)m2.get(key)))
-	                    return false;
-	            } else if (value instanceof Set<?>) {
-	                if (!setEquals((Set<Object>)value, (Set<Object>)m2.get(key)))
-	                    return false;
-	            } else if (value instanceof Map<?, ?>) {
-	                if (!mapEquals((Map<String, Object>)value, (Map<String, Object>)m2.get(key)))
-	                    return false;
-	            } else if (value instanceof int[]) {
-	                if (!Arrays.equals((int[])value, (int[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof long[]) {
-	                if (!Arrays.equals((long[])value, (long[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof boolean[]) {
-	                if (!Arrays.equals((boolean[])value, (boolean[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof double[]) {
-	                if (!Arrays.equals((double[])value, (double[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof float[]) {
-	                if (!Arrays.equals((float[])value, (float[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof short[]) {
-	                if (!Arrays.equals((short[])value, (short[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof byte[]) {
-	                if (!Arrays.equals((byte[])value, (byte[])m2.get(key)))
-	                    return false;
-	            } else if (value instanceof char[]) {
-	                if (!Arrays.equals((char[])value, (char[])m2.get(key)))
-	                    return false;
-	            } else {
-	                if (!value.equals(m2.get(key)))
-	                    return false;
-	            }
-	        }
-	    } catch (ClassCastException unused) {
-	        return false;
-	    } catch (NullPointerException unused) {
-	        return false;
-	    }
-		return true;
-	}
-
-	/**
-	 * If secret is encrypted and security decrypter is configured, try decrypt
-	 * given secret to raw secret.
-	 * 
-	 * @param secret
-	 * @return
-	 */
-	public static String parseSecret(final String secret) {
-		if (secret == null || secret.length() == 0) {
-			return secret;
-		}
-		String decrypterClass = configurationSecurityDecrypter;
-		if (decrypterClass != null && decrypterClass.length() > 0) {
-			Class<?> clz = loadConfigurationClass(decrypterClass);
-			if (clz != null) {
-				try {
-					Method m = clz.getMethod("decrypt", String.class); // password
-					Object result = m.invoke(clz, secret);
-					if (result instanceof String) {
-						return (String) result;
-					}
-				} catch (NoSuchMethodException e) {
-					// do nothing
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-			// password = SecurityKit.decrypt(password);
-		}
-		return secret;
-	}
-	
 	/**
 	 * Remove "/../" or "/./" in path.
 	 * 
@@ -2034,9 +422,7 @@ public class Config {
 	 */
 	public static String parseFilePath(String path) {
 		int length = path.length();
-		if (length == 0) {
-			return path;
-		}
+		if (length == 0) return path;
 		boolean slashStarted = path.charAt(0) == '/';
 		boolean slashEnded = length > 1 && path.charAt(length - 1) == '/';
 		
@@ -2054,9 +440,7 @@ public class Config {
 				break;
 			}
 			String segment = segments[i];
-			if (segment == null) {
-				break;
-			}
+			if (segment == null) break;
 			if (segments[i].equals("..")) {
 				int shift = 2;
 				if (i > 0) {
@@ -2102,9 +486,7 @@ public class Config {
 		boolean needSlash = true;
 		for (int i = 0; i < segments.length; i++) {
 			String segment = segments[i];
-			if (segment == null) {
-				break;
-			}
+			if (segment == null) break;
 			if (needSlash && builder.length() > 0) {
 				builder.append("/");
 			}
@@ -2117,5 +499,71 @@ public class Config {
 		//}
 		return builder.toString();
 	}
-	
+
+	/**
+	 * If secret is encrypted and security decrypter is configured, try decrypt
+	 * given secret to raw secret.
+	 * 
+	 * @param secret
+	 * @return
+	 */
+	public static String parseSecret(final String secret) {
+		if (secret == null || secret.length() == 0) return secret;
+		String decrypterClass = configurationSecurityDecrypter;
+		if (decrypterClass != null && decrypterClass.length() > 0) {
+			Class<?> clz = loadConfigurationClass(decrypterClass);
+			if (clz != null) {
+				try {
+					Method m = clz.getMethod("decrypt", String.class); // password
+					Object result = m.invoke(clz, secret);
+					if (result instanceof String) {
+						return (String) result;
+					}
+				} catch (NoSuchMethodException e) {
+					// do nothing
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			// password = SecurityKit.decrypt(password);
+		}
+		return secret;
+	}
+
+	public static String getKeyPrefix(Class<?> clz) {
+		String keyPrefix = null;
+		try {
+			Field f = clz.getDeclaredField(keyPrefixFieldName);
+			if (f != null) {
+				int modifiers = f.getModifiers();
+				if (/*(modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) != 0
+						&& */(modifiers & Modifier.STATIC) != 0
+						&& (modifiers & Modifier.FINAL) != 0
+						&& f.getType() == String.class) {
+					if ((modifiers & Modifier.PUBLIC) == 0) {
+						f.setAccessible(true);
+					}
+					keyPrefix = (String) f.get(clz);
+				}
+			} // else continue to check annotation
+		} catch (SecurityException e) {
+		} catch (NoSuchFieldException e) {
+		} catch (IllegalArgumentException e) {
+		} catch (IllegalAccessException e) {
+		}
+		if (keyPrefix == null || keyPrefix.length() == 0) {
+			ConfigKeyPrefix prefixAnn = clz.getAnnotation(ConfigKeyPrefix.class);
+			if (prefixAnn != null) {
+				keyPrefix = prefixAnn.value();
+			}
+		}
+		if (keyPrefix != null) {
+			keyPrefix = keyPrefix.trim();
+			if (keyPrefix.length() != 0) {
+				return parseFilePath(keyPrefix);
+			}
+		}
+		return null;
+	}
+
 }

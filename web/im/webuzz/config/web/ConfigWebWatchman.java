@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -36,9 +37,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.ConfigMerger;
-//import im.webuzz.nio.NioHttpRequest;
-//import net.sf.j2s.ajax.XHRCallbackAdapter;
 
 /**
  * Synchronize configuration files from given server to local file system.
@@ -157,7 +155,7 @@ public class ConfigWebWatchman implements Runnable {
 					}
 				}
 				refreshAll(false, WebConfig.webRequestTimeout);
-				if (!WebConfig.synchronizing) {
+				if (!WebConfigLocal.synchronizing) {
 					continue;
 				}
 			} catch (Throwable e) {
@@ -176,20 +174,21 @@ public class ConfigWebWatchman implements Runnable {
 			inQueueRequests.clear();
 		}
 		if (running && WebConfig.targetURLPattern != null) {
-			String cfgPath = Config.configurationFile;
+			String cfgPath = Config.getConfigurationMainFile();
 			if (cfgPath != null) {
 				File cfgFile = new File(cfgPath);
 				String cfgName = cfgFile.getName();
-				String fileExt = Config.configurationFileExtension;
-				if (cfgName.endsWith(fileExt)) {
-					cfgName = cfgName.substring(0, cfgName.length() - fileExt.length());
-				} else {
+				String fileExt = null;
+//				String fileExt = Config.configurationFileExtension;
+//				if (cfgName.endsWith(fileExt)) {
+//					cfgName = cfgName.substring(0, cfgName.length() - fileExt.length());
+//				} else {
 					int idx = cfgName.lastIndexOf('.');
 					if (idx != -1) {
 						cfgName = cfgName.substring(0, idx);
 						fileExt = cfgName.substring(idx);
 					}
-				}
+//				}
 				latestModified = Math.max(latestModified, cfgFile.lastModified());
 				synchronizeFile(cfgName, fileExt, cfgFile, true, null, timeout);
 			}
@@ -201,7 +200,7 @@ public class ConfigWebWatchman implements Runnable {
 		}
 		String[] extraFiles = WebConfig.extraResourceFiles;
 		if (running && WebConfig.extraTargetURLPattern != null && extraFiles != null) {
-			String[] extraExts = WebConfig.extraResourceExtensions;
+			String[] extraExts = WebConfigLocal.extraResourceExtensions;
 			for (String path : extraFiles) {
 				if (path == null || path.length() == 0) {
 					continue;
@@ -225,21 +224,14 @@ public class ConfigWebWatchman implements Runnable {
 						continue;
 					}
 				}
-				String folder = Config.configurationFolder;
-				if (folder == null) {
-					folder = Config.configurationFile;
-					File folderFile = new File(folder);
-					if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(Config.configurationFileExtension)) {
-						folder = folderFile.getParent();
-					}
-				}
+				String folder = Config.getConfigurationFolder();
 				File resFile = new File(folder, path);
 				latestModified = Math.max(latestModified, resFile.lastModified());
 				synchronizeFile(null, null, resFile, false, path, timeout);
 			}
 		}
 		if (running && inQueueRequests.isEmpty()) {
-			String cfgPath = Config.configurationFile;
+			String cfgPath = Config.getConfigurationMainFile();
 			if (cfgPath != null) {
 				String tsPath = WebConfig.timestampFilePath;
 				File file = new File(tsPath != null && tsPath.length() > 0 ? tsPath : (cfgPath + ".timestamp"));
@@ -264,18 +256,22 @@ public class ConfigWebWatchman implements Runnable {
 	}
 	
 	protected void synchronizeClass(Class<?> clz, long timeout) {
+		Set<String> skippingClasses = WebConfigLocal.skippingConfigurationClasses;
+		if (skippingClasses != null && skippingClasses.contains(clz.getName())) return;
 		String keyPrefix = Config.getKeyPrefix(clz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
 		}
-		String folder = Config.configurationFolder;
-		if (folder == null) {
-			folder = Config.configurationFile;
-			File folderFile = new File(folder);
-			if (folderFile.isFile() || !folderFile.exists() || folder.endsWith(Config.configurationFileExtension)) {
-				folder = folderFile.getParent();
-			}
-		}
+		Set<String> skippingFiles = WebConfigLocal.skippingConfigurationFiles;
+		if (skippingFiles != null && skippingFiles.contains(keyPrefix)) return;
+		
+		File file = Config.getConfigruationFile(keyPrefix);
+		if (!file.exists()) return;
+		String fileName = file.getName();
+		String extension = fileName.substring(fileName.indexOf('.') + 1);
+
+		/*
+		String folder = Config.getConfigurationFolder();
 		boolean existed = false;
 		File file = null;
 		String extension = null;
@@ -296,6 +292,8 @@ public class ConfigWebWatchman implements Runnable {
 			extension = Config.configurationFileExtension;
 			file = new File(folder, Config.parseFilePath(keyPrefix + extension));
 		}
+		//*/
+		
 		latestModified = Math.max(latestModified, file.lastModified());
 		synchronizeFile(keyPrefix, extension, file, false, null, timeout);
 	}
@@ -317,8 +315,8 @@ public class ConfigWebWatchman implements Runnable {
 		}
 		String server = WebConfig.globalServerURLPrefix;
 		String user = WebConfig.globalServerAuthUser;
-		String password = Config.parseSecret(WebConfig.globalServerAuthPassword);
-		String localName = WebConfig.localServerName;
+		String password = WebConfig.globalServerAuthPassword;
+		String localName = WebConfigLocal.localServerName;
 		if (server != null) {
 			url = url.replaceAll("\\$\\{server.url.prefix\\}", server);
 		}
@@ -389,17 +387,17 @@ public class ConfigWebWatchman implements Runnable {
 				if (responseCode == 200 && (lastModified < 0 || requestTime == currentRequestTime)) { // HTTP OK
 					if (responseBytes != null && responseBytes.length > 0) {
 						byte[] localBytes = readFile(file);
-						if (extraPath == null) {
-							String[] ignoringFields = WebConfig.ignoringFields;
-							if (ignoringFields != null && ignoringFields.length > 0
-									// TODO: Skip all extensions which need conversions
-									&& (fileExtension == null || !fileExtension.startsWith(".js") || !fileExtension.startsWith(".xml"))) {
-								responseBytes = ConfigMerger.mergeWithIgnoringFields(responseBytes, localBytes,
-										globalConfig ? null : keyPrefix, ignoringFields);
-							}
-						}
+//						if (extraPath == null) {
+//							String[] ignoringFields = WebConfigLocal.ignoringFields;
+//							if (ignoringFields != null && ignoringFields.length > 0
+//									// TODO: Skip all extensions which need conversions
+//									&& (fileExtension == null || !fileExtension.startsWith(".js") || !fileExtension.startsWith(".xml"))) {
+//								responseBytes = ConfigMerger.mergeWithIgnoringFields(responseBytes, localBytes,
+//										globalConfig ? null : keyPrefix, ignoringFields);
+//							}
+//						}
 						if (!Arrays.equals(responseBytes, localBytes)) {
-							if (WebConfig.synchronizing) {
+							if (WebConfigLocal.synchronizing) {
 								File folderFile = file.getParentFile();
 								if (!folderFile.exists()) {
 									folderFile.mkdirs();
@@ -428,7 +426,7 @@ public class ConfigWebWatchman implements Runnable {
 								System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " content need to be synchronized remotely.");
 							}
 						} else {
-							if (WebConfig.synchronizing) {
+							if (WebConfigLocal.synchronizing) {
 								file.setLastModified(System.currentTimeMillis());
 								if (Config.configurationLogging) {
 									System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " last modified time synchronized remotely.");
@@ -472,6 +470,7 @@ public class ConfigWebWatchman implements Runnable {
 		}
 		running = true;
 		Config.registerUpdatingListener(WebConfig.class);
+		Config.registerUpdatingListener(WebConfigLocal.class);
 		
 		if (executor == null) {
 			executor = new ThreadPoolExecutor(WebConfig.webCoreWorkers, WebConfig.webMaxWorkers, WebConfig.webWorkerIdleInterval,
@@ -487,7 +486,7 @@ public class ConfigWebWatchman implements Runnable {
 		defaultWatchman = watchman;
 		if (WebConfig.blockingBeforeSynchronized) {
 			boolean blocking = true; // blocking until all configurations or resources synchronized from remote servers
-			String cfgPath = Config.configurationFile;
+			String cfgPath = Config.getConfigurationMainFile();
 			if (cfgPath != null) {
 				String tsPath = WebConfig.timestampFilePath;
 				File file = new File(tsPath != null && tsPath.length() > 0 ? tsPath : (cfgPath + ".timestamp"));
@@ -571,7 +570,7 @@ public class ConfigWebWatchman implements Runnable {
 							String.class, // password
 							long.class, // lastModified
 							String.class, // eTag
-							Object.class // WebFetchCallback.class callback
+							Object.class // WebCallback.class callback
 					);
 					m.invoke(clz, url, user, password, lastModified, eTag, callback);
 					done = true;
