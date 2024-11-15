@@ -20,14 +20,6 @@
 						<configuration>
 							<sources>
 								<source>web</source>
-								<source>security</source>
-								<source>generator</source>
-								<source>js</source>
-								<source>jsgenerator</source>
-								<!-- 
-								<source>xml</source>
-								<source>xmlgenerator</source>
-								 -->
 							</sources>
 						</configuration>
 					</execution>

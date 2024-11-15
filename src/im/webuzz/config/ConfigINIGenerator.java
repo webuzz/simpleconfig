@@ -231,8 +231,11 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				} else if (type.isArray()) {
 					int arrayLength = Array.getLength(v);
 					if (arrayLength > 0) {
+						if ("refToFloatArr".equals(name)) {
+							System.out.println("SXX");
+						}
 						boolean finalCompactMode = compact;
-						if (!compact && !readableArrayFormat && checkCompactness(v, type, paramType, f, false)) {
+						if (!compact && !readableArrayFormat && checkCompactness(v, f != null ? f.getType() : type, paramType, f, false)) {
 							finalCompactMode = true;
 						}
 						generateCollection(valueBuilder, f, name, v, arrayLength,
@@ -417,10 +420,13 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		if (definedType.isArray()) {
 			if (forKey) return false;
 			Class<?> definedCompType = definedType.getComponentType();
+			if (definedCompType.isArray()) return false;
 			if (definedCompType.isPrimitive()) return true;
 			int size = Array.getLength(value);
 			if (size == 0) return true;
-			if (field == null) return false; // Array object is wrapped in another object
+			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
+				return false; // Array object is wrapped in another object
+			}
 			Type paramCompType = null;
 			if (paramType instanceof GenericArrayType) {
 				GenericArrayType gaType = (GenericArrayType) paramType;
@@ -447,12 +453,14 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			Collection<Object> collection = (Collection<Object>) value;
 			int size = collection.size();
 			if (size == 0) return true;
-			if (field == null) return false; // List or set object is wrapped in another object
 			Class<?> definedCompType = Object.class;
 			Type paramCompType = null;
 			if (paramType instanceof ParameterizedType) {
 				paramCompType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
 				definedCompType = Utils.getRawType(paramCompType);
+			}
+			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
+				return false; // List or set object is wrapped in another object
 			}
 			collection.iterator().next();
 			if (size == 1) {
@@ -585,6 +593,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				values = (Object[]) vs;
 			}
 		}
+		if ("refToFloatArr".equals(name)) {
+			System.out.println("Debug.");
+		}
 		if (compact) {
 			if (typeBuilder != null) typeBuilder.append(typeStr.substring(1, typeStr.length() - 1));
 			if (valueType.isPrimitive()) {
@@ -610,7 +621,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				}
 				if (!diffTypes) targetType = valueType;
 				generateFieldValue(builder, null, null, null, o, valueType, null, diffTypes, true, compact, false);
-				k++;
 			}
 			return;
 		}
@@ -738,6 +748,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				valueType = commonType;
 			}
 		}
+		if ("mms".equals(name)) {
+			System.out.println("XXX");
+		}
 		if (compact) {
 			if (typeBuilder != null) typeBuilder.append("map");
 			boolean first = true;
@@ -792,7 +805,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					}
 				}
 				if (!diffValueTypes) targetValueType = valueType;
-				generateFieldValue(builder, null, name + "." + k, null, o, targetValueType, valueParamType, diffValueTypes, false, compact, false);
+				String newPrefix = name + "." + k;
+				generateFieldValue(builder, null, newPrefix, null, o, targetValueType, valueParamType, diffValueTypes, false, compact, false);
 				appendLinebreak(builder);
 			}
 		} else {

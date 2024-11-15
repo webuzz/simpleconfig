@@ -474,7 +474,7 @@ public class ConfigINIParser {
 		String prefix = null;
 
 		int length = p.length();
-		if (p.charAt(0) == '[' && p.charAt(length - 1) == ']') { // readable format
+		if (p.charAt(0) == '[' && p.charAt(length - 1) == ']' && p.indexOf(';') == -1) { // readable format
 			if (length > 2) {
 				int idx = p.indexOf(':');
 				if (idx != -1) {
@@ -504,6 +504,7 @@ public class ConfigINIParser {
 			ss = p.split("\\s*;\\s*");
 			arrayLength = ss.length;
 		}
+		if (valueType == null) valueType = Object.class;
 		
 		Object value = null;
 		if (List.class.isAssignableFrom(type)) {

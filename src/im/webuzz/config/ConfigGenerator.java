@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import im.webuzz.config.test.TestConfig;
 
 /**
  * Generate configuration default file.
@@ -210,21 +209,12 @@ public class ConfigGenerator {
 	}
 
 	public static void main(String[] args) {
-        System.out.println(isAbstractClass(MyAbstractClass.class));  // 输出：true
-        System.out.println(isAbstractClass(MyConcreteClass.class));  // 输出：false
-        System.out.println(isAbstractClass(int.class));  // 输出：true
-        System.out.println(isAbstractClass(int[].class));  // 输出：true
-        System.out.println(isAbstractClass(String.class));  // 输出：false
-        System.out.println(isAbstractClass(String[].class));  // 输出：true
-
-        //if (true) return;
-		args = Config.initialize(args);
+ 		args = Config.initialize(args);
 		if (args == null || args.length < 2) {
 			printUsage();
 			return;
 		}
 		Config.registerUpdatingListener(GeneratorConfig.class);
-		Config.registerUpdatingListener(TestConfig.class);
 
 		int index = 0;
 		String targetFolder = args[index];
@@ -298,13 +288,4 @@ public class ConfigGenerator {
         return Modifier.isAbstract(modifiers);
     }
 
-}
-
-
-abstract class MyAbstractClass {
-    // 抽象类
-}
-
-class MyConcreteClass {
-    // 非抽象类
 }
