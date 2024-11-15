@@ -38,7 +38,7 @@ public class ConfigJSParser implements IConfigConverter {
 		}
 		InputStream jsStream = ConfigJSParser.class.getResourceAsStream("JS2Props.js");
 		if (jsStream == null) {
-			System.out.println("Failed to read JS2Props.js from resource stream.");
+			System.out.println("[FATAL] Failed to read JS2Props.js from resource stream.");
 			return false;
 		}
 		byte[] buffer = new byte[8096];
