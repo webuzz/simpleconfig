@@ -19,6 +19,8 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import im.webuzz.config.annotations.ConfigComment;
+
 /**
  * Configuration field filter is used to control updating static fields without
  * accident modified unwanted fields.

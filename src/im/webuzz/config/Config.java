@@ -28,6 +28,11 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import im.webuzz.config.agent.ConfigAgent;
+import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigKeyPrefix;
+import im.webuzz.config.security.SecurityKit;
+
 @ConfigComment({
 	"All configurations here are to control the class Config's behaviors.",
 	"The configurations are considered as the entry of all other configurations."
@@ -247,8 +252,8 @@ public class Config {
 		return generator;
 	}
 	
+	@Deprecated
 	public static void initialize(String configPath) {
-		//initialize(configPath, null, true);
 		initialize(new String[] { configPath });
 	}
 
@@ -329,6 +334,23 @@ public class Config {
 		initializedTime = System.currentTimeMillis();
 		if (configurationLogging) {
 			System.out.println("[Config] Configuration initialized.");
+		}
+		if (retArgs != null && retArgs.length > 0) {
+			String actionStr = retArgs[0];
+			if (actionStr.startsWith("--run:")) {
+				actionStr = actionStr.substring(6);
+				if ("generator".equals(actionStr)) {
+					ConfigGenerator.run(retArgs, 1);
+				} else if ("checker".equals(actionStr)) {
+					
+				} else if ("synchronizer".equals(actionStr)) {
+					ConfigAgent.run(retArgs, 1);
+				} else if ("secretkit".equals(actionStr)) {
+					SecurityKit.run(retArgs, 1);
+				}
+				System.exit(0); // Stop
+				return null;
+			}
 		}
 		return retArgs;
 	}

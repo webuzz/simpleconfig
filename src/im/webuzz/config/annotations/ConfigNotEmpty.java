@@ -1,4 +1,4 @@
-package im.webuzz.config;
+package im.webuzz.config.annotations;
 
 import static java.lang.annotation.ElementType.FIELD;
 
@@ -8,6 +8,6 @@ import java.lang.annotation.Target;
 
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ConfigSecret {
+public @interface ConfigNotEmpty {
 
 }

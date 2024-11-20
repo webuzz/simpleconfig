@@ -16,7 +16,7 @@ package im.webuzz.config.security;
 
 import java.util.Properties;
 
-import im.webuzz.config.ConfigComment;
+import im.webuzz.config.annotations.ConfigComment;
 
 public class SecurityConfig {
 	

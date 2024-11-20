@@ -6,6 +6,7 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -13,7 +14,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigSecret;
 import im.webuzz.config.security.SecurityKit;
 import static im.webuzz.config.GeneratorConfig.*;
 
@@ -28,6 +32,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	protected String $emptyObject; // empty object
 	protected String $emptyArray; // empty array
 	protected String $emptyString; // empty string
+	
+	protected String $compactSeparator;
 	
 	protected Set<Field> commentGeneratedFields;
 
@@ -46,6 +52,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		$emptyArray = ConfigINIParser.$empty;
 		$emptyString = ConfigINIParser.$empty;
 		
+		$compactSeparator = ";";
+		
 		commentGeneratedFields = new HashSet<Field>();
 		allFields = new HashMap<String, String>();
 		
@@ -53,6 +61,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	}
 	
 	// For .ini or .properties files, there is no indents
+	// For .js or .xml files, indents will be generated
 	protected void increaseIndent() {
 	}
 	protected void decreaseIndent() {
@@ -105,16 +114,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	protected void endObjectBlock(StringBuilder builder, boolean needsWrapping) {
 	}
 	
-	// To check if there are duplicate fields over multiple configuration classes, especially for
-	// those classes without stand-alone configuration files.
-	@Override
-	public void check(String clazzName, String fieldName) {
-		if (allFields.containsKey(fieldName)) {
-			System.out.println("[WARN] " + clazzName + "." + fieldName + " is duplicated with " + (allFields.get(fieldName)));
-		}
-		allFields.put(fieldName, clazzName + "." + fieldName);
-	}
-
 	public void startGenerate(StringBuilder builder, Class<?> clz, boolean combinedConfigs) {
 		if (builder.length() == 0) startClassBlock(builder);
 		increaseIndent();
@@ -143,9 +142,15 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				if (keyPrefix != null)  {
 					name = prefixedField(keyPrefix, name);
 				}
-				check(clz.getName(), name);
-				/*
-				if ("numberSet".equals(name)) {
+				// To check if there are duplicate fields over multiple configuration classes, especially for
+				// those classes without stand-alone configuration files.
+				if (allFields.containsKey(name)) {
+					System.out.println("[WARN] " + clzName + "." + name + " is duplicated with " + (allFields.get(name)));
+				}
+				allFields.put(name, clzName + "." + name);
+
+				//*
+				if ("refToSet".equals(name)) {
 					System.out.println("Debug");
 				}
 				//*/
@@ -185,15 +190,19 @@ public class ConfigINIGenerator implements IConfigGenerator {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean generateFieldValue(StringBuilder builder, Field f, String name, Object o,
-			Object v, Class<?> type, Type paramType, boolean needsTypeInfo, boolean needsWrapping,
+			Object v, Class<?> definedType, Type paramType, boolean needsTypeInfo, boolean needsWrapping,
 			boolean compact, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
-		if (f != null) type = f.getType();
-		//boolean needsTypeInfo = false;
-		if (type == null) {
-			System.out.println("Debug...");
+		if ("refToFloatArr".equals(name)) {
+			System.out.println("object array");
 		}
+		Class<?> type = definedType;
+		if (f != null) {
+			type = f.getType();
+		}
+		if (definedType == null) definedType = type;
+		//boolean needsTypeInfo = false;
 		try {
 			if (type == null || Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
 				if (f != null) v = f.get(o);
@@ -202,6 +211,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				}
 				needsTypeInfo = true;
 			}
+			if (definedType == null) definedType = type;
 			if (type.isPrimitive()) { // Config.isPrimitiveType(type)) {
 				//if (typeBuilder != null) typeBuilder.append(type.getName());
 				if (type == int.class) valueBuilder.append(f.getInt(o));
@@ -225,21 +235,19 @@ public class ConfigINIGenerator implements IConfigGenerator {
 //							: wrapAsPlainString((String) v));
 				} else if (type == Class.class) {
 					//if (typeBuilder != null) typeBuilder.append("Class");
-					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo);
+					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo, needsWrapping);
 				} else if (Utils.isBasicDataType(type)) {
-					generateBasicData(valueBuilder, v, type, needsTypeInfo);
+					generateBasicData(valueBuilder, v, type, needsTypeInfo, needsWrapping, compact);
 				} else if (type.isArray()) {
 					int arrayLength = Array.getLength(v);
 					if (arrayLength > 0) {
-						if ("refToFloatArr".equals(name)) {
-							System.out.println("SXX");
-						}
 						boolean finalCompactMode = compact;
-						if (!compact && !readableArrayFormat && checkCompactness(v, f != null ? f.getType() : type, paramType, f, false)) {
+						if (!compact && !readableArrayFormat
+								&& checkCompactness(v, definedType, paramType, f, false)) {
 							finalCompactMode = true;
 						}
 						generateCollection(valueBuilder, f, name, v, arrayLength,
-								typeBuilder, type, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
+								typeBuilder, definedType, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append("array");
 						valueBuilder.append($emptyArray);
@@ -270,7 +278,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 							finalCompactMode = true;
 						}
 						generateCollection(valueBuilder, f, name, v, size,
-								typeBuilder, type, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
+								typeBuilder, definedType, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append(List.class.isAssignableFrom(type) ? "list" : "set");
 						valueBuilder.append($emptyArray); // A list or a set is like an array
@@ -300,22 +308,22 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					Map os = (Map) v;
 					if (os.size() > 0) {
 						boolean finalCompactMode = compact;
-						if (!compact && !readableMapFormat && checkCompactness(v, type, paramType, f, false)) {
+						if (!compact && !readableMapFormat && checkCompactness(v, definedType, paramType, f, false)) {
 							finalCompactMode = true;
 						}
 						generateMap(valueBuilder, f, name, os,
-								typeBuilder, type, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
+								typeBuilder, definedType, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append("map");
 						valueBuilder.append($emptyObject); // A map is like an object 
 					}
 				} else {
 					boolean finalCompactMode = compact;
-					if (!compact && !readableObjectFormat && checkCompactness(v, type, paramType, f, false)) {
+					if (!compact && !readableObjectFormat && checkCompactness(v, definedType, paramType, f, false)) {
 						finalCompactMode = true;
 					}
 					generateObject(valueBuilder, f, name, v,
-							typeBuilder, type, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
+							typeBuilder, definedType, paramType, needsTypeInfo, needsWrapping, finalCompactMode);
 					if (valueBuilder.length() == 0) valueBuilder.append($emptyObject);
 				}
 			}
@@ -347,10 +355,20 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	}
 
 	protected String configFormat(String str) {
-		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+		return formatString(str);
 	}
 
-	protected boolean generateClass(StringBuilder builder, Class<?> v, boolean needsTypeInfo) {
+	public static String formatString(String str) {
+		if (str.indexOf("\n") != -1) {
+			System.out.println("Check");
+			String s = str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+			System.out.println(s);
+		}
+		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+	}
+	
+	protected boolean generateClass(StringBuilder builder, Class<?> v,
+			boolean needsTypeInfo, boolean needsWrapping) {
 		if (needsTypeInfo) {
 			builder.append("[Class:").append(v.getName()).append(']');
 		} else {
@@ -359,7 +377,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		return true;
 	}
 
-	protected void generateBasicData(StringBuilder builder, Object o, Class<?> type, boolean needsTypeInfo) {
+	protected void generateBasicData(StringBuilder builder, Object o, Class<?> type,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == Class.class) {
 			Class<?> c = (Class<?>) o;
 			if (needsTypeInfo) {
@@ -376,6 +395,10 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		}
 	}
 
+	protected boolean supportsCompactArrays() {
+		return false;
+	}
+	
 	// For array, list and set
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean checkCompactness(Object value, Class<?> definedType, Type paramType, Field field, boolean forKey) {
@@ -383,13 +406,31 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		if (definedType.isPrimitive()) return true;
 		if (value == null) return true;
 		
-		boolean needsTypeInfo = false;
+		//boolean needsTypeInfo = false;
 		Class<?> realType = value.getClass();
-		if (definedType != realType && !(definedType.isInterface() || Utils.isAbstractClass(definedType))) {
-			// The define type is the super type of the given field value's type.
-			needsTypeInfo = true;
+		if (definedType != realType) {
+			if (definedType == List.class || definedType == Set.class) {
+				if (((Collection) value).isEmpty()) return true;
+				if (definedType == List.class) {
+					if (realType != ArrayList.class) return false;
+				} else {
+					if (!realType.isMemberClass()) {
+						// check java.util.Collections.SetFromMap.SetFromMap<E>(Map<E, Boolean>)
+						return false;
+					}
+				}
+			} else if (definedType == Map.class) {
+				if (((Map) value).isEmpty()) return true;
+				if (realType != ConcurrentHashMap.class) return false;
+			} else {
+				return false; //
+			}
 		}
-		if (!needsTypeInfo) realType = definedType;
+		//if (!needsTypeInfo) realType = definedType;
+		if (definedType == Object.class) {
+			if (realType == Object.class) return true;
+			definedType = value.getClass();
+		}
 
 		if (definedType == String.class) {
 			String str = (String) value;
@@ -414,15 +455,14 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		if (Utils.isBasicDataType(definedType)) {
 			return true;
 		}
-		if (definedType == Object.class) {
-			return realType == Object.class;
-		}
 		if (definedType.isArray()) {
 			if (forKey) return false;
 			Class<?> definedCompType = definedType.getComponentType();
-			if (definedCompType.isArray()) return false;
-			if (definedCompType.isPrimitive()) return true;
+			if (definedCompType.isArray() && !supportsCompactArrays()) return false;
 			int size = Array.getLength(value);
+			if (definedCompType.isPrimitive()) {
+				return checkPrimitiveArrayCompactness(value, size, definedCompType);
+			}
 			if (size == 0) return true;
 			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
 				return false; // Array object is wrapped in another object
@@ -443,10 +483,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			}
 			//*/
 			Object[] arr = (Object[]) value;
-			for (int i = 0; i < arr.length; i++) {
-				if (!checkCompactness(arr[i], definedCompType, paramCompType, null, false)) return false;
-			}
-			return true;
+			return checkArrayCompactness(arr, definedCompType, paramCompType);
 		}
 		if (List.class.isAssignableFrom(definedType) || Set.class.isAssignableFrom(definedType)) {
 			if (forKey) return false;
@@ -466,10 +503,11 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			if (size == 1) {
 				return checkCompactness(collection.iterator().next(), definedCompType, paramCompType, null, false);
 			}
-			for (Object o : collection) {
-				if (!checkCompactness(o, definedCompType, paramCompType, null, false)) return false;
-			}
-			return true;
+			return checkArrayCompactness(collection.toArray(new Object[size]), definedCompType, paramCompType);
+//			for (Object o : collection) {
+//				if (!checkCompactness(o, definedCompType, paramCompType, null, false)) return false;
+//			}
+//			return true;
 		}
 		if (Map.class.isAssignableFrom(definedType)) {
 			if (forKey) return false;
@@ -531,6 +569,39 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		return false;
 	}
 
+	public boolean checkPrimitiveArrayCompactness(Object arr, int size, Class<?> compType) {
+		StringBuilder cb = new StringBuilder();
+		for (int i = 0; i < size; i++) {
+			if (i != 0) cb.append($compactSeparator);
+			if (compType == int.class) cb.append(Array.getInt(arr, i));
+			else if (compType == boolean.class) cb.append(Array.getBoolean(arr, i));
+			else if (compType == long.class) cb.append(Array.getLong(arr, i));
+			else if (compType == double.class) cb.append(Array.getDouble(arr, i));
+			else if (compType == float.class) cb.append(Array.getFloat(arr, i));
+			else if (compType == short.class) cb.append(Array.getShort(arr, i));
+			else if (compType == byte.class) cb.append(Array.getByte(arr, i));
+			else cb.append(Array.getChar(arr, i));
+		}
+		if (cb.length() > 100) return false;
+		return true;
+	}
+
+	public boolean checkArrayCompactness(Object[] arr, Class<?> compType, Type paramCompType) {
+		StringBuilder compactBuilder = new StringBuilder();
+		for (int i = 0; i < arr.length; i++) {
+			if (!checkCompactness(arr[i], compType, paramCompType, null, false)) return false;
+			if (compType.isPrimitive() || compType == String.class
+					|| Utils.isBasicDataType(compType)) {
+				if (i != 0) compactBuilder.append($compactSeparator);
+				generateFieldValue(compactBuilder, null, null, null,
+						arr[i], compType, paramCompType,
+						false, false, false, false);
+			}
+		}
+		if (compactBuilder.length() > 100) return false;
+		return true;
+	}
+
 	protected boolean isBasicType(Class<?> type) {
 		return type == String.class || Utils.isBasicDataType(type);
 	}
@@ -538,6 +609,16 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	void generateCollection(StringBuilder builder, Field f, String name, Object vs, int collectionSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (type == Object.class) {
+			Class<?> vsType = vs.getClass();
+			Class<?> valueType = vsType.getComponentType();
+			if (valueType == null) valueType = Object.class;
+			Type valueParamType = null;
+			appendCollection(builder, f, name, vs, collectionSize,
+					typeBuilder, type, paramType, valueType, valueParamType, null,
+					needsTypeInfo, needsWrapping || (f == null && (name == null || name.length() == 0)), compact);
+			return;
+		}
 		Class<?> valueType = type.getComponentType();
 		Type valueParamType = null;
 		if (paramType instanceof ParameterizedType) {
@@ -558,6 +639,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (type == null || type == Object.class) {
+			type = vs.getClass();
+		}
 		String typeStr;
 		if (List.class.isAssignableFrom(type)) {
 			typeStr = $list;
@@ -572,23 +656,28 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			valueType = componentType;
 			valueParamType = null;
 		}
+		Class<?> vsType = vs.getClass();
 		if (needsTypeInfo && summarizeCollectionType && valueType == Object.class) {
 			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
 			Collection<Object> os = null;
-			if (type.isArray()) {
-				os = Arrays.asList((Object[]) vs);
+			if (vsType.isArray()) {
+				if (!valueType.isPrimitive()) {
+					os = Arrays.asList((Object[]) vs);
+				}
 			} else { // Collection
 				os = (Collection) vs;
 			}
-			Class<?> commonType = Utils.calculateCommonType(os, conflictedClasses);
-			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
-				valueType = commonType;
+			if (os != null) {
+				Class<?> commonType = Utils.calculateCommonType(os, conflictedClasses);
+				if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
+					valueType = commonType;
+				}
 			}
 		}
 		Object[] values = null;
-		if (List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type)) {
+		if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
 			values = ((Collection) vs).toArray(new Object[vsSize]);
-		} else if (type.isArray()) {
+		} else if (vsType.isArray()) {
 			if (!valueType.isPrimitive()) {
 				values = (Object[]) vs;
 			}
@@ -601,7 +690,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			if (valueType.isPrimitive()) {
 				for (int k = 0; k < vsSize; k++) {
 					if (k > 0) builder.append(";");
-					appendArrayPrimitive(builder, vs, k, valueType);
+					appendArrayPrimitive(builder, vs, k, valueType, compact);
 				}
 				return;
 			}
@@ -650,7 +739,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			String prefix = sb.toString();
 			if (values == null) {
 				builder.append(prefix).append(index).append("=");
-				appendArrayPrimitive(builder, vs, k, valueType).append("\r\n");
+				appendArrayPrimitive(builder, vs, k, valueType, compact).append("\r\n");
 				index++;
 				continue;
 			}
@@ -673,7 +762,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		}
 	}
 
-	protected StringBuilder appendArrayPrimitive(StringBuilder builder, Object vs, int k, Class<?> compType) {
+	protected StringBuilder appendArrayPrimitive(StringBuilder builder, Object vs, int k, Class<?> compType, boolean compact) {
 		if (compType == int.class) {
 			builder.append(Array.getInt(vs, k));
 		} else if (compType == long.class) {
@@ -725,15 +814,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		if (valueType == null || valueType == Object.class) {
 			valueNeedsTypeInfo = true;
 		}
-		appendMap(builder, f, name, vs, keys,
-				typeBuilder, keyType, keyParamType, valueType, valueParamType,
-				needsTypeInfo, keyNeedsTypeInfo, valueNeedsTypeInfo, needsWrapping, compact);
-	}
-	
-	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
-			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
-			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
-			boolean needsWrapping, boolean compact) {
 		if (keyNeedsTypeInfo && summarizeCollectionType && (keyType == null || keyType == Object.class)) {
 			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
 			Class<?> commonType = Utils.calculateCommonType(vs.keySet(), conflictedClasses);
@@ -748,6 +828,15 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				valueType = commonType;
 			}
 		}
+		appendMap(builder, f, name, vs, keys,
+				typeBuilder, keyType, keyParamType, valueType, valueParamType,
+				needsTypeInfo, keyNeedsTypeInfo, valueNeedsTypeInfo, needsWrapping, compact);
+	}
+	
+	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
+			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
+			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
+			boolean needsWrapping, boolean compact) {
 		if ("mms".equals(name)) {
 			System.out.println("XXX");
 		}
@@ -866,6 +955,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		if (typeBuilder != null) {
 			if (needsTypeInfo) {
 				typeBuilder.append("object:");
+				if (type == null || type == Object.class) {
+					type = o.getClass();
+				}
 				appendFieldType(typeBuilder, type, null, false);
 			} else {
 				//typeBuilder.append("object");
@@ -873,8 +965,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		}
 
 		//int oldLength = builder.length();
-		increaseIndent();
 		startObjectBlock(builder, type, needsTypeInfo, needsWrapping);
+		increaseIndent();
 		boolean multipleLines = !compact; //readableObjectFormat || needsTypeInfo;
 				//|| !checkCompactness(o, type, paramType, field, compact); // !isPlainObject(o);
 		//boolean generated = false;

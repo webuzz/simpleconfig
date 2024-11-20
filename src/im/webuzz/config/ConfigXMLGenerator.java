@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.security.SecurityKit;
 
 import java.util.Set;
@@ -76,6 +77,8 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		int length = builder.length();
 		if (length >= 2 && builder.charAt(length - 1) != '\n') {
 			builder.append("\r\n");
+		} else if (length > 0 && builder.charAt(length - 1) == '\t') {
+			return builder; // skip adding more indents
 		}
 		return builder.append(indents);
 	}
@@ -169,6 +172,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 				appendFieldType(typeBuilder, type, paramType, true);
 				typeBuilder.append("\r\n");
 				appendIndents(typeBuilder);
+				// Insert field type back into block comment
 				builder.insert(builder.length() - 5, typeBuilder);
 			} else {
 				startLineComment(builder);
@@ -178,15 +182,6 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		}
 	}
 	
-
-	@Override
-	protected StringBuilder appendArrayPrimitive(StringBuilder builder, Object vs, int k, Class<?> compType) {
-		appendIndents(builder).append("\t<").append(compType.getName()).append('>');
-		super.appendArrayPrimitive(builder, vs, k, compType);
-		builder.append("</").append(compType.getName()).append('>');
-		return builder;
-	}
-
 	@Override
 	protected void generateString(StringBuilder builder, String v, boolean secret) {
 		if (v == null) {
@@ -207,7 +202,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	
 
 	@Override
-	protected boolean generateClass(StringBuilder builder, Class<?> v, boolean needsTypeInfo) {
+	protected boolean generateClass(StringBuilder builder, Class<?> v, boolean needsTypeInfo, boolean needsWrapping) {
 		if (v == null) {
 			builder.append($null);
 		} else if (needsTypeInfo) {
@@ -219,9 +214,9 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	}
 
 	@Override
-	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type, boolean needsTypeInfo) {
+	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type, boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		Class<? extends Object> clazz = v.getClass();
-		if (needsTypeInfo) {
+		if (needsTypeInfo || needsWrapping && !compact) {
 			String typeName = clazz.getSimpleName();
 			builder.append("<").append(typeName).append(">");
 		}
@@ -238,15 +233,17 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		} else {
 			builder.append(v);
 		}
-		if (needsTypeInfo) builder.append("</").append(clazz.getSimpleName()).append(">");
+		if (needsTypeInfo || needsWrapping && !compact) builder.append("</").append(clazz.getSimpleName()).append(">");
 	}
-
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (type == null || type == Object.class) {
+			type = vs.getClass();
+		}
 		String typeStr;
 		if (List.class.isAssignableFrom(type)) {
 			typeStr = $list;
@@ -261,6 +258,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		if (needsWrapping) {
 			appendIndents(builder).append('<').append(typeStr);
 		}
+		Class<?> vsType = vs.getClass();
 		if (compact) {
 			if (needsTypeInfo) {
 				//checkIndents(builder).append('<').append(typeStr).append('>');
@@ -272,40 +270,56 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 			if (needsWrapping) builder.append('>');
 //			boolean singleItem = vsSize == 1;
 //			if (singleItem) builder.append(' ');
-			if (type.isArray() && type.getComponentType().isPrimitive()) {
+			if (vsType.isArray() && valueType.isPrimitive()) {
 				for (int k = 0; k < vsSize; k++) {
 					if (k > 0) builder.append(";");
-					appendArrayPrimitive(builder, vs, k, valueType);
+					appendArrayPrimitive(builder, vs, k, valueType, compact);
 				}
 				if (needsWrapping) builder.append("</").append(typeStr).append('>');
 				return;
 			}
 			int size = vsSize;
 			Object[] values = null;
-			if (List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type)) {
+			if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
 				values = ((Collection) vs).toArray(new Object[size]);
-			} else if (type.isArray()) {
-				//if (!valueType.isPrimitive()) {
+			} else if (vsType.isArray()) {
+				if (!valueType.isPrimitive()) {
 					values = (Object[]) vs;
-				//}
+				}
 			}
 
 			for (int k = 0; k < values.length; k++) {
 				Object o = values[k];
 				if (k > 0 && builder.charAt(builder.length() - 1) != '>') builder.append(";");
-				Class<?> targetType = null;
+				//Class<?> targetType = null;
 				//boolean diffTypes = o != null && valueType != (targetType = o.getClass());
 				boolean diffTypes = false;
 				if (o != null) {
-					targetType = o.getClass();
-					if (valueType != null && (valueType != targetType || valueType.isInterface()
-							|| Utils.isAbstractClass(valueType))) {
-						diffTypes = true;
+					Class<?> targetType = o.getClass();
+					if (valueType != null && valueType != targetType) {
+						if (List.class == valueType
+								|| Set.class == valueType
+								|| Map.class == valueType) {
+							// These 3 collection types will be initialized to specific instances
+							// List => ArrayList
+							// Set => SynchronizedSet
+							// Map => ConcurrentHashMap
+						} else { // if (valueType.isInterface() || Utils.isAbstractClass(valueType)) {
+							diffTypes = true;
+						}
 					}
 				}
-				if (!diffTypes) targetType = valueType;
-				generateFieldValue(builder, null, null, null, o, targetType, valueParamType, diffTypes, true, compact, false);
-				k++;
+//				if (o != null) {
+//					targetType = o.getClass();
+//					if (valueType != null && (valueType != targetType || valueType.isInterface()
+//							|| Utils.isAbstractClass(valueType))) {
+//						diffTypes = true;
+//					}
+//				}
+//				if (!diffTypes) targetType = valueType;
+//				generateFieldValue(builder, null, null, null, o, targetType, valueParamType, diffTypes, true, compact, false);
+				generateFieldValue(builder, null, null, null, o, valueType, valueParamType, diffTypes, true, compact, false);
+				//k++;
 			}
 			/*
 			builder.append("\r\n");
@@ -319,7 +333,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 			//*/
 			//if (singleItem) builder.append(' ');
 			//builder.append("]");
-			if (needsWrapping) appendIndents(builder).append("</").append(typeStr).append('>');
+			if (needsWrapping) builder.append("</").append(typeStr).append('>');
 			//appendLinebreak(builder);
 			return;
 		}
@@ -341,14 +355,18 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 					|| GeneratorConfig.summarizeCollectionType && valueType == Object.class)) {
 				Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
 				Collection<Object> os = null;
-				if (type.isArray()) {
-					os = Arrays.asList((Object[]) vs);
+				if (vsType.isArray()) {
+					if (!valueType.isPrimitive()) {
+						os = Arrays.asList((Object[]) vs);
+					}
 				} else { // Collection
 					os = (Collection) vs;
 				}
-				Class<?> commonType = Utils.calculateCommonType(os, conflictedClasses);
-				if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
-					valueType = commonType;
+				if (os != null) {
+					Class<?> commonType = Utils.calculateCommonType(os, conflictedClasses);
+					if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
+						valueType = commonType;
+					}
 				}
 			}
 			if (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
@@ -386,75 +404,19 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		boolean basicType = isBasicType(valueType);
 		int size = vsSize;
 		Object[] values = null;
-		if (List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type)) {
+		if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
 			values = ((Collection) vs).toArray(new Object[size]);
-		} else if (type.isArray()) {
+		} else if (vsType.isArray()) {
 			if (!valueType.isPrimitive()) {
 				values = (Object[]) vs;
 			}
 		}
-		//boolean singleLine = size == 1 && basicType;
 		boolean multipleLines = size >= 1 || !basicType;
-		boolean moreIndents = values != null;
-		if (size <= 15 && (basicType || valueType == Object.class || Utils.isAbstractClass(valueType))) {
-			StringBuilder compactBuilder = new StringBuilder();
-			//compactBuilder.append(indents).append("[ ");
-			for (int k = 0; k < vsSize; k++) {
-				if (values == null) {
-					appendArrayPrimitive(compactBuilder, vs, k, valueType);
-				} else {
-					Object o = values[k];
-					if (o != null) {
-						if (isBasicType(o.getClass())) {
-							//if (!moreIndents) moreIndents = true;
-						} else if (size >= 1) {
-							multipleLines = true;
-						}
-					}
-					Class<?> targetType = null;
-					//boolean diffTypes = o != null && valueType != (targetType = o.getClass());
-					boolean diffTypes = false;
-					if (o != null) {
-						targetType = o.getClass();
-						if (valueType != null && valueType != targetType && !valueType.isInterface()
-								&& !Utils.isAbstractClass(valueType)) {
-							diffTypes = true;
-						}
-					}
-					if (!diffTypes) targetType = valueType;
-					boolean wrapping = needsWrapping;
-					String wrappingTag = null;
-					if (targetType == String.class || Utils.isBasicDataType(targetType)) {
-						wrappingTag = "item";
-					} else {
-						wrapping =true;
-					}
-					generateFieldValue(compactBuilder, null, wrappingTag, null, o, targetType, valueParamType, diffTypes, wrapping, compact, false);
-					//if (wrapping) compactBuilder.append("</item>");
-				}
-				//if (size > 1 && k != size - 1) compactBuilder.append(", ");
-				if (compactBuilder.length() > 100 && moreIndents) {
-					break;
-				}
-			}
-			if (compactBuilder.length() <= 100) {
-				//singleLine = true;
-				//multipleLines = false;
-			}
-		}
-		//if (singleLine) builder.append(' ');
-		if (multipleLines) {
-			if (moreIndents) {
-				//builder.append("\r\n");
-				increaseIndent();
-			//} else {
-				//builder.append(' ');
-			}
-		}
+		if (multipleLines) increaseIndent();
 		boolean first = true;
 		for (int k = 0; k < vsSize; k++) {
 			if (values == null) {
-				appendArrayPrimitive(builder, vs, k, valueType);
+				appendArrayPrimitive(builder, vs, k, valueType, compact);
 			} else {
 				Object o = values[k];
 				if (first && multipleLines && (basicType
@@ -463,66 +425,73 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 					//appendIndents(builder);
 					first = false;
 				}
-				Class<?> targetType = null;
+				//Class<?> targetType = null;
 				boolean diffTypes = false;
 				if (o != null) {
-					targetType = o.getClass();
-					if (valueType != null && valueType != targetType && !valueType.isInterface()
-							&& !Utils.isAbstractClass(valueType)) {
-						diffTypes = true;
+					Class<?> targetType = o.getClass();
+					if (valueType != null && valueType != targetType) {
+						if (List.class == valueType
+								|| Set.class == valueType
+								|| Map.class == valueType) {
+							// These 3 collection types will be initialized to specific instances
+							// List => ArrayList
+							// Set => SynchronizedSet
+							// Map => ConcurrentHashMap
+						} else { // if (valueType.isInterface() || Utils.isAbstractClass(valueType)) {
+							diffTypes = true;
+						}
 					}
 				}
-				if (!diffTypes) targetType = valueType;
+//				if (o != null) {
+//					targetType = o.getClass();
+//					if (valueType != null) {
+//						if (valueType == List.class || valueType == Map.class || valueType == Set.class) {
+//							
+//						}
+//						if (valueType != targetType && !valueType.isInterface()
+//								&& !Utils.isAbstractClass(valueType)) {
+//							diffTypes = true;
+//						}
+//					}
+//				}
+				//if (!diffTypes) targetType = valueType;
 				boolean wrapping = needsWrapping;
 				String wrappingTag = null;
-				if (targetType == String.class || Utils.isBasicDataType(targetType)) {
-					wrappingTag = "item";
+				if (valueType == String.class) {
+					wrappingTag = "String";
 				} else {
 					wrapping =true;
 				}
 				generateFieldValue(builder, null, wrappingTag,
-								null, o, targetType, valueParamType, diffTypes, wrapping, false, false);
-				//if (wrapping) builder.append("</item>");
-			}
-			//if (singleLine && size > 1 && k != size - 1) builder.append(", ");
-			//if (multipleLines) appendLinebreak(builder);
-		}
-		//if (singleLine) builder.append(' ');
-		if (multipleLines) {
-			if (moreIndents) {
-				decreaseIndent();
-				//if (needsTypeInfo) appendIndents(builder);
+								null, o, valueType, valueParamType, diffTypes, wrapping, false, false);
 			}
 		}
+		if (multipleLines) decreaseIndent();
 		if (needsWrapping) appendIndents(builder).append("</").append(typeStr).append('>');
 	}	
 
+
+	@Override
+	protected StringBuilder appendArrayPrimitive(StringBuilder builder, Object vs, int k, Class<?> compType, boolean compact) {
+		if (!compact) appendIndents(builder).append("<").append(compType.getName()).append('>');
+		super.appendArrayPrimitive(builder, vs, k, compType, compact);
+		if (!compact) builder.append("</").append(compType.getName()).append('>');
+		return builder;
+	}
 
 	@Override
 	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
-		if (keyNeedsTypeInfo && GeneratorConfig.summarizeCollectionType && (keyType == null || keyType == Object.class)) {
-			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-			Class<?> commonType = Utils.calculateCommonType(vs.keySet(), conflictedClasses);
-			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
-				keyType = commonType;
-			}
-		}
-		if (valueNeedsTypeInfo && GeneratorConfig.summarizeCollectionType && (valueType == null || valueType == Object.class)) {
-			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-			Class<?> commonType = Utils.calculateCommonType(vs.values(), conflictedClasses);
-			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
-				valueType = commonType;
-			}
-		}
 		if ("mapArrs".equals(name)) {
 			System.out.println(12344);
 		}
 		if (compact) {
 			// TODO:
-			return;
+			System.out.println("Continue to generate raw map!!!");
+			//return;
+			compact = false;
 		}
 		//startObjectBlock(builder, valueType, false);
 		//builder.append("<map");
@@ -532,7 +501,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		if (keys.length == 0 || GeneratorConfig.preferKeyValueMapFormat
 				&& keyType == String.class && Utils.canKeysBeFieldNames(keys)) {
 			boolean basicType = isBasicType(valueType);
-			boolean singleLine = vs.size() == 1 && basicType;
+			//boolean singleLine = vs.size() == 1 && basicType;
 			boolean multipleLines = vs.size() > 1 || !basicType;
 //			if (singleLine) {
 //				builder.append(' ');

@@ -14,8 +14,8 @@
 
 package im.webuzz.config.web;
 
-import im.webuzz.config.ConfigComment;
-import im.webuzz.config.ConfigSecret;
+import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigSecret;
 
 @ConfigComment({
 	"This configuration file is used to be configured for synchronization between",

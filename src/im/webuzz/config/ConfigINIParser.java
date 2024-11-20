@@ -178,8 +178,12 @@ public class ConfigINIParser {
 	private static boolean parseAndUpdateField(Properties prop, String keyName, String p,
 			Object obj, Field f, boolean updatingField, StringBuilder diffB) {
 		Class<?> type = f.getType();
+		if ("myNumber".equals(keyName)) {
+			System.out.println("X parse");
+		}
 		if (type == Object.class || Utils.isAbstractClass(type)) {
-			type = recognizeObjectType(p);
+			Class<?> pType = recognizeObjectType(p);
+			if (pType != null) type = pType;
 		}
 		try {
 			if (type == String.class) {
@@ -245,7 +249,7 @@ public class ConfigINIParser {
 					if (updatingField) f.setChar(obj, c);
 					return true;
 				}
-			} else if (type.isArray()) {
+			} else if (type != null && type.isArray()) {
 				Object newArr = parseCollection(prop, keyName, p, type, f.getGenericType());
 				if (!DeepComparator.arrayDeepEquals(type.getComponentType().isPrimitive(), newArr, f.get(obj))) {
 					if (diffB != null) diffB.append("[...]").append('>')
@@ -286,20 +290,20 @@ public class ConfigINIParser {
 				boolean changed = false;
 				Object nv = null;
 				if (!p.equals(ConfigINIParser.$null)) {
+					int length = p.length();
+					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+						int idx = p.indexOf(':');
+						if (idx != -1) {
+							p = p.substring(idx + 1, length - 1);
+						}
+					}
+					if (type == Integer.class) nv = Integer.decode(p);
+					else if (type == Long.class) nv = Long.decode(p);
+					else if (type == Short.class) nv = Short.decode(p);
+					else nv = Byte.decode(p);
 					if (v == null) {
 						changed = true;
 					} else {
-						int length = p.length();
-						if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
-							int idx = p.indexOf(':');
-							if (idx != -1) {
-								p = p.substring(idx + 1, length - 1);
-							}
-						}
-						if (type == Integer.class) nv = Integer.decode(p);
-						else if (type == Long.class) nv = Long.decode(p);
-						else if (type == Short.class) nv = Short.decode(p);
-						else nv = Byte.decode(p);
 						changed = nv.equals(v);
 					}
 				} else {
@@ -344,20 +348,20 @@ public class ConfigINIParser {
 			} else if (type == Class.class) {
 				Object v = f.get(obj);
 				String clazzName = null;
+				int length = p.length();
+				if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+					int idx = p.indexOf(':');
+					if (idx != -1) {
+						p = p.substring(idx + 1, length - 1);
+					}
+				}
 				if (!p.equals(v == null ? ConfigINIParser.$null : (clazzName = ((Class<?>) v).getName()))) {
 					if (diffB != null) diffB.append(v == null ? null : clazzName).append('>').append(p);
 					if (updatingField) {
 						if (ConfigINIParser.$null.equals(p)) {
 							f.set(obj, null);
 						} else {
-							int length = p.length();
-							if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
-								int idx = p.indexOf(':');
-								if (idx != -1) {
-									p = p.substring(idx + 1, length - 1);
-								}
-							}
-							Class<?> clazz = Config.loadConfigurationClass(clazzName);
+							Class<?> clazz = Config.loadConfigurationClass(p);
 							if (clazz != null) f.set(obj, clazz);
 						}
 					}
@@ -947,22 +951,33 @@ public class ConfigINIParser {
 		return String.class;
 	}
 	
+	private static Map<String, Class<?>> knownTypes = new ConcurrentHashMap<String, Class<?>>();
+	static {
+		knownTypes.put("Integer", Integer.class);
+		knownTypes.put("Long", Long.class);
+		knownTypes.put("Boolean", Boolean.class);
+		knownTypes.put("Double", Double.class);
+		knownTypes.put("Float", Float.class);
+		knownTypes.put("Short", Short.class);
+		knownTypes.put("Byte", Byte.class);
+		knownTypes.put("Character", Character.class);
+		knownTypes.put("BigDecimal", BigDecimal.class);
+		knownTypes.put("BigInteger", BigInteger.class);
+		knownTypes.put("String", String.class);
+		knownTypes.put("string", String.class);
+		knownTypes.put("Class", Class.class);
+		knownTypes.put("class", Class.class);
+		knownTypes.put("List", List.class);
+		knownTypes.put("list", List.class);
+		knownTypes.put("Map", Map.class);
+		knownTypes.put("map", Map.class);
+		knownTypes.put("Set", Set.class);
+		knownTypes.put("set", Set.class);
+	}
+	
 	private static Class<?> recognizeRawType(String rawType) {
-		if ("Integer".equals(rawType))  return Integer.class;
-		if ("Long".equals(rawType)) return Long.class;
-		if ("Boolean".equals(rawType)) return Boolean.class;
-		if ("String".equals(rawType)) return String.class;
-		if ("Double".equals(rawType)) return Double.class;
-		if ("Float".equals(rawType)) return Float.class;
-		if ("Short".equals(rawType)) return Short.class;
-		if ("Byte".equals(rawType)) return Byte.class;
-		if ("Character".equals(rawType)) return Character.class;
-		if ("BigDecimal".equals(rawType)) return BigDecimal.class;
-		if ("BigInteger".equals(rawType)) return BigInteger.class;
-		if ("Class".equals(rawType) || "class".equals(rawType)) return Class.class;
-		if ("List".equals(rawType) || "list".equals(rawType)) return List.class;
-		if ("Map".equals(rawType) || "map".equals(rawType)) return Map.class;
-		if ("Set".equals(rawType) || "set".equals(rawType)) return Set.class;
+		Class<?> c = knownTypes.get(rawType);
+		if (c != null) return c;
 		return Config.loadConfigurationClass(rawType);
 	}
 

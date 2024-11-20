@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import im.webuzz.config.ConfigComment;
+import im.webuzz.config.annotations.ConfigComment;
 
 @ConfigComment({
     "The WebConfigLocal class represents configuration properties intended",

@@ -175,17 +175,6 @@ public class ConfigXMLParser implements IConfigConverter {
 				} else if (!firstType.equals(nodeName)) {
 					sameElementName = false;
 				}
-				if (simpleItem && sameElementName && "item".equals(nodeName)) {
-					Element[] children = getChildElements(el);
-					if (children.length > 0) {
-						simpleItem = false;
-					} else if (children.length == 0) {
-						String text = getTextValue(el);
-						if (text != null && text.indexOf('\n') != -1) {
-							simpleItem = false;
-						}
-					}
-				}
 				elementCount++;
 			}
 		}
@@ -213,10 +202,11 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		if (sameElementName) {
 			if ("entry".equals(firstType)) return NodeType.mapEntries;
-			if (primitives.contains(firstType) || (simpleItem && "item".equals(firstType)) || "#text".equals(firstType)) {
+			if (primitives.contains(firstType)
+					|| "#text".equals(firstType)) {
 				return NodeType.plainCollection;
 			}
-			if (knownObjects.contains(firstType) || "item".equals(firstType)) {
+			if (knownObjects.contains(firstType) || basicData.contains(firstType)) {
 				return NodeType.collection;
 			}
 			return NodeType.mapKnown;
@@ -306,17 +296,28 @@ public class ConfigXMLParser implements IConfigConverter {
 			assign(builder, prefix, null);
 			appendType(builder, prefix, o, "empty");
 			builder.append("\r\n");
-			return;
 		}
 		if (type == NodeType.basicDirect) {
 			String typeName = o.getNodeName();
-			assign(builder, prefix, null).append('[').append(typeName).append(':').append(getTextValue(o)).append("]\r\n");
+			String content = getTextValue(o);
+			assign(builder, prefix, null);
+			if ("String".equalsIgnoreCase(typeName)) {
+				builder.append(ConfigINIGenerator.formatString(content)).append("\r\n");;
+			} else {
+				builder.append('[').append(typeName).append(':').append(content).append("]\r\n");
+			}
 			return;
 		}
 		if (type == NodeType.basicData) {
 			Element first = getFirstElement(o);
 			String typeName = first.getNodeName();
-			assign(builder, prefix, null).append('[').append(typeName).append(':').append(getTextValue(first)).append("]\r\n");
+			assign(builder, prefix, null);
+			String content = getTextValue(first);
+			if ("String".equalsIgnoreCase(typeName)) {
+				builder.append(ConfigINIGenerator.formatString(content)).append("\r\n");;
+			} else {
+				builder.append('[').append(typeName).append(':').append(content).append("]\r\n");
+			}
 			return;
 		}
 		if (type == NodeType.mapEntries) {
@@ -362,12 +363,12 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		
 		if (type == NodeType.plainCollection) {
-			builder.append(prefix).append('=');
 			NodeList childNodes = o.getChildNodes();
 			int length = childNodes.getLength();
 			boolean first = true;
 			boolean ok2Compact = true;
 			StringBuilder compactBuilder = new StringBuilder();
+			compactBuilder.append(prefix).append('=');
 			for (int i = 0; i < length; i++) {
 				Node item = childNodes.item(i);
 				if (item instanceof Text) {

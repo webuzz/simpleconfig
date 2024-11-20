@@ -214,16 +214,17 @@ public class ConfigGenerator {
 			printUsage();
 			return;
 		}
-		Config.registerUpdatingListener(GeneratorConfig.class);
+		run(args, 0);
+	}
 
-		int index = 0;
-		String targetFolder = args[index];
+	public static void run(String[] args, int indexOffset) {
+		String targetFolder = args[indexOffset];
 		if (targetFolder == null || targetFolder.length() <= 0) {
 			System.out.println("Target configuration folder path can not be empty.");
 			return;
 		}
-		index++;
-		String mainTargetFileName = args[index];
+		indexOffset++;
+		String mainTargetFileName = args[indexOffset];
 		String mainFileName = new File(Config.getConfigurationMainFile()).getName();
 		String mainExtension = null;
 		if (mainTargetFileName.startsWith(".") && mainTargetFileName.lastIndexOf('.') != 0) {
@@ -233,7 +234,7 @@ public class ConfigGenerator {
 			} else {
 				mainTargetFileName = mainFileName.substring(0, mainFileName.lastIndexOf('.')) + mainExtension;
 			}
-			index++;
+			indexOffset++;
 		} else {
 			// check if mainTargetFileName is a configuration file name or a class name
 			boolean existed = false;
@@ -251,7 +252,7 @@ public class ConfigGenerator {
 				}
 			}
 			if (existed) {
-				index++;
+				indexOffset++;
 			} else {
 				mainExtension = mainFileName.substring(mainFileName.lastIndexOf('.') + 1);
 			}
@@ -259,7 +260,7 @@ public class ConfigGenerator {
 		List<Class<?>> orderedClasses = new ArrayList<Class<?>>();
 		Map<Class<?>, String> classExtensions = new HashMap<Class<?>, String>();
 		Class<?> lastClass = null;
-		for (int i = index; i < args.length; i++) {
+		for (int i = indexOffset; i < args.length; i++) {
 			String clazz = args[i];
 			if (clazz != null && clazz.length() > 0) {
 				if (clazz.startsWith(".")) {
@@ -280,6 +281,8 @@ public class ConfigGenerator {
 		}
 		updatedConfigExtension(classExtensions, lastClass, mainExtension, false);
 		Class<?>[] classes = orderedClasses.toArray(new Class<?>[orderedClasses.size()]);
+
+		Config.registerUpdatingListener(GeneratorConfig.class);
 		generateUpdatedConfiguration(targetFolder, mainTargetFileName, classExtensions, classes);
 	}
 

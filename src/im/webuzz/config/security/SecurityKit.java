@@ -151,10 +151,14 @@ public class SecurityKit {
 			return;
 		}
 		// args shifted
-		Config.registerUpdatingListener(SecurityConfig.class);
 		
-		if (args.length > 0 && args[0] != null && args[0].length() != 0) {
-			String password = args[0];
+		run(args, 0);
+	}
+
+	public static void run(String[] args, int indexOffset) {
+		Config.registerUpdatingListener(SecurityConfig.class);
+		if (args.length > indexOffset && args[indexOffset] != null && args[indexOffset].length() != 0) {
+			String password = args[indexOffset];
 			String decryptedPassword = SecurityKit.decrypt(password);
 			if (decryptedPassword != null && !decryptedPassword.equals(password)) {
 				System.out.println("Decrypted password: " + decryptedPassword);

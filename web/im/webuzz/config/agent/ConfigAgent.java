@@ -19,6 +19,10 @@ public class ConfigAgent {
 			System.out.println("3. Develop other watchman or format converter.");
 			return;
 		}
+		run(args, 0);
+	}
+
+	public static void run(String[] args, int indexOffset) {
 		String[] watchmen = Config.configurationWatchmen;
 		if (watchmen == null || watchmen.length == 0) {
 			System.out.println("[WARN] No watchmen are running. Config agent may be a dummy process, doing nothing.");
