@@ -20,6 +20,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import im.webuzz.config.annotations.ConfigIgnore;
+
 public class ConfigINIParser {
 
 	protected static final String $null = "[null]";
@@ -30,6 +32,7 @@ public class ConfigINIParser {
 	protected static final String $map = "[map]";
 	protected static final String $object = "[object]";
 
+	private final static Object error = new Object();
 
 	/**
 	 * Parsing arguments into the given properties map:
@@ -112,8 +115,8 @@ public class ConfigINIParser {
 	 * @return Whether the given properties map contains matching configuration items or not
 	 */
 	// 
-	public static boolean parseConfiguration(Properties prop, Class<?> clz, boolean combinedConfigs, boolean callUpdating) {
-		if (clz == null) return false;
+	public static int parseConfiguration(Properties prop, Class<?> clz, boolean combinedConfigs, boolean updating, boolean callUpdating) {
+		if (clz == null) return 0;
 		long now = System.currentTimeMillis();
 		String keyPrefix = null;
 		if (combinedConfigs) { // all configuration items are in one file, use key prefix to distinguish fields
@@ -125,29 +128,30 @@ public class ConfigINIParser {
 		boolean itemMatched = false;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (f != null) {
-				int modifiers = f.getModifiers();
-				if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
-				String name = f.getName();
-				if (filter != null && filter.filterName(name)) continue;
-				String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
-				String p = prop.getProperty(keyName);
-				if (p == null) continue; // given key does not exist
-				itemMatched = true;
-				p = p.trim();
-				// Should NOT skip empty string, as it may mean empty string or default value
-				//if (p.length() == 0) continue;
-				if ((modifiers & Modifier.PUBLIC) == 0) {
-					f.setAccessible(true);
-				}
-				boolean updated = parseAndUpdateField(prop, keyName, p, clz, f, true, null);
-				if (updated && Config.configurationLogging && Config.initializedTime > 0
-						&& now - Config.initializedTime > 3000) { // start monitoring fields after 3s
-					System.out.println("[Config] Configuration " + clz.getName() + "#" + name + " updated.");
-				}
+			if (f == null) continue;
+			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
+			int modifiers = f.getModifiers();
+			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
+			String name = f.getName();
+			if (filter != null && filter.filterName(name)) continue;
+			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
+			String p = prop.getProperty(keyName);
+			if (p == null) continue; // given key does not exist
+			itemMatched = true;
+			p = p.trim();
+			// Should NOT skip empty string, as it may mean empty string or default value
+			//if (p.length() == 0) continue;
+			if ((modifiers & Modifier.PUBLIC) == 0) {
+				f.setAccessible(true);
+			}
+			int result = parseAndUpdateField(prop, keyName, p, clz, f, updating, null);
+			if (result == -1) return -1;
+			if (result == 1 && Config.configurationLogging && Config.initializedTime > 0
+					&& now - Config.initializedTime > 3000) { // start monitoring fields after 3s
+				System.out.println("[Config] Configuration " + clz.getName() + "#" + name + " updated.");
 			}
 		}
-		if (itemMatched && (callUpdating || keyPrefix == null || keyPrefix.length() == 0)) {
+		if (itemMatched && updating && (callUpdating || keyPrefix == null || keyPrefix.length() == 0)) {
 			try {
 				Method method = clz.getMethod("update", Properties.class);
 				if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
@@ -159,9 +163,8 @@ public class ConfigINIParser {
 				e.printStackTrace();
 			}
 		}
-		return itemMatched;
+		return itemMatched ? 1 : 0;
 	}
-
 
 	/**
 	 * Parse the given key-prefixed properties for a field value, update the field if necessary.
@@ -172,10 +175,10 @@ public class ConfigINIParser {
 	 * @param f
 	 * @param updatingField
 	 * @param diffB Keep the differences if the parsed value and the existed field value is different
-	 * @return Whether the field is updated or not.
+	 * @return -1: Errors are detected, 0: No fields are updated, 1: Field is updated.
 	 */
 	@SuppressWarnings("rawtypes")
-	private static boolean parseAndUpdateField(Properties prop, String keyName, String p,
+	private static int parseAndUpdateField(Properties prop, String keyName, String p,
 			Object obj, Field f, boolean updatingField, StringBuilder diffB) {
 		Class<?> type = f.getType();
 		if ("myNumber".equals(keyName)) {
@@ -185,108 +188,150 @@ public class ConfigINIParser {
 			Class<?> pType = recognizeObjectType(p);
 			if (pType != null) type = pType;
 		}
+		//StringBuilder errBuilder = new StringBuilder();
 		try {
 			if (type == String.class) {
-				String newStr = parseString(p);
-				String oldStr = (String) f.get(obj);
-				if ((newStr == null && oldStr != null) || (newStr != null && !newStr.equals(oldStr))) {
-					if (diffB != null) diffB.append(f.get(obj)).append('>').append(p);
-					if (updatingField) f.set(obj, newStr);
-					return true;
+				String nv = parseString(p);
+				String ov = (String) f.get(obj);
+				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else if (type == int.class) {
-				int v = Integer.decode(p).intValue();
-				if (v != f.getInt(obj)) {
-					if (diffB != null) diffB.append(f.getInt(obj)).append('>').append(p);
-					if (updatingField) f.setInt(obj, v);
-					return true;
+				int nv = Integer.decode(p).intValue();
+				int ov = f.getInt(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setInt(obj, nv);
+					return result;
 				}
 			} else if (type == long.class) {
-				long v = Long.decode(p).longValue();
-				if (v != f.getLong(obj)) {
-					if (diffB != null) diffB.append(f.getLong(obj)).append('>').append(p);
-					if (updatingField) f.setLong(obj, v);
-					return true;
+				long nv = Long.decode(p).longValue();
+				long ov = f.getLong(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setLong(obj, nv);
+					return result;
 				}
 			} else if (type == boolean.class) {
 				if (!p.equals(String.valueOf(f.getBoolean(obj)))) {
 					if (diffB != null) diffB.append(f.getBoolean(obj)).append('>').append(p);
 					if (updatingField) f.setBoolean(obj, Boolean.parseBoolean(p));
-					return true;
+					return 1;
 				}
 			} else if (type == double.class) {
-				if (!p.equals(String.valueOf(f.getDouble(obj)))) {
-					if (diffB != null) diffB.append(f.getDouble(obj)).append('>').append(p);
-					if (updatingField) f.setDouble(obj, Double.parseDouble(p));
-					return true;
+				double nv = Double.parseDouble(p);
+				double ov = f.getDouble(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setDouble(obj, nv);
+					return result;
 				}
 			} else if (type == float.class) {
-				if (!p.equals(String.valueOf(f.getFloat(obj)))) {
-					if (diffB != null)
-						diffB.append(f.getFloat(obj)).append('>').append(p);
-					if (updatingField) f.setFloat(obj, Float.parseFloat(p));
-					return true;
+				float nv = Float.parseFloat(p);
+				float ov = f.getFloat(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setFloat(obj, nv);
+					return result;
 				}
 			} else if (type == short.class) {
-				short v = Short.decode(p).shortValue();
-				if (v != f.getShort(obj)) {
-					if (diffB != null)
-						diffB.append(f.getShort(obj)).append('>').append(p);
-					if (updatingField) f.setShort(obj, v);
-					return true;
+				short nv = Short.decode(p).shortValue();
+				short ov = f.getShort(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setShort(obj, nv);
+					return result;
 				}
 			} else if (type == byte.class) {
-				byte v = Byte.decode(p).byteValue();
-				if (v != f.getByte(obj)) {
-					if (diffB != null) diffB.append(f.getByte(obj)).append('>').append(p);
-					if (updatingField) f.setByte(obj, v);
-					return true;
+				byte nv = Byte.decode(p).byteValue();
+				byte ov = f.getByte(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setByte(obj, nv);
+					return result;
 				}
 			} else if (type == char.class) {
-				char c = parseChar(p);
-				if (c != f.getChar(obj)) {
-					if (diffB != null) diffB.append(f.getChar(obj)).append('>').append(p);
-					if (updatingField) f.setChar(obj, c);
-					return true;
+				char nv = parseChar(p);
+				char ov = f.getChar(obj);
+				if (nv != ov) {
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validatePrimitive(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.setChar(obj, nv);
+					return result;
 				}
 			} else if (type != null && type.isArray()) {
-				Object newArr = parseCollection(prop, keyName, p, type, f.getGenericType());
-				if (!DeepComparator.arrayDeepEquals(type.getComponentType().isPrimitive(), newArr, f.get(obj))) {
+				Object nv = parseCollection(prop, keyName, p, type, f.getGenericType());
+				if (nv == error) return -1;
+				if (!DeepComparator.arrayDeepEquals(type.getComponentType().isPrimitive(), nv, f.get(obj))) {
 					if (diffB != null) diffB.append("[...]").append('>')
-							.append(newArr == null ? null : "[" + Array.getLength(newArr) + "]");
-					if (updatingField) f.set(obj, newArr);
-					return true;
+							.append(nv == null ? null : "[" + Array.getLength(nv) + "]");
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else if (List.class.isAssignableFrom(type)) {
-				List newList = (List) parseCollection(prop, keyName, p, type, f.getGenericType());
-				List oldList = (List) f.get(obj);
-				if (!DeepComparator.listDeepEquals(newList, oldList)) {
+				Object ret = parseCollection(prop, keyName, p, type, f.getGenericType());
+				if (ret == error) return -1;
+				List nv = (List) ret;
+				List ov = (List) f.get(obj);
+				if (!DeepComparator.listDeepEquals(nv, ov)) {
 					if (diffB != null) diffB.append("[...]").append('>')
-							.append(newList == null ? null : "[" + newList.size() + "]");
-					if (updatingField) f.set(obj, newList);
-					return true;
+							.append(nv == null ? null : "[" + nv.size() + "]");
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else if (Set.class.isAssignableFrom(type)) {
-				Set newSet = (Set) parseCollection(prop, keyName, p, type, f.getGenericType());
-				Set oldSet = (Set) f.get(obj);
-				if (!DeepComparator.setDeepEquals(newSet, oldSet)) {
+				Object ret = parseCollection(prop, keyName, p, type, f.getGenericType());
+				if (ret == error) return -1;
+				Set nv = (Set) ret;
+				Set ov = (Set) f.get(obj);
+				if (!DeepComparator.setDeepEquals(nv, ov)) {
 					if (diffB != null) diffB.append("[...]").append('>')
-							.append(newSet == null ? null : "[" + newSet.size() + "]");
-					if (updatingField) f.set(obj, newSet);
-					return true;
+							.append(nv == null ? null : "[" + nv.size() + "]");
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else if (Map.class.isAssignableFrom(type)) {
-				Map newMap = parseMap(prop, keyName, p, type, f.getGenericType());
-				Map oldMap = (Map) f.get(obj);
-				if (!DeepComparator.mapDeepEquals(newMap, oldMap)) {
+				Object ret = parseMap(prop, keyName, p, type, f.getGenericType());
+				if (ret == error) return -1;
+				Map nv = (Map) ret;
+				Map ov = (Map) f.get(obj);
+				if (!DeepComparator.mapDeepEquals(nv, ov)) {
 					if (diffB != null) diffB.append("[...]").append('>')
-							.append(newMap == null ? null : "[" + newMap.size() + "]");
-					if (updatingField) f.set(obj, newMap);
-					return true;
+							.append(nv == null ? null : "[" + nv.size() + "]");
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else if (type == Integer.class || type == Long.class
-					|| type == Byte.class || type == Short.class) {
-				Object v = f.get(obj);
+					|| type == Byte.class || type == Short.class
+					|| type == Float.class || type == Double.class
+					|| type == BigDecimal.class || type == BigInteger.class
+					|| type == Boolean.class || type == Character.class) {
+				Object ov = f.get(obj);
 				boolean changed = false;
 				Object nv = null;
 				if (!p.equals(ConfigINIParser.$null)) {
@@ -300,86 +345,81 @@ public class ConfigINIParser {
 					if (type == Integer.class) nv = Integer.decode(p);
 					else if (type == Long.class) nv = Long.decode(p);
 					else if (type == Short.class) nv = Short.decode(p);
-					else nv = Byte.decode(p);
-					if (v == null) {
+					else if (type == Byte.class) nv = Byte.decode(p);
+					else if (type == Float.class) nv = Float.valueOf(p);
+					else if (type == Double.class) nv = Double.valueOf(p);
+					else if (type == BigDecimal.class) nv = new BigDecimal(p);
+					else if (type == BigInteger.class) nv = new BigInteger(p);
+					else if (type == Boolean.class) nv = Boolean.valueOf(p);
+					else nv = Character.valueOf(parseChar(p)); // Character.class
+					if (ov == null) {
 						changed = true;
 					} else {
-						changed = nv.equals(v);
+						changed = nv.equals(ov);
 					}
 				} else {
-					changed = v != null;
+					changed = ov != null;
 				}
 				if (changed) {
-					if (diffB != null) diffB.append(v).append('>').append(p);
-					if (updatingField) f.set(obj, nv);
-					return true;
-				}
-			} else if (type == Boolean.class || type == Float.class
-					|| type == Double.class || type == Character.class
-					|| type == BigDecimal.class || type == BigInteger.class) {
-				Object v = f.get(obj);
-				if (!p.equals(v == null ? ConfigINIParser.$null : String.valueOf(v))) {
-					if (diffB != null) diffB.append(v).append('>').append(p);
-					if (updatingField) {
-						if (ConfigINIParser.$null.equals(p)) {
-							f.set(obj, null);
-						} else {
-							int length = p.length();
-							if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
-								int idx = p.indexOf(':');
-								if (idx != -1) {
-									p = p.substring(idx + 1, length - 1);
-								}
-							}
-							if (type == Boolean.class) f.set(obj, Boolean.valueOf(p));
-							else if (type == Float.class) f.set(obj, Float.valueOf(p));
-							else if (type == Double.class) {
-								f.set(obj, Double.valueOf(p));
-							}
-							else if (type == BigDecimal.class) f.set(obj, new BigDecimal(p));
-							else if (type == BigInteger.class) f.set(obj, new BigInteger(p));
-							else {
-								f.set(obj, Character.valueOf(parseChar(p)));
-							}
-						}
-					}
-					return true;
+					if (diffB != null) diffB.append(ov).append('>').append(p);
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else if (type == Class.class) {
-				Object v = f.get(obj);
-				String clazzName = null;
-				int length = p.length();
-				if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
-					int idx = p.indexOf(':');
-					if (idx != -1) {
-						p = p.substring(idx + 1, length - 1);
-					}
-				}
-				if (!p.equals(v == null ? ConfigINIParser.$null : (clazzName = ((Class<?>) v).getName()))) {
-					if (diffB != null) diffB.append(v == null ? null : clazzName).append('>').append(p);
-					if (updatingField) {
-						if (ConfigINIParser.$null.equals(p)) {
-							f.set(obj, null);
-						} else {
-							Class<?> clazz = Config.loadConfigurationClass(p);
-							if (clazz != null) f.set(obj, clazz);
+				Object ov = f.get(obj);
+				String nvStr = null;
+				if (p != null && !ConfigINIParser.$null.equals(p)) {
+					int length = p.length();
+					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+						int idx = p.indexOf(':');
+						if (idx != -1) {
+							nvStr = p.substring(idx + 1, length - 1);
 						}
 					}
-					return true;
+				}
+				String ovStr = null;
+				if (ov != null) ovStr = ((Class<?>) ov).getName();
+				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
+					Class<?> nv = null;
+					if (nvStr != null && nvStr.length() > 0) {
+						StringBuilder err = new StringBuilder();
+						nv = Config.loadConfigurationClass(nvStr, err);
+						if (nv == null) {
+							StringBuilder errMsg = new StringBuilder();
+							errMsg.append("Invalid value for field \"").append(keyName)
+									.append("\": ").append(err);
+							if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+							return 0;
+						}
+					}
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			} else {
-				Object newObj = parseObject(prop, keyName, p, type, f.getGenericType());
-				Object oldObj = f.get(obj);
-				if ((newObj == null && oldObj != null) || (newObj != null && !newObj.equals(oldObj))) {
+				Object nv = parseObject(prop, keyName, p, type, f.getGenericType());
+				if (nv == error) return -1;
+				Object ov = f.get(obj);
+				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
 					if (diffB != null) diffB.append(f.get(obj)).append('>').append(p);
-					if (updatingField) f.set(obj, newObj);
-					return true;
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
 				}
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
+			StringBuilder errMsg = new StringBuilder();
+			errMsg.append("Invalid value for field \"").append(keyName)
+					.append("\": ").append(e.getMessage());
+			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+			return 0;
 		}
-		return false;
+		return 0;
 	}
 
 	/**
@@ -562,6 +602,7 @@ public class ConfigINIParser {
 				}
 			} else {
 				o = recognizeAndParseObject(prop, newPropName, v, valueType, valueParamType);
+				if (o == error) return error;
 				if (isArray) {
 					Array.set(value, j, o);
 				} else { // List or Set
@@ -597,7 +638,7 @@ public class ConfigINIParser {
 	 * @param paramType
 	 * @return
 	 */
-	private static Map<Object, Object> parseMap(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
+	private static Object parseMap(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
 		if (ConfigINIParser.$null.equals(p) || p == null) return null;
 		Map<Object, Object> value = new ConcurrentHashMap<Object, Object>();
 		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) return value;
@@ -674,9 +715,11 @@ public class ConfigINIParser {
 							String objStr = kv[1].trim();
 							if ("key".equals(keyStr)) {
 								key = recognizeAndParseObject(prop, newPropName, objStr, keyType, keyParamType);
+								if (key == error) return error;
 								if (val != null) break;
 							} else if ("value".equals(keyStr)) {
 								val = recognizeAndParseObject(prop, newPropName, objStr, valueType, valueParamType);
+								if (val == error) return error;
 								if (key != null) break;
 							}
 						}
@@ -687,11 +730,13 @@ public class ConfigINIParser {
 						String kStr = (String) prop.getProperty(keyPrefix);
 						if (kStr == null) continue;
 						Object key = recognizeAndParseObject(prop, keyPrefix, kStr, keyType, keyParamType);
+						if (key == error) return error;
 						if (key == null) continue;
 						String valuePrefix = newPropName + ".value";
 						String vStr = (String) prop.getProperty(valuePrefix);
 						if (vStr == null) continue;
 						Object val = recognizeAndParseObject(prop, valuePrefix, vStr, valueType, valueParamType);
+						if (val == error) return error;
 						value.put(key, val);
 					}
 				}
@@ -715,6 +760,7 @@ public class ConfigINIParser {
 						if (alreadyParsed) continue;
 						String k = propName.substring(prefix.length());
 						Object key = recognizeAndParseObject(prop, prefix, k, keyType, keyParamType);
+						if (key == error) return error;
 						if (key == null) continue;
 						String[] split = k.split("\\.");
 						if (split.length > dots) {
@@ -726,7 +772,9 @@ public class ConfigINIParser {
 							continue;
 						}
 						String v = (String) prop.getProperty(propName);
-						value.put(key, recognizeAndParseObject(prop, propName, v, valueType, valueParamType));
+						Object val = recognizeAndParseObject(prop, propName, v, valueType, valueParamType);
+						if (val == error) return error;
+						value.put(key, val);
 						if (v == null || v.length() <= 0 || (v.startsWith("[") && v.endsWith("]"))) {
 							parsedKeys.add(propName + ".");
 						} // else given v is a line for object, no need to put it into parsed keys set
@@ -754,9 +802,12 @@ public class ConfigINIParser {
 			}
 			String k = kv[0].trim();
 			Object key = recognizeAndParseObject(prop, keyName, k, keyType, keyParamType);
+			if (key == error) return error;
 			if (key == null) continue;
 			String v = kv[1].trim();
-			value.put(key, recognizeAndParseObject(prop, keyName, v, valueType, valueParamType));
+			Object val = recognizeAndParseObject(prop, keyName, v, valueType, valueParamType);
+			if (val == error) return error;
+			value.put(key, val);
 		}
 		return value;
 	}
@@ -789,6 +840,7 @@ public class ConfigINIParser {
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
 				if (f == null) continue; // never happen
+				if (f.getAnnotation(ConfigIgnore.class) != null) continue;
 				int modifiers = f.getModifiers();
 				if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
 				String name = f.getName();
@@ -801,7 +853,7 @@ public class ConfigINIParser {
 				if ((modifiers & Modifier.PUBLIC) == 0) {
 					f.setAccessible(true);
 				}
-				parseAndUpdateField(prop, fieldKeyName, pp, obj, f, true, null);
+				if (parseAndUpdateField(prop, fieldKeyName, pp, obj, f, true, null) == -1) return error;
 			}
 			return obj;
 		}
@@ -827,7 +879,7 @@ public class ConfigINIParser {
 				f.setAccessible(true);
 			}
 			String pp = kv[1].trim();
-			parseAndUpdateField(prop, prefix + k, pp, obj, f, true, null);
+			if (parseAndUpdateField(prop, prefix + k, pp, obj, f, true, null) == -1) return error;
 		}
 		return obj;
 	}
@@ -872,12 +924,17 @@ public class ConfigINIParser {
 		if (type == Double.class) return Double.valueOf(p);
 		if (type == Float.class) return Float.valueOf(p);
 		if (type == Character.class) return parseChar(p);
-		//if (type == AtomicInteger.class) return new AtomicInteger(Integer.decode(p));
-		//if (type == AtomicLong.class) return new AtomicLong(Long.decode(p));
-		//if (type == AtomicBoolean.class) return new AtomicBoolean(Boolean.decode(p));
 		if (type == Class.class) {
 			if (p.length() == 0) return null;
-			return Config.loadConfigurationClass(p);
+			StringBuilder err = new StringBuilder();
+			Class<?> clazz = Config.loadConfigurationClass(p, err);
+			if (clazz == null) {
+				StringBuilder errMsg = new StringBuilder();
+				errMsg.append("Invalid value for field \"").append(keyName)
+						.append("\": ").append(err);
+				if (!Config.reportErrorToContinue(errMsg.toString())) return error;
+			}
+			return clazz;
 		}
 		if (type == BigDecimal.class) return new BigDecimal(p);
 		if (type == BigInteger.class) return new BigInteger(p);

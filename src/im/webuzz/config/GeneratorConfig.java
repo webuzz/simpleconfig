@@ -1,8 +1,10 @@
 package im.webuzz.config;
 
+import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
 
+@ConfigClass
 @ConfigKeyPrefix("generator")
 public class GeneratorConfig {
 

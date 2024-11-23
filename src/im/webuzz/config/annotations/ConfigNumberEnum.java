@@ -9,6 +9,6 @@ import java.lang.annotation.Target;
 // @ConfigEnum({"ACTIVE", "INACTIVE", "PENDING"})
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ConfigEnum {
-	String[] value();
+public @interface ConfigNumberEnum {
+	double[] value();
 }

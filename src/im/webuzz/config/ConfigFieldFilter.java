@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigNonNegative;
 
 /**
  * Configuration field filter is used to control updating static fields without
@@ -41,6 +42,7 @@ public class ConfigFieldFilter {
 		"If modifiers is 2, Modifier#PRIVATE, only private fields are configurable.",
 		"If modifiers is 4, Modifier#PROTECTED, only protected fields are configurable.",
 	})
+	@ConfigNonNegative
 	public int modifiers;
 
 	@ConfigComment({

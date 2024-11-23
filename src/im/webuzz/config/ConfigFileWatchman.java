@@ -40,6 +40,9 @@ public class ConfigFileWatchman {
 
 	private static Map<String, Long> fileLastUpdateds = new ConcurrentHashMap<String, Long>();
 	
+	/**
+	 * Will be invoked by {@link im.webuzz.config.Config#loadWatchmen}
+	 */
 	public static void startWatchman() {
 		lastUpdated = 0;
 		updateFromConfigurationFiles(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
@@ -82,7 +85,7 @@ public class ConfigFileWatchman {
 	 */
 	public static void loadConfigClass(Class<?> clazz) {
 		if (props != null) {
-			ConfigINIParser.parseConfiguration(props, clazz, true, true); //!Config.configurationMultipleFiles);
+			ConfigINIParser.parseConfiguration(props, clazz, true, true, true); //!Config.configurationMultipleFiles);
 		}
 		
 		//if (!Config.configurationMultipleFiles) return;
@@ -107,7 +110,7 @@ public class ConfigFileWatchman {
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(absolutePath, lastUpdated);
 			Config.recordConfigExtension(clazz, extension); // always update the configuration class' file extension
-			ConfigINIParser.parseConfiguration(fileProps, clazz, false, true);
+			ConfigINIParser.parseConfiguration(fileProps, clazz, false, true, true);
 			if (Config.configurationLogging) {
 				System.out.println("[Config] Configuration " + clazz.getName() + "/" + absolutePath + " loaded.");
 			}
@@ -180,7 +183,15 @@ public class ConfigFileWatchman {
 			if (mainProp != null) {
 				Class<?>[] configs = Config.getAllConfigurations();
 				for (int i = 0; i < configs.length; i++) {
-					if (ConfigINIParser.parseConfiguration(mainProp, configs[i], true, true)) {
+					boolean matched = false;
+					if (Config.skipUpdatingWithInvalidItems) {
+						if (ConfigINIParser.parseConfiguration(mainProp, configs[i], true, false, true) != -1) { // checking
+							matched = ConfigINIParser.parseConfiguration(mainProp, configs[i], true, true, true) == 1;
+						}
+					} else {
+						matched = ConfigINIParser.parseConfiguration(mainProp, configs[i], true, true, true) == 1;
+					}
+					if (matched) {
 						Config.recordConfigExtension(configs[i], configExtension);
 					}
 				}
@@ -247,7 +258,13 @@ public class ConfigFileWatchman {
 				lastUpdated = file.lastModified();
 				fileLastUpdateds.put(absolutePath, lastUpdated);
 				Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
-				ConfigINIParser.parseConfiguration(prop, clz, false, true);
+				if (Config.skipUpdatingWithInvalidItems) {
+					if (ConfigINIParser.parseConfiguration(prop, clz, false, false, true) != -1) { // checking first
+						ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
+					}
+				} else {
+					ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
+				}
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 				continue;

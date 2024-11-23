@@ -1,8 +1,12 @@
 package im.webuzz.config;
 
+import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
+import im.webuzz.config.annotations.ConfigLocalOnly;
 
+@ConfigClass
+@ConfigLocalOnly
 @ConfigComment({
 	"This configuration file is used to configure local configuration file watchman.",
 	"It will control how the file watchman keep eyes on local files."

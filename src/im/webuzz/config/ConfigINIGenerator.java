@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigIgnore;
 import im.webuzz.config.annotations.ConfigSecret;
 import im.webuzz.config.security.SecurityKit;
 import static im.webuzz.config.GeneratorConfig.*;
@@ -132,34 +133,34 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clzName) : null;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (f != null) {
-				int modifiers = f.getModifiers();
-				if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
-				String name = f.getName();
-				if (filter != null && filter.filterName(name)) continue;
-				if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
+			if (f == null) continue;
+			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
+			int modifiers = f.getModifiers();
+			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
+			String name = f.getName();
+			if (filter != null && filter.filterName(name)) continue;
+			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
 
-				if (keyPrefix != null)  {
-					name = prefixedField(keyPrefix, name);
-				}
-				// To check if there are duplicate fields over multiple configuration classes, especially for
-				// those classes without stand-alone configuration files.
-				if (allFields.containsKey(name)) {
-					System.out.println("[WARN] " + clzName + "." + name + " is duplicated with " + (allFields.get(name)));
-				}
-				allFields.put(name, clzName + "." + name);
+			if (keyPrefix != null)  {
+				name = prefixedField(keyPrefix, name);
+			}
+			// To check if there are duplicate fields over multiple configuration classes, especially for
+			// those classes without stand-alone configuration files.
+			if (allFields.containsKey(name)) {
+				System.out.println("[WARN] " + clzName + "." + name + " is duplicated with " + (allFields.get(name)));
+			}
+			allFields.put(name, clzName + "." + name);
 
-				//*
-				if ("refToSet".equals(name)) {
-					System.out.println("Debug");
-				}
-				//*/
-				int oldLength = builder.length();
-				generateFieldValue(builder, f, name, clz, null, null, null, false, false, false, true);
-				if (builder.length() > oldLength) {
-					appendLinebreak(builder);
-				}
-			} // end of if
+			//*
+			if ("refToSet".equals(name)) {
+				System.out.println("Debug");
+			}
+			//*/
+			int oldLength = builder.length();
+			generateFieldValue(builder, f, name, clz, null, null, null, false, false, false, true);
+			if (builder.length() > oldLength) {
+				appendLinebreak(builder);
+			}
 		} // end of for fields
 		decreaseIndent();
 		if (builder.length() != 0 && !combinedConfigs) endClassBlock(builder);
@@ -548,6 +549,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
+			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
 			Class<?> type = f.getType();
@@ -978,6 +980,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
+			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
 			String name = f.getName();

@@ -15,24 +15,30 @@
 package im.webuzz.config;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.agent.ConfigAgent;
+import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
+import im.webuzz.config.annotations.ConfigPositive;
 import im.webuzz.config.security.SecurityKit;
 
+@ConfigClass
 @ConfigComment({
 	"All configurations here are to control the class Config's behaviors.",
 	"The configurations are considered as the entry of all other configurations."
@@ -87,6 +93,8 @@ public class Config {
 		generatorExtensions.put("js", "im.webuzz.config.ConfigJSGenerator");
 		generatorExtensions.put("xml", "im.webuzz.config.ConfigXMLGenerator");
 	}
+	
+	@ConfigPositive
 	public static int configurationMapSearchingDots = 10;
 
 	@ConfigComment({
@@ -99,6 +107,10 @@ public class Config {
 	
 	public static boolean configurationLogging = true;
 	
+	public static String configurationAlarmer = null;
+	public static boolean exitInitializingOnInvalidItems = true;
+	public static boolean skipUpdatingWithInvalidItems = true;
+	
 	protected static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<String, Class<?>>();
 	
 	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<Class<?>, String>();
@@ -106,6 +118,7 @@ public class Config {
 	private static volatile ClassLoader configurationLoader = null;
 	
 	protected static volatile long initializedTime = 0;
+	protected static boolean initializationFinished = false;
 	
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
@@ -122,46 +135,95 @@ public class Config {
 		for (int i = 0; i < configClasses.length; i++) {
 			String clazz = configClasses[i];
 			if (!allConfigs.containsKey(clazz)) {
-				Class<?> clz = loadConfigurationClass(clazz);
-				if (clz != null) {
-					registerUpdatingListener(clz);
-				}
+				register(clazz);
 			}
 		}
 	}
 
-	// May dependent on disk IO
-	public static void registerUpdatingListener(Class<?> clazz) {
-		if (clazz == null) {
+	/* Recommend using this method in other applications */
+	public static void register(Object cfg) {
+		if (cfg instanceof Class<?>) {
+			registerUpdatingListener((Class<?>) cfg);
 			return;
 		}
-		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
-		if (updating) {
-			initializedTime = System.currentTimeMillis();
-			if (argProps != null && argProps.size() > 0) {
-				ConfigINIParser.parseConfiguration(argProps, clazz, true, true);
+		if (cfg instanceof String) {
+			String clazz = (String) cfg;
+			if (clazz.endsWith(".*")) {
+				registerPackage(clazz);
+				return;
 			}
-			// Load watchman classes and start loadConfigClass task
-			String[] syncClasses = configurationWatchmen;
-			if (syncClasses != null && syncClasses.length > 0) {
-				for (int i = 0; i < syncClasses.length; i++) {
-					String syncClazz = syncClasses[i];
-					Class<?> clz = loadConfigurationClass(syncClazz);
-					if (clz != null) {
-						try {
-							Method method = clz.getMethod("loadConfigClass", Class.class);
-							if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
-								method.invoke(null, clazz);
-							}
-						} catch (Exception e) {
-							//e.printStackTrace();
+			Class<?> clz = loadConfigurationClass(clazz);
+			if (clz != null) {
+				registerUpdatingListener(clz);
+			}
+			return;
+		}
+		if (cfg instanceof Object[]) {
+			Object[] cfgs = (Object[]) cfg;
+			for (Object c : cfgs) {
+				register(c);
+			}
+			return;
+		}
+		if (cfg instanceof Collection<?>) {
+			Collection<?> cfgs = (Collection<?>) cfg;
+			for (Object c : cfgs) {
+				register(c);
+			}
+			return;
+		}
+		System.out.println("[ERROR] Unknown configuration item " + cfg);
+	}
+	
+	public static void registerPackage(String starredPkgName) {
+		String pkgName = starredPkgName.substring(0, starredPkgName.length() - 2);
+		try {
+			List<Class<?>> classes = AnnotationScanner.getAnnotatedClassesInPackage(pkgName, ConfigClass.class);
+			for (Class<?> clz : classes) {
+				// Add new configuration class may trigger file reading, might be IO blocking
+				registerUpdatingListener(clz);
+			}
+			allConfigs.put(starredPkgName, Config.class);
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static void registerClass(Class<?> clazz) {
+		registerUpdatingListener(clazz);
+	}
+
+	// May dependent on disk IO
+	public static void registerUpdatingListener(Class<?> clazz) {
+		if (clazz == null) return;
+		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
+		if (!updating) return;
+		initializedTime = System.currentTimeMillis();
+		if (argProps != null && argProps.size() > 0) {
+			ConfigINIParser.parseConfiguration(argProps, clazz, true, true, true);
+		}
+		// Load watchman classes and start loadConfigClass task
+		String[] syncClasses = configurationWatchmen;
+		if (syncClasses != null && syncClasses.length > 0) {
+			for (int i = 0; i < syncClasses.length; i++) {
+				String syncClazz = syncClasses[i];
+				Class<?> clz = loadConfigurationClass(syncClazz);
+				if (clz != null) {
+					try {
+						Method method = clz.getMethod("loadConfigClass", Class.class);
+						if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
+							method.invoke(null, clazz);
 						}
+					} catch (Exception e) {
+						//e.printStackTrace();
 					}
 				}
 			}
-			if (configurationLogging) {
-				System.out.println("[Config] Registering configuration class " + clazz.getName() + " done.");
-			}
+		}
+		if (configurationLogging) {
+			System.out.println("[Config] Registering configuration class " + clazz.getName() + " done.");
 		}
 	}
 	
@@ -266,10 +328,10 @@ public class Config {
 		String[] retArgs = ConfigINIParser.parseArguments(args, argProps);
 
 		if (argProps.size() > 0) {
-			ConfigINIParser.parseConfiguration(argProps, Config.class, false, true);
+			ConfigINIParser.parseConfiguration(argProps, Config.class, false, true, true);
 			Class<?>[] configs = Config.getAllConfigurations();
 			for (int i = 0; i < configs.length; i++) {
-				ConfigINIParser.parseConfiguration(argProps, configs[i], true, true);
+				ConfigINIParser.parseConfiguration(argProps, configs[i], true, true, true);
 			}
 		}
 		
@@ -322,11 +384,8 @@ public class Config {
 			for (int i = 0; i < configClasses.length; i++) {
 				String clazz = configClasses[i];
 				if (!allConfigs.containsKey(clazz)) {
-					Class<?> clz = loadConfigurationClass(clazz);
-					if (clz != null) {
-						// Add new configuration class may trigger file reading, might be IO blocking
-						registerUpdatingListener(clz);
-					}
+					// Add new configuration class may trigger file reading, might be IO blocking
+					register(clazz);
 				}
 			}
 		}
@@ -335,6 +394,8 @@ public class Config {
 		if (configurationLogging) {
 			System.out.println("[Config] Configuration initialized.");
 		}
+		initializationFinished = true;
+		
 		if (retArgs != null && retArgs.length > 0) {
 			String actionStr = retArgs[0];
 			if (actionStr.startsWith("--run:")) {
@@ -347,6 +408,10 @@ public class Config {
 					ConfigAgent.run(retArgs, 1);
 				} else if ("secretkit".equals(actionStr)) {
 					SecurityKit.run(retArgs, 1);
+				} else if ("usage".equals(actionStr)) {
+					printUsage();
+				} else {
+					System.out.println("[ERROR] Unknown action \"" + actionStr + "\"!");
 				}
 				System.exit(0); // Stop
 				return null;
@@ -355,6 +420,45 @@ public class Config {
 		return retArgs;
 	}
 
+	private static void printUsage() {
+		System.out.println("Usage:");
+		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
+				+ " [--run:<generator | checker | synchronizer | secretkit | usage>] [...]");
+		System.out.println();
+		System.out.println("For argument --c:xxx=###, the following formats are supported:");
+		System.out.println("\t--c:port=6173");
+		System.out.println("\t--config:port=6173");
+		System.out.println("\t--c-port=6173");
+		System.out.println("\t--config-port=6173");
+		System.out.println();
+		System.out.println("For argument --run:xxx, the following actions are supported:");
+		System.out.println("\t--run:generator\tTo generate configuration files");
+		System.out.println("\t--run:checker\tTo verify configuration files");
+		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
+		System.out.println("\t--run:secretkit\tTo encrypt or decrypt a password or a sensitive string");
+		System.out.println("\t--run:usage\tPrint this usage");
+	}
+
+	public static boolean reportErrorToContinue(String msg) {
+		System.out.println("[ERROR] " + msg);
+		if (configurationAlarmer != null) {
+			// TODO: Use alarm to send an alert to the operator 
+		}
+		if (initializationFinished) {
+			if (skipUpdatingWithInvalidItems) {
+				// Stop parsing all the left items
+				return false;
+			}
+			return true; // continue to parse other item
+		}
+		if (exitInitializingOnInvalidItems) {
+			System.out.println("[FATAL] Exit current configuration initialization!");
+			System.exit(0);
+			return false;
+		}
+		return true; // continue to parse other item
+	}
+	
 	protected static void loadWatchmen() {
 		// Load watchman classes and start synchronizing task
 		Set<String> loadedWatchmen = new HashSet<String>();
@@ -396,7 +500,13 @@ public class Config {
 	 */
 	public static Class<?>[] getAllConfigurations() {
 		Collection<Class<?>> values = allConfigs.values();
-		return values.toArray(new Class<?>[values.size()]);
+		List<Class<?>> uniqClasses = new ArrayList<Class<?>>(values.size());
+		uniqClasses.add(Config.class); // Add this Config.class by default
+		for (Class<?> clz : values) {
+			if (uniqClasses.contains(clz)) continue;
+			uniqClasses.add(clz);
+		}
+		return uniqClasses.toArray(new Class<?>[uniqClasses.size()]);
 	}
 	
 	public static ClassLoader getConfigurationClassLoader() {
@@ -408,6 +518,9 @@ public class Config {
 	}
 
 	public static Class<?> loadConfigurationClass(String clazz) {
+		return loadConfigurationClass(clazz, null);
+	}
+	public static Class<?> loadConfigurationClass(String clazz, StringBuilder errBuilder) {
 		Class<?> clz = loadedClasses.get(clazz);
 		if (clz != null) return clz;
 		if (configurationLoader != null) {
@@ -425,6 +538,7 @@ public class Config {
 			try {
 				clz = Class.forName(clazz);
 			} catch (ClassNotFoundException e) {
+				if (errBuilder != null) errBuilder.append(e.getMessage());
 				if (!notFoundClasses.contains(clazz)) {
 					notFoundClasses.add(clazz);
 					//e.printStackTrace();
