@@ -14,11 +14,10 @@
 
 package im.webuzz.config;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 public interface IConfigConverter {
 
-	public InputStream convertToProperties(InputStream is) throws IOException;
+	public InputStream convertToProperties(InputStream is) throws Exception;
 	
 }

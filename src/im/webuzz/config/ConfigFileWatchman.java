@@ -16,7 +16,6 @@ package im.webuzz.config;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -103,10 +102,8 @@ public class ConfigFileWatchman {
 		long lastUpdated = 0;
 		String absolutePath = file.getAbsolutePath();
 		Properties fileProps = new Properties();
-		InputStream fis = null;
 		try {
-			fis = new FileInputStream(file);
-			loadConfig(fileProps, fis, extension);
+			loadConfig(fileProps, file, extension);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(absolutePath, lastUpdated);
 			Config.recordConfigExtension(clazz, extension); // always update the configuration class' file extension
@@ -114,19 +111,8 @@ public class ConfigFileWatchman {
 			if (Config.configurationLogging) {
 				System.out.println("[Config] Configuration " + clazz.getName() + "/" + absolutePath + " loaded.");
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
 		} catch (Throwable e) {
 			e.printStackTrace();
-		} finally {
-			if (fis != null) {
-				try {
-					fis.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				fis = null;
-			}
 		}
 	}
 
@@ -142,25 +128,12 @@ public class ConfigFileWatchman {
 			System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " updated.");
 		}
 		props = new Properties();
-		FileInputStream fis = null;
 		try {
-			fis = new FileInputStream(file);
-			loadConfig(props, fis, extension);
+			loadConfig(props, file, extension);
 			lastUpdated = file.lastModified();
 			return props;
-		} catch (FileNotFoundException e) {
+		} catch (Throwable e) {
 			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			if (fis != null) {
-				try {
-					fis.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				fis = null;
-			}
 		}
 		props = null;
 		return null;
@@ -251,10 +224,8 @@ public class ConfigFileWatchman {
 				System.out.println("[Config] Configuration " + clz.getName() + " at " + absolutePath + " updated.");
 			}
 			Properties prop = new Properties();
-			FileInputStream fis = null;
 			try {
-				fis = new FileInputStream(file);
-				loadConfig(prop, fis, extension);
+				loadConfig(prop, file, extension);
 				lastUpdated = file.lastModified();
 				fileLastUpdateds.put(absolutePath, lastUpdated);
 				Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
@@ -265,56 +236,54 @@ public class ConfigFileWatchman {
 				} else {
 					ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
 				}
-			} catch (FileNotFoundException e) {
+			} catch (Throwable e) {
 				e.printStackTrace();
-				continue;
-			} catch (IOException e) {
-				e.printStackTrace();
-				continue;
-			} finally {
-				if (fis != null) {
-					try {
-						fis.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					fis = null;
-				}
 			}
 		}
 	}
 
-	public static void loadConfig(Properties prop, InputStream fis, String extension) throws IOException {
+	public static void loadConfig(Properties prop, File file, String extension) throws Exception {
 		String ext = extension.substring(1);
 		IConfigConverter converter = Config.converters.get(ext);
 		if (converter == null) {
 			String converterClass = Config.converterExtensions.get(ext);
 			if (converterClass != null && converterClass.length() > 0) {
-				try {
-					//Class<?> clazz = Class.forName(converterClass);
-					Class<?> clazz = Config.loadConfigurationClass(converterClass);
-					if (clazz != null) {
-						Object instance = clazz.newInstance();
-						if (instance instanceof IConfigConverter) {
-							converter = (IConfigConverter) instance;
-							Config.converters.put(ext, converter);
-						}
+				//Class<?> clazz = Class.forName(converterClass);
+				Class<?> clazz = Config.loadConfigurationClass(converterClass);
+				if (clazz != null) {
+					Object instance = clazz.newInstance();
+					if (instance instanceof IConfigConverter) {
+						converter = (IConfigConverter) instance;
+						Config.converters.put(ext, converter);
 					}
-				} catch (InstantiationException e) {
-					e.printStackTrace();
-				} catch (IllegalAccessException e) {
-					e.printStackTrace();
 				}
 			}
 		}
-		InputStream is = fis;
-		if (converter != null) {
-			InputStream pIS = converter.convertToProperties(fis);
-			if (pIS != null) {
-				is = pIS;
+		InputStream is = null;
+		try {
+			is = new FileInputStream(file);
+			prop.load(new InputStreamReader(converter != null ? converter.convertToProperties(is) : is, Config.configFileEncoding));
+		} catch (Exception e) {
+			e.printStackTrace();
+			StringBuilder errMsg = new StringBuilder();
+			String message = e.getMessage();
+			if (message == null || message.length() == 0) {
+				Throwable cause = e.getCause();
+				if (cause != null) message = cause.getMessage();
+			}
+			errMsg.append("Error occurs in parsing file \"").append(file.getName())
+					.append("\": ").append(message);
+			Config.reportErrorToContinue(errMsg.toString());
+			throw e;
+		} finally {
+			if (is != null) {
+				try {
+					is.close();
+				} catch (IOException e) {
+					//e.printStackTrace();
+				}
 			}
 		}
-		prop.load(new InputStreamReader(is, Config.configFileEncoding));
 	}
 	
 	public static void stopWatchman() {

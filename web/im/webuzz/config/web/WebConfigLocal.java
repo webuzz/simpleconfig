@@ -5,8 +5,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import im.webuzz.config.annotations.ConfigClass;
+import im.webuzz.config.annotations.ConfigLocalOnly;
 import im.webuzz.config.annotations.ConfigComment;
 
+@ConfigClass
+@ConfigLocalOnly
 @ConfigComment({
     "The WebConfigLocal class represents configuration properties intended",
     "for local use within the application. These properties are excluded from",

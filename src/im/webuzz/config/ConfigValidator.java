@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import im.webuzz.config.annotations.ConfigEnum;
 import im.webuzz.config.annotations.ConfigIgnore;
@@ -21,6 +20,7 @@ import im.webuzz.config.annotations.ConfigPattern;
 import im.webuzz.config.annotations.ConfigPositive;
 import im.webuzz.config.annotations.ConfigRange;
 import im.webuzz.config.annotations.ConfigSecret;
+import im.webuzz.config.annotations.ConfigSince;
 
 public class ConfigValidator {
 
@@ -53,109 +53,112 @@ public class ConfigValidator {
 		builder.append('[');
 		generator.appendFieldType(builder, type, null, true);
 		builder.append(":...]");
-//		if (type.isArray()) {
-//			/*
-//			Class<?> compType = type.getComponentType();
-//			if (compType.isPrimitive()) {
-//				//builder.append("[array:...]");
-//			} else {
-//				builder.append("[array:...]");
-//			}
-//			//*/
-//			builder.append('[');
-//			generator.appendFieldType(builder, type, null, true);
-//			builder.append(":...]");
-//			return;
-//		}
-//		if (obj instanceof List) {
-//			builder.append("[list:...]");
-//			return;
-//		}
-//		if (obj instanceof Set) {
-//			builder.append("[set:...]");
-//			return;
-//		}
-//		if (obj instanceof Map) {
-//			builder.append("[map:...]");
-//			return;
-//		}
-//		builder.append('[').append(type.getSimpleName()).append(":...]");
 	}
 
-	private static void appendRange(StringBuilder builder, double min, double max) {
-		builder.append('[').append(min);
-		trimEndingDot0(builder).append(", ").append(max);
-		trimEndingDot0(builder).append(']');
+	private static void formatExpectsAnnotation(StringBuilder expectBuilder, Annotation ann) {
+		expectBuilder.append("expecting ");
+		appendAnnotation(expectBuilder, ann);
 	}
 
-	private static void formatExpectsAnnotation(StringBuilder expectBuilder, String description, Annotation ann) {
-		expectBuilder.append("expecting ").append(description).append(' ');
-		boolean noGap = true;
-		Class<? extends Annotation> annotationType = ann.annotationType();
-		if (ann instanceof ConfigLength) {
-			ConfigLength len = (ConfigLength) ann;
-			int min = len.min();
-			int max = len.max();
-			if (min == max) {
-				expectBuilder.append("= ").append(min);
+	protected static void appendAnnotation(StringBuilder builder, Annotation ann) {
+		appendAnnotation(builder, ann, false);
+	}
+	protected static void appendAnnotation(StringBuilder builder, Annotation ann, boolean multiple) {
+		builder.append('@').append(ann.annotationType().getSimpleName());
+		if (ann instanceof ConfigNotNull || ann instanceof ConfigNotEmpty || ann instanceof ConfigLength
+				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern
+				|| ann instanceof ConfigRange || ann instanceof ConfigNumberEnum
+				|| ann instanceof ConfigSince) {
+			builder.append('(');
+			if (ann instanceof ConfigNotNull) {
+				ConfigNotNull a = (ConfigNotNull) ann;
+				if (a.depth() > 0 || multiple) {
+					builder.append("depth = ").append(a.depth());
+				}
+			} else if (ann instanceof ConfigNotEmpty) {
+				ConfigNotEmpty a = (ConfigNotEmpty) ann;
+				if (a.depth() > 0 || multiple) {
+					builder.append("depth = ").append(a.depth());
+				}
+			} else if (ann instanceof ConfigLength) {
+				ConfigLength a = (ConfigLength) ann;
+				if (a.min() > 0) {
+					builder.append("min = ").append(a.min());
+				}
+				if (a.max() != Integer.MAX_VALUE) {
+					if (builder.charAt(builder.length() - 1) != '(') {
+						builder.append(", ");
+					}
+					builder.append("max = ").append(a.max());
+				}
+				if (a.depth() > 0 || multiple) {
+					if (builder.charAt(builder.length() - 1) != '(') {
+						builder.append(", ");
+					}
+					builder.append("depth = ").append(a.depth());
+				}
+			} else if (ann instanceof ConfigEnum) {
+				ConfigEnum a = (ConfigEnum) ann;
+				String[] values = a.value();
+				boolean first = true;
+				for (String value : values) {
+					if (!first) builder.append(", ");
+					if (value == null) {
+						builder.append("null");
+					} else if (value.length() == 0) {
+						builder.append("\"\"");
+					} else {
+						builder.append('\"').append(formatString(value)).append('\"');
+					}
+					first = false;
+				}
+			} else if (ann instanceof ConfigPattern) {
+				ConfigPattern a = (ConfigPattern) ann;
+				String value = a.value();
+				if (value != null && value.length() > 0) {
+					builder.append('\"').append(formatString(value)).append('\"');
+				}
+			} else if (ann instanceof ConfigRange) {
+				ConfigRange a = (ConfigRange) ann;
+				if (a.min() > 0) {
+					builder.append("min = ").append(a.min());
+					trimEndingDot0(builder);
+				}
+				if (a.max() != Integer.MAX_VALUE) {
+					if (builder.charAt(builder.length() - 1) != '(') {
+						builder.append(", ");
+					}
+					builder.append("max = ").append(a.max());
+					trimEndingDot0(builder);
+				}
+			} else if (ann instanceof ConfigNumberEnum) {
+				ConfigNumberEnum a = (ConfigNumberEnum) ann;
+				double[] values = a.value();
+				boolean first = true;
+				for (double value : values) {
+					if (!first) builder.append(", ");
+					builder.append(value);
+					trimEndingDot0(builder);
+					first = false;
+				}
+			} else if (ann instanceof ConfigSince) {
+				ConfigSince a = (ConfigSince) ann;
+				String value = a.value();
+				if (value != null && value.length() > 0) {
+					builder.append('\"').append(formatString(value)).append('\"');
+				}
+			}			
+			int length = builder.length();
+			if (builder.charAt(length - 1) == '(') {
+				builder.delete(length - 1, length);
 			} else {
-				appendRange(expectBuilder, min, max);
+				builder.append(')');
 			}
-		} else if (ann instanceof ConfigRange) {
-			ConfigRange range = (ConfigRange) ann;
-			appendRange(expectBuilder, range.min(), range.max());
-		} else if (ann instanceof ConfigEnum) {
-			String[] values = ((ConfigEnum) ann).value();
-			expectBuilder.append('(');
-			int count = 0;
-			for (String v : values) {
-				if (count > 0) expectBuilder.append(", ");
-				if (v == null) expectBuilder.append("null");
-				else expectBuilder.append('\"').append(v).append('\"');
-				count++;
-				if (count >= 5) {
-					if (count != values.length) {
-						expectBuilder.append(", ...");
-					}
-					break;
-				}
-			}
-			expectBuilder.append(')');
-		} else if (ann instanceof ConfigNumberEnum) {
-			double[] values = ((ConfigNumberEnum) ann).value();
-			expectBuilder.append('(');
-			int count = 0;
-			for (double v : values) {
-				if (count > 0) expectBuilder.append(", ");
-				expectBuilder.append(v);
-				trimEndingDot0(expectBuilder);
-				count++;
-				if (count >= 5) {
-					if (count != values.length) {
-						expectBuilder.append(", ...");
-					}
-					break;
-				}
-			}
-			expectBuilder.append(')');
-		} else if (ann instanceof ConfigPattern) {
-			expectBuilder.append('\"').append(((ConfigPattern) ann).value()).append('\"');
-		} else {
-			noGap = false;
 		}
-		if (noGap) expectBuilder.append(' ');
-		expectBuilder.append("by @").append(annotationType.getSimpleName());
-		int depth = -1;
-		if (ann instanceof ConfigNotNull) {
-			depth = ((ConfigNotNull) ann).depth();
-		} else if (ann instanceof ConfigNotEmpty) {
-			depth = ((ConfigNotEmpty) ann).depth();
-		} else if (ann instanceof ConfigLength) {
-			depth = ((ConfigLength) ann).depth();
-		}
-		if (depth > 0) {
-			expectBuilder.append("(depth = ").append(depth).append(')');
-		}
+	}
+
+	public static String formatString(String str) {
+		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
 	}
 
 	private static void getFieldAnnotations(Field f,
@@ -260,18 +263,18 @@ public class ConfigValidator {
 		for (Annotation annotation : numberAnnotations) {
 			if (annotation instanceof ConfigNonNegative) {
 				if (num >= 0) continue;
-				formatExpectsAnnotation(expectBuilder, "a non-negative number", annotation);
+				formatExpectsAnnotation(expectBuilder, annotation);
 				return false;
 			}
 			if (annotation instanceof ConfigPositive) {
 				if (num > 0) continue;
-				formatExpectsAnnotation(expectBuilder, "a positive number", annotation);
+				formatExpectsAnnotation(expectBuilder, annotation);
 				return false;
 			}
 			if (annotation instanceof ConfigRange) {
 				ConfigRange ann = (ConfigRange) annotation;
 				if (ann.min() <= num && num <= ann.max()) continue;
-				formatExpectsAnnotation(expectBuilder, "a number within range", annotation);
+				formatExpectsAnnotation(expectBuilder, annotation);
 				return false;
 			}
 			if (annotation instanceof ConfigNumberEnum) {
@@ -286,7 +289,7 @@ public class ConfigValidator {
 					}
 					if (matched) continue;
 				}
-				formatExpectsAnnotation(expectBuilder, "a number in the set", annotation);
+				formatExpectsAnnotation(expectBuilder, annotation);
 				return false;
 			}
 			// Skip other annotations
@@ -294,6 +297,7 @@ public class ConfigValidator {
 		return true;
 	}
 	
+	/*
 	static String getTypeName(Class<?> type) {
 		if (type.isArray()) return "array";
 		if (List.class.isAssignableFrom(type)) return "list";
@@ -301,6 +305,8 @@ public class ConfigValidator {
 		if (Map.class.isAssignableFrom(type)) return "map";
 		return "value";
 	}
+	//*/
+	
 	static boolean validateSize(int size, int depth, Class<?> type, List<Annotation> annotations, StringBuilder expectBuilder) {
 		boolean result = true;
 		for (Annotation ann : annotations) {
@@ -309,7 +315,7 @@ public class ConfigValidator {
 				ConfigNotEmpty len = (ConfigNotEmpty) ann;
 				if (len.depth() != depth) continue;
 				if (size <= 0) {
-					formatExpectsAnnotation(expectBuilder, "a non-empty " + getTypeName(type), ann);
+					formatExpectsAnnotation(expectBuilder, ann);
 					result = false;
 					break;
 				}
@@ -317,7 +323,7 @@ public class ConfigValidator {
 				ConfigLength len = (ConfigLength) ann;
 				if (len.depth() != depth) continue;
 				if (size < len.min() || len.max() < size) {
-					formatExpectsAnnotation(expectBuilder, "a " + getTypeName(type) + " with size", ann);
+					formatExpectsAnnotation(expectBuilder, ann);
 					result = false;
 					break;
 				}
@@ -335,16 +341,16 @@ public class ConfigValidator {
 			for (Annotation ann : nullAnnotations) {
 				if (ann instanceof ConfigNotNull) {
 					if (((ConfigNotNull) ann).depth() != depth) continue;
-					formatExpectsAnnotation(expectBuilder, "a non-null value", ann);
+					formatExpectsAnnotation(expectBuilder, ann);
 					return false;
 				} else if (ann instanceof ConfigNotEmpty) {
 					if (((ConfigNotEmpty) ann).depth() != depth) continue;
-					formatExpectsAnnotation(expectBuilder, "a non-empty value", ann);
+					formatExpectsAnnotation(expectBuilder, ann);
 					return false;
 				} else if (ann instanceof ConfigLength) {
 					ConfigLength lenAnn = (ConfigLength) ann;
 					if (lenAnn.depth() != depth || lenAnn.min() < 0) continue;
-					formatExpectsAnnotation(expectBuilder, "a value with length in range", ann);
+					formatExpectsAnnotation(expectBuilder, ann);
 					return false;
 				}
 			}
@@ -359,7 +365,7 @@ public class ConfigValidator {
 					if (ann.depth() != depth) continue;
 					int len = str.length();
 					if (ann.min() <= len && len <= ann.max()) continue;
-					formatExpectsAnnotation(expectBuilder, "a string with length in range", annotation);
+					formatExpectsAnnotation(expectBuilder, annotation);
 					return false;
 				}
 				if (annotation instanceof ConfigEnum) {
@@ -375,7 +381,7 @@ public class ConfigValidator {
 						}
 						if (matched) continue;
 					}
-					formatExpectsAnnotation(expectBuilder, "a non-empty string matching", annotation);
+					formatExpectsAnnotation(expectBuilder, annotation);
 					return false;
 				}
 				if (annotation instanceof ConfigPattern) {
@@ -383,7 +389,7 @@ public class ConfigValidator {
 					String pattern = ann.value();
 					if (pattern == null || pattern.length() == 0) continue;
 					if (str != null && str.length() > 0 && str.matches(pattern)) continue;
-					formatExpectsAnnotation(expectBuilder, "a non-empty string matching", annotation);
+					formatExpectsAnnotation(expectBuilder, annotation);
 					return false;
 				}
 			}

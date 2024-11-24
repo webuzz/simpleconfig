@@ -18,6 +18,7 @@ import static im.webuzz.config.GeneratorConfig.addFieldComment;
 import static im.webuzz.config.GeneratorConfig.addTypeComment;
 import static im.webuzz.config.GeneratorConfig.skipSimpleTypeComment;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.Arrays;
@@ -64,25 +65,6 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 			indents = indents.substring(0, length - 1);
 		}
 	}
-
-	protected StringBuilder checkIndents(StringBuilder builder) {
-		int builderLength = builder.length();
-		if (builderLength > 1 && builder.charAt(builderLength - 1) == '\n') {
-			builder.append(indents);
-		}
-		return builder;
-	}
-	
-	protected StringBuilder appendIndents(StringBuilder builder) {
-		int length = builder.length();
-		if (length >= 2 && builder.charAt(length - 1) != '\n') {
-			builder.append("\r\n");
-		} else if (length > 0 && builder.charAt(length - 1) == '\t') {
-			return builder; // skip adding more indents
-		}
-		return builder.append(indents);
-	}
-
 
 	// To provide a line of comment, e.g. a field's type
 	@Override
@@ -152,7 +134,15 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		appendIndents(builder).append("</object>").append("\r\n");
 	}
 
-	
+	@Override
+	protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
+		for (Annotation ann : anns) {
+			ConfigValidator.appendAnnotation(builder, ann, anns.length > 1);
+			appendIndents(builder);
+		}
+		return anns.length;
+	}
+
 	@Override
 	protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
 		if (!commentGeneratedFields.add(f)) return; // already generated
@@ -166,14 +156,23 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 					&& (type == int.class || type == String.class || type == boolean.class)) {
 				return;
 			}
+			StringBuilder annBuilder = new StringBuilder();
+			int annCount = appendAllFieldAnnotations(annBuilder, f);
 			Type paramType = f.getGenericType();
-			if (commentAdded) {
+			if (commentAdded) { 
 				StringBuilder typeBuilder = new StringBuilder();
+				if (annCount > 0) typeBuilder.append(annBuilder);
 				appendFieldType(typeBuilder, type, paramType, true);
 				typeBuilder.append("\r\n");
 				appendIndents(typeBuilder);
 				// Insert field type back into block comment
 				builder.insert(builder.length() - 5, typeBuilder);
+			} else if (annCount > 0) {
+				startBlockComment(builder);
+				appendIndents(builder);
+				builder.append(annBuilder);
+				appendFieldType(builder, type, paramType, true);
+				endBlockComment(builder);
 			} else {
 				startLineComment(builder);
 				appendFieldType(builder, type, paramType, true);

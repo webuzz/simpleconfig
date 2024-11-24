@@ -27,7 +27,7 @@ public class GeneratorConfig {
 	public static boolean addFieldComment = true;
 	public static boolean addFieldTypeComment = true;
 	@ConfigComment({"Skip simple type comment for fields of type String, int, boolean."})
-	public static boolean skipSimpleTypeComment = true;
+	public static boolean skipSimpleTypeComment = false;
 	public static boolean skipUnchangedLines = false;
 	public static boolean skipObjectUnchangedFields = true;
 	public static int startingIndex = 0;

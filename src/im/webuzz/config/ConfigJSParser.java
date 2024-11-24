@@ -32,7 +32,7 @@ public class ConfigJSParser implements IConfigConverter {
 	private static Method evalMethod = null;
 	private static boolean initialized = false;
 	
-	private static boolean checkInitialize() {
+	private static boolean checkInitialize() throws Exception {
 		if (initialized) {
 			return true;
 		}
@@ -76,7 +76,7 @@ public class ConfigJSParser implements IConfigConverter {
 			}
 		}
 		if (factoryName == null ) {
-			System.out.println("You need to include nashorn Javascript engine after Java 15!");
+			System.out.println("[FATAL] You need to include nashorn Javascript engine after Java 15!");
 			return false;
 		}
 		if (factoryName.indexOf(".nashorn.") != -1) {
@@ -87,21 +87,17 @@ public class ConfigJSParser implements IConfigConverter {
 			jsEngine = ConfigJSClassLoader.loadScriptEngine(factoryName);
 		}
 		if (jsEngine != null) {
-			try {
-				evalMethod = jsEngine.getClass().getMethod("eval", String.class);
-				if (evalMethod != null) {
-					evalMethod.invoke(jsEngine, convertJS);
-					initialized = true;
-				}
-			} catch (Exception e) {
-				e.printStackTrace();
+			evalMethod = jsEngine.getClass().getMethod("eval", String.class);
+			if (evalMethod != null) {
+				evalMethod.invoke(jsEngine, convertJS);
+				initialized = true;
 			}
 		}
 		return initialized;
 	}
 	
 	@Override
-	public InputStream convertToProperties(InputStream is) throws IOException {
+	public InputStream convertToProperties(InputStream is) throws Exception {
 		byte[] buffer = new byte[8096];
 		int read = -1;
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -126,22 +122,18 @@ public class ConfigJSParser implements IConfigConverter {
 			ex.printStackTrace();
 			// If malicious js (last) modifies #convertToProperties, try to correct it to original JavaScript.
 			// So normal js configuration won't be affected.
-			try {
-				if (checkInitialize()) {
-					Object o = evalMethod.invoke(jsEngine, convertJS + "$config = " + js + "\r\nconvertToProperties($config);");
-					if (o instanceof String) {
-						// System.out.println(o);
-						return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
-					}
+			if (checkInitialize()) {
+				Object o = evalMethod.invoke(jsEngine, convertJS + "\r\n$config = " + js + "\r\nconvertToProperties($config);");
+				if (o instanceof String) {
+					// System.out.println(o);
+					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
-			} catch (Exception ex2) {
-				ex2.printStackTrace();
 			}
 		}
-		return null;
+		throw new RuntimeException("Unable to generate properties from the script!");
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		checkInitialize();
 		System.out.println(convertJS);
 	}

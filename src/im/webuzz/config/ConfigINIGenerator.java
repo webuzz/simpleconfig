@@ -1,5 +1,6 @@
 package im.webuzz.config;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
@@ -17,8 +18,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigEnum;
 import im.webuzz.config.annotations.ConfigIgnore;
+import im.webuzz.config.annotations.ConfigLength;
+import im.webuzz.config.annotations.ConfigNonNegative;
+import im.webuzz.config.annotations.ConfigNotEmpty;
+import im.webuzz.config.annotations.ConfigNotNull;
+import im.webuzz.config.annotations.ConfigNumberEnum;
+import im.webuzz.config.annotations.ConfigPattern;
+import im.webuzz.config.annotations.ConfigPositive;
+import im.webuzz.config.annotations.ConfigRange;
 import im.webuzz.config.annotations.ConfigSecret;
+import im.webuzz.config.annotations.ConfigSince;
 import im.webuzz.config.security.SecurityKit;
 import static im.webuzz.config.GeneratorConfig.*;
 
@@ -66,6 +77,24 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	protected void increaseIndent() {
 	}
 	protected void decreaseIndent() {
+	}
+
+	protected StringBuilder checkIndents(StringBuilder builder) {
+		int builderLength = builder.length();
+		if (builderLength > 1 && builder.charAt(builderLength - 1) == '\n') {
+			builder.append(indents);
+		}
+		return builder;
+	}
+	
+	protected StringBuilder appendIndents(StringBuilder builder) {
+		int length = builder.length();
+		if (length >= 2 && builder.charAt(length - 1) != '\n') {
+			builder.append("\r\n");
+		} else if (length > 0 && builder.charAt(length - 1) == '\t') {
+			return builder; // skip adding more indents
+		}
+		return builder.append(indents);
 	}
 
 	// To provide a line of comment, e.g. a field's type
@@ -360,11 +389,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	}
 
 	public static String formatString(String str) {
-		if (str.indexOf("\n") != -1) {
-			System.out.println("Check");
-			String s = str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
-			System.out.println(s);
-		}
 		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
 	}
 	
@@ -1023,6 +1047,35 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		//}
 	}
 
+	protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
+		for (Annotation ann : anns) {
+			startLineComment(builder);
+			ConfigValidator.appendAnnotation(builder, ann, anns.length > 1);
+			endLineComment(builder);
+		}
+		return anns.length;
+	}
+
+	protected int appendAllFieldAnnotations(StringBuilder annBuilder, Field f) {
+		int annCount = 0;
+		// The followings are array/list/set/map/object related
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNotNull.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNotEmpty.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigLength.class));
+		// The followings are string related
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigEnum.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigPattern.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigSecret.class));
+		// The followings are number related
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNonNegative.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigPositive.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigRange.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNumberEnum.class));
+		// The followings are version controlling related
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigSince.class));
+		return annCount;
+	}
+
 	protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
 		if (!commentGeneratedFields.add(f)) return; // already generated
 		
@@ -1035,6 +1088,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					&& (type == int.class || type == String.class || type == boolean.class)) {
 				return;
 			}
+			appendAllFieldAnnotations(builder, f);
 			startLineComment(builder);
 			Type paramType = f.getGenericType();
 			appendFieldType(builder, type, paramType, true);

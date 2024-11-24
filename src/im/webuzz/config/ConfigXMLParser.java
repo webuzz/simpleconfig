@@ -15,19 +15,15 @@
 package im.webuzz.config;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Comment;
-import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -116,10 +112,10 @@ public class ConfigXMLParser implements IConfigConverter {
 				if (type != null) {
 					if (type.startsWith("array")) return NodeType.array;
 					if (type.startsWith("list")) return NodeType.list;
-					if ( type.startsWith("set")) return NodeType.set;
-					if ( type.startsWith("object")) return NodeType.object;
-					if ( type.startsWith("map")) {
-						Element[] children = getChildElements(o);
+					if (type.startsWith("set")) return NodeType.set;
+					if (type.startsWith("object")) return NodeType.object;
+					if (type.startsWith("map")) {
+						Element[] children = getChildElements(o, true);
 						if (children.length == 0) return NodeType.mapGeneric;
 						if ("entry".equals(children[0].getNodeName())) return NodeType.mapEntries;
 						return NodeType.mapKnown;
@@ -140,10 +136,9 @@ public class ConfigXMLParser implements IConfigConverter {
 		String firstText = null;
 		String firstType = null;
 		boolean sameElementName = true;
-		boolean simpleItem = true;
 		boolean containsBasicData = false;
 		boolean containsKnowObjects = false;
-		if ("msas".equals(o.getNodeName())) {
+		if ("configurationFilters".equals(o.getNodeName())) {
 			System.out.println("1234");
 		}
 		for (int i = 0; i < length; i++) {
@@ -228,7 +223,10 @@ public class ConfigXMLParser implements IConfigConverter {
 		return null;
 	}
 
-	private Element[] getChildElements(Element o) {
+	private Element[] getChildElements(Element o, boolean noInlineTexts) {
+		if ("configurationFilters".equals(o.getNodeName())) {
+			System.out.println("xxx");
+		}
 		NodeList childNodes = o.getChildNodes();
 		int length = childNodes.getLength();
 		List<Element> entries = new ArrayList<Element>();
@@ -237,6 +235,12 @@ public class ConfigXMLParser implements IConfigConverter {
 			if (item instanceof Element) {
 				Element p = (Element) item;
 				entries.add(p);
+			} else if (noInlineTexts && item instanceof Text) {
+				Text t = (Text) item;
+				String text = t.getNodeValue();
+				if (text != null && text.trim().length() > 0) {
+					throw new RuntimeException("Unexpected text \"" + text + "\" inside element <" + o.getNodeName() + ">!");
+				}
 			}
 		}
 		return entries.toArray(new Element[entries.size()]);
@@ -324,7 +328,7 @@ public class ConfigXMLParser implements IConfigConverter {
 			appendType(builder, prefix, o, null);
 			prefix += ".entries";
 			builder.append(prefix).append("=[]\r\n");
-			Element[] mapEntries = getChildElements(o);
+			Element[] mapEntries = getChildElements(o, true);
 			int nodeLength = mapEntries.length + GeneratorConfig.startingIndex;
 			int maxZeros = ("" + nodeLength).length();
 			int idx = GeneratorConfig.startingIndex;
@@ -341,7 +345,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		if (type == NodeType.mapKnown) {
 			appendType(builder, prefix, o, null);
-			Element[] children = getChildElements(o);
+			Element[] children = getChildElements(o, true);
 			Element[] mapKVs = children;
 			for (Element entry : mapKVs) {
 				visit(builder, prefix + "." + entry.getNodeName(), entry);
@@ -350,7 +354,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		if (type == NodeType.mapDirect) {
 			appendType(builder, prefix, o, "map");
-			Element[] children = getChildElements(o);
+			Element[] children = getChildElements(o, true);
 			Element[] mapKVs = children;
 			for (Element entry : mapKVs) {
 				visit(builder, prefix + "." + entry.getNodeName(), entry);
@@ -416,12 +420,24 @@ public class ConfigXMLParser implements IConfigConverter {
 				|| type == NodeType.array || type == NodeType.list || type == NodeType.set
 				|| type == NodeType.arrayDirect || type == NodeType.listDirect || type == NodeType.setDirect
 				) {
+			Element[] children = getChildElements(o, false);
+			if (children.length == 0) {
+				String valueText = getTextValue(o);
+				if (valueText != null && valueText.length() > 0) {
+					builder.append(prefix).append('=').append(valueText).append("\r\n");
+					return;
+				}
+			} else {
+				String valueText = getTextValue(o);
+				if (valueText != null && valueText.length() > 0) {
+					throw new RuntimeException("Unexpected text inside <" + o.getNodeName() + ">!");
+				}				
+			}
 			String defaultType = null;
 			if (type == NodeType.arrayDirect) defaultType = "array";
 			else if (type == NodeType.listDirect) defaultType = "list";
 			else if (type == NodeType.setDirect) defaultType = "set";
 			appendType(builder, prefix, o, defaultType);
-			Element[] children = getChildElements(o);
 			int nodeLength = children.length + GeneratorConfig.startingIndex;
 			int maxZeros = ("" + nodeLength).length();
 			int idx = GeneratorConfig.startingIndex;
@@ -485,7 +501,19 @@ public class ConfigXMLParser implements IConfigConverter {
 					}
 				}
 			}
-			if (!(item instanceof Element)) continue;
+			if (!(item instanceof Element)) {
+				if (item instanceof Text) {
+					Text t = (Text) item;
+					String text = t.getNodeValue();
+					if (text != null) {
+						text = text.trim();
+						if (text.length() > 0) {
+							throw new RuntimeException("Unexpected text \"" + text + "\" inside element <" + o.getNodeName() + ">!");
+						}
+					}
+				}
+				continue;
+			}
 			Element el = (Element) item;
 			if (prefix == null) {
 				visit(builder, el.getNodeName(), el);
@@ -532,30 +560,14 @@ public class ConfigXMLParser implements IConfigConverter {
 	}
 
 	@Override
-	public InputStream convertToProperties(InputStream fis) throws IOException {
-		byte[] buffer = new byte[8096];
-		int read = -1;
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		while ((read = fis.read(buffer)) != -1) {
-			baos.write(buffer, 0, read);
-		}
+	public InputStream convertToProperties(InputStream fis) throws Exception {
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         dbf.setNamespaceAware(true);
         dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
-        Document xml = null;
-		try {
-            DocumentBuilder db = dbf.newDocumentBuilder();
-            ByteArrayInputStream biStream = new ByteArrayInputStream(baos.toByteArray());
-            xml = db.parse(biStream);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ByteArrayInputStream(baos.toByteArray());
-        }
-		Element configEl = xml.getDocumentElement();
 		StringBuilder builder = new StringBuilder();
-		visit(builder, null, configEl);
+		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement());
 		System.out.println(builder.toString());
-		System.out.println("==============");
+		// System.out.println("==============");
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));
 	}
 

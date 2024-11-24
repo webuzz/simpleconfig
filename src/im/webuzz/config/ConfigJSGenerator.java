@@ -63,24 +63,6 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 		}
 	}
 
-	protected StringBuilder checkIndents(StringBuilder builder) {
-		int builderLength = builder.length();
-		if (builderLength > 1 && builder.charAt(builderLength - 1) == '\n') {
-			builder.append(indents);
-		}
-		return builder;
-	}
-	
-	protected StringBuilder appendIndents(StringBuilder builder) {
-		int length = builder.length();
-		if (length >= 1 && builder.charAt(length - 1) != '\n') {
-			builder.append("\r\n");
-		} else if (length > 0 && builder.charAt(length - 1) == '\t') {
-			return builder; // skip adding more indents
-		}
-		return builder.append(indents);
-	}
-
 	@Override
 	protected void startLineComment(StringBuilder builder) {
 		appendIndents(builder).append("// ");

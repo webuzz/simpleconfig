@@ -464,6 +464,9 @@ public class ConfigWebWatchman implements Runnable {
 		}
 	}
 
+	/**
+	 * Will be invoked by {@link im.webuzz.config.Config#loadWatchmen}
+	 */
 	public static void startWatchman() {
 		if (running) {
 			return;
@@ -542,6 +545,10 @@ public class ConfigWebWatchman implements Runnable {
 		return -1;
 	}
 	
+	/**
+	 * This method will be invoked by {@link Config#registerUpdatingListener(Class)}
+	 * @param clazz
+	 */
 	public static void loadConfigClass(Class<?> clazz) {
 		// Do nothing!
 		String keyPrefix = Config.getKeyPrefix(clazz);

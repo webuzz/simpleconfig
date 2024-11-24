@@ -14,9 +14,11 @@
 
 package im.webuzz.config.web;
 
+import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigSecret;
 
+@ConfigClass
 @ConfigComment({
 	"This configuration file is used to be configured for synchronization between",
 	"local and remote server. The remote server is considered as configuration center.",
