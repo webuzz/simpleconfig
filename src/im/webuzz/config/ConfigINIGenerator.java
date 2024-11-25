@@ -91,8 +91,12 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		int length = builder.length();
 		if (length >= 2 && builder.charAt(length - 1) != '\n') {
 			builder.append("\r\n");
-		} else if (length > 0 && builder.charAt(length - 1) == '\t') {
-			return builder; // skip adding more indents
+		} else if (length > 0) {
+			char lastChar = builder.charAt(length - 1);
+			if (lastChar == '\t') return builder; // skip adding more indents
+			if ((lastChar == '{' || lastChar == '[') && indents.length() > 0) {
+				builder.append("\r\n");
+			}
 		}
 		return builder.append(indents);
 	}

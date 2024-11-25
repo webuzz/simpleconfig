@@ -735,6 +735,9 @@ public class ConfigINIParser {
 			valueParamType = actualTypeArgs[1]; // For map, second generic type
 			valueType = Utils.getRawType(valueParamType);
 		}
+		if ("cityMap".equals(keyName)) {
+			System.out.println("XXX map");
+		}
 		int length = p.length();
 		if (length >= 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') { // readable format, multiple line configuration
 			if (length > 2) {
@@ -781,7 +784,7 @@ public class ConfigINIParser {
 						// =key>###;value>####
 						Object key = null;
 						Object val = null;
-						String[] arr = p.split("\\s*;\\s*");
+						String[] arr = v.split("\\s*;\\s*");
 						for (int j = 0; j < arr.length; j++) {
 							String item = arr[j].trim();
 							if (item.length() == 0) continue;
@@ -806,7 +809,7 @@ public class ConfigINIParser {
 							}
 						}
 						if (key == null) continue;
-						value.put(key, value);
+						value.put(key, val);
 					} else {
 						String keyPrefix = newPropName + ".key";
 						String kStr = (String) prop.getProperty(keyPrefix);
