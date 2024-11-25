@@ -166,6 +166,34 @@ public class ConfigINIParser {
 		return itemMatched ? 1 : 0;
 	}
 
+	private static Object parseEnumType(String p, String keyName) {
+		String suffix = null;
+		int length = p.length();
+		if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+			int idx = p.indexOf(':');
+			if (idx != -1) {
+				suffix = p.substring(idx + 1, length - 1);
+			} else {
+				suffix = p.substring(1, length - 1);
+			}
+		} else {
+			suffix = p;
+		}
+		int nameIdx = suffix.lastIndexOf('.');
+		if (nameIdx != -1) {
+			String typeStr = suffix.substring(0, nameIdx).trim();
+			StringBuilder err = new StringBuilder();
+			Class<?> pType = Config.loadConfigurationClass(typeStr, err);
+			if (pType == null) {
+				StringBuilder errMsg = new StringBuilder();
+				errMsg.append("Invalid value for field \"").append(keyName)
+						.append("\": ").append(err);
+				if (!Config.reportErrorToContinue(errMsg.toString())) return error;
+			}
+			return pType;
+		}
+		return error;
+	}
 	/**
 	 * Parse the given key-prefixed properties for a field value, update the field if necessary.
 	 * @param prop
@@ -177,16 +205,21 @@ public class ConfigINIParser {
 	 * @param diffB Keep the differences if the parsed value and the existed field value is different
 	 * @return -1: Errors are detected, 0: No fields are updated, 1: Field is updated.
 	 */
-	@SuppressWarnings("rawtypes")
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private static int parseAndUpdateField(Properties prop, String keyName, String p,
 			Object obj, Field f, boolean updatingField, StringBuilder diffB) {
 		Class<?> type = f.getType();
-		if ("myNumber".equals(keyName)) {
+		if ("towns".equals(keyName)) {
 			System.out.println("X parse");
 		}
-		if (type == Object.class || Utils.isAbstractClass(type)) {
+		if (Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
 			Class<?> pType = recognizeObjectType(p);
-			if (pType != null) type = pType;
+			if (type == Enum.class && pType == String.class) {
+				Object ret = parseEnumType(p, keyName);
+				if (ret == error) return -1;
+				pType = (Class<?>) ret;
+			}
+			if (pType != null && pType != Object.class) type = pType;
 		}
 		//StringBuilder errBuilder = new StringBuilder();
 		try {
@@ -368,7 +401,7 @@ public class ConfigINIParser {
 					return result;
 				}
 			} else if (type == Class.class) {
-				Object ov = f.get(obj);
+				Class<?> ov = (Class<?>) f.get(obj);
 				String nvStr = null;
 				if (p != null && !ConfigINIParser.$null.equals(p)) {
 					int length = p.length();
@@ -377,10 +410,12 @@ public class ConfigINIParser {
 						if (idx != -1) {
 							nvStr = p.substring(idx + 1, length - 1);
 						}
+					} else {
+						nvStr = p;
 					}
 				}
 				String ovStr = null;
-				if (ov != null) ovStr = ((Class<?>) ov).getName();
+				if (ov != null) ovStr = ov.getName();
 				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
 					Class<?> nv = null;
 					if (nvStr != null && nvStr.length() > 0) {
@@ -394,6 +429,38 @@ public class ConfigINIParser {
 							return 0;
 						}
 					}
+					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
+					if (result == -1) return -1;
+					if (result == 1 && updatingField) f.set(obj, nv);
+					return result;
+				}
+			} else if (type.isEnum() || type == Enum.class) {
+				Enum<?> ov = (Enum<?>) f.get(obj);
+				String nvStr = null;
+				if (p != null && !ConfigINIParser.$null.equals(p)) {
+					String suffix = null;
+					int length = p.length();
+					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+						int idx = p.indexOf(':');
+						if (idx != -1) {
+							suffix = p.substring(idx + 1, length - 1);
+						} else {
+							suffix = p.substring(1, length - 1);
+						}
+					} else {
+						suffix = p;
+					}
+					int nameIdx = suffix.lastIndexOf('.');
+					if (nameIdx != -1) {
+						nvStr = suffix.substring(nameIdx + 1).trim();
+					} else {
+						nvStr = suffix;
+					}
+				}
+				String ovStr = null;
+				if (ov != null) ovStr = ov.name();
+				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
+					Object nv = Enum.valueOf((Class<? extends Enum>) type, nvStr);
 					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
 					if (result == -1) return -1;
 					if (result == 1 && updatingField) f.set(obj, nv);
@@ -489,6 +556,9 @@ public class ConfigINIParser {
 	 * @return The parsed collection object. 
 	 */
 	private static Object parseCollection(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
+		if ("towns".equals(keyName)) {
+			System.out.println("Tow");
+		}
 		if (ConfigINIParser.$null.equals(p) || p == null) return null;
 		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) {
 			if (List.class.isAssignableFrom(type)) {
@@ -511,40 +581,52 @@ public class ConfigINIParser {
 		
 		boolean isArray = type.isArray();
 
-		boolean singleLine = true;
+		boolean singleLine = false;
 		String[] keyNames = null;
 		String[] ss = null;
 		int arrayLength = -1;
 		String prefix = null;
 
 		int length = p.length();
-		if (p.charAt(0) == '[' && p.charAt(length - 1) == ']' && p.indexOf(';') == -1) { // readable format
+		if (length > 1 && p.charAt(0) == '[' && p.charAt(length - 1) == ']' && p.indexOf(']') == length - 1) { // readable format
 			if (length > 2) {
 				int idx = p.indexOf(':');
 				if (idx != -1) {
-					p = p.substring(idx + 1, length - 1).trim();
-					if (valueType == null || valueType == Object.class) {
-						valueType = recognizeRawType(p);
+					String typeStr = p.substring(1, idx).trim();
+					if ("array".equals(typeStr) || "list".equals(typeStr) || "set".equals(typeStr)) {
+						p = p.substring(idx + 1, length - 1).trim();
+						if (valueType == null || valueType == Object.class) {
+							valueType = recognizeRawType(p);
+						}
+					} else {
+						// Single object item in the array
+						singleLine = true;
 					}
 				}
 			}
-
-			List<String> filteredNames = new ArrayList<String>();
-			Set<String> names = prop.stringPropertyNames();
-			prefix = keyName + ".";
-			for (String propName : names) {
-				if (propName.startsWith(prefix)) {
-					String k = propName.substring(prefix.length());
-					String[] split = k.split("\\.");
-					if (split.length > 1) continue;
-					filteredNames.add(k);
+			if (!singleLine) {
+				List<String> filteredNames = new ArrayList<String>();
+				Set<String> names = prop.stringPropertyNames();
+				prefix = keyName + ".";
+				for (String propName : names) {
+					if (propName.startsWith(prefix)) {
+						String k = propName.substring(prefix.length());
+						String[] split = k.split("\\.");
+						if (split.length > 1) continue;
+						filteredNames.add(k);
+					}
 				}
+				arrayLength = filteredNames.size();
+				keyNames = filteredNames.toArray(new String[arrayLength]);
+				if (isArray || List.class.isAssignableFrom(type)) Arrays.sort(keyNames); // keep array's order
+			} else {
+				// singleLine = true;
+				ss = new String[1];
+				ss[0] = p;
+				arrayLength = 1;
 			}
-			arrayLength = filteredNames.size();
-			keyNames = filteredNames.toArray(new String[arrayLength]);
-			if (isArray || List.class.isAssignableFrom(type)) Arrays.sort(keyNames); // keep array's order
-			singleLine = false;
 		} else {
+			singleLine = true;
 			ss = p.split("\\s*;\\s*");
 			arrayLength = ss.length;
 		}
@@ -893,10 +975,17 @@ public class ConfigINIParser {
 	 * @param paramType
 	 * @return
 	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static Object recognizeAndParseObject(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
 		if (p == null || ConfigINIParser.$null.equals(p)) return null;
-		if (type == null || type == Object.class || Utils.isAbstractClass(type)) { // type == null
-			type = recognizeObjectType(p);
+		if (type == null || Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
+			Class<?> pType = recognizeObjectType(p);
+			if (type == Enum.class && pType == String.class) {
+				Object ret = parseEnumType(p, keyName);
+				if (ret == error) return error;
+				pType = (Class<?>) ret;
+			}
+			if (pType != null && pType != Object.class) type = pType;
 			if (type == null) return new Object();
 		}
 		int length = p.length();
@@ -936,6 +1025,11 @@ public class ConfigINIParser {
 			}
 			return clazz;
 		}
+		if (type.isEnum() || type == Enum.class) {
+			int nameIdx = p.lastIndexOf('.');
+			String nameStr = nameIdx != -1 ? p.substring(nameIdx + 1).trim() : p;
+			return Enum.valueOf((Class<? extends Enum>) type, nameStr);
+		}
 		if (type == BigDecimal.class) return new BigDecimal(p);
 		if (type == BigInteger.class) return new BigInteger(p);
 		if (type.isArray()) {
@@ -959,11 +1053,11 @@ public class ConfigINIParser {
 			if (length == 2) return Object.class;
 			int idx = p.indexOf(':');
 			if (idx == -1) {
-				if (ConfigINIParser.$array.equals(p)) return String[].class;
+				if (ConfigINIParser.$array.equals(p)) return Object[].class;
 				if (ConfigINIParser.$list.equals(p)) return List.class;
 				if (ConfigINIParser.$map.equals(p)) return Map.class;
 				if (ConfigINIParser.$set.equals(p)) return Set.class;
-				if (ConfigINIParser.$object.equals(p)) return String.class;
+				if (ConfigINIParser.$object.equals(p)) return Object.class;
 				String rawType = p.substring(1, length - 1);
 				return Config.loadConfigurationClass(rawType);
 			}
@@ -999,6 +1093,12 @@ public class ConfigINIParser {
 				Class<?> type = Config.loadConfigurationClass(suffix);
 				if (type == null) type = Object.class;
 				return type;
+			}
+			if (prefix.startsWith("[Enum")) {
+				int nameIdx = suffix.lastIndexOf('.');
+				if (nameIdx == -1) return Enum.class;
+				String rawType = suffix.substring(0, nameIdx);
+				return Config.loadConfigurationClass(rawType);
 			}
 			String rawType = prefix.substring(1); // e.g. "[im.webuzz.config.####
 			Class<?> type = recognizeRawType(rawType);

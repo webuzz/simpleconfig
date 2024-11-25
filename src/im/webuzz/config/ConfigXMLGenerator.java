@@ -183,9 +183,10 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	
 	@Override
 	protected void generateString(StringBuilder builder, String v, boolean secret) {
-		if (v == null) {
-			builder.append($null);
-		} else if (v.length() == 0) {
+//		if (v == null) {
+//			builder.append($null);
+//		} else 
+		if (v.length() == 0) {
 			builder.append($emptyString);
 		} else if (secret) {
 			builder.append("<secret>" + SecurityKit.encrypt(v) + "</secret>");
@@ -201,19 +202,36 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	
 
 	@Override
-	protected boolean generateClass(StringBuilder builder, Class<?> v, boolean needsTypeInfo, boolean needsWrapping) {
-		if (v == null) {
-			builder.append($null);
-		} else if (needsTypeInfo) {
+	protected boolean generateClass(StringBuilder builder, Class<?> v,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+//		if (v == null) {
+//			builder.append($null);
+//		} else 
+		if (needsTypeInfo || needsWrapping && !compact) {
 			builder.append("<Class>").append(v.getName()).append("</Class>");
 		} else {
 			builder.append(v.getName());
 		}
 		return true;
 	}
+	
+	@Override
+	protected boolean generateEnums(StringBuilder builder, Enum<?> v, Class<?> type,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (needsTypeInfo || needsWrapping && !compact) {
+			if (type != Enum.class || needsWrapping && !compact) builder.append("<Enum>");
+			if (needsTypeInfo) builder.append(v.getClass().getName()).append('.');
+			builder.append(v.name());
+			if (type != Enum.class || needsWrapping && !compact) builder.append("</Enum>");
+		} else {
+			builder.append(v.name());
+		}
+		return true;
+	}
 
 	@Override
-	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type, boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		Class<? extends Object> clazz = v.getClass();
 		if (needsTypeInfo || needsWrapping && !compact) {
 			String typeName = clazz.getSimpleName();

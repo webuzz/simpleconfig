@@ -49,12 +49,11 @@ public class Utils {
 	protected static boolean isBasicDataType(Class<?> type) {
 		if (type == null) return false;
 		return Number.class.isAssignableFrom(type) || type == Boolean.class || type == Character.class
-				|| type == Class.class;
+				|| type == Class.class || type.isEnum() || type == Enum.class;
 		/*
-		return type == Integer.class || type == Long.class
-				|| type == Boolean.class || type == Double.class || type == Float.class
-				|| type == Short.class || type == Byte.class || type == Character.class
-				|| type == Class.class;
+		Number.class.isAssignableFrom(type): type == Integer.class || type == Long.class
+				|| type == Double.class || type == Float.class
+				|| type == Short.class || type == Byte.class;
 		//*/
 	}
 

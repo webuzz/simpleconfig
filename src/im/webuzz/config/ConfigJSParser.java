@@ -114,7 +114,7 @@ public class ConfigJSParser implements IConfigConverter {
 				if (o instanceof String) {
 //					System.out.println(convertJS);
 //					System.out.println("js->ini");
-//					System.out.println(o);
+					System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
 			}
@@ -123,7 +123,7 @@ public class ConfigJSParser implements IConfigConverter {
 			// If malicious js (last) modifies #convertToProperties, try to correct it to original JavaScript.
 			// So normal js configuration won't be affected.
 			if (checkInitialize()) {
-				Object o = evalMethod.invoke(jsEngine, convertJS + "\r\n$config = " + js + "\r\nconvertToProperties($config);");
+				Object o = evalMethod.invoke(jsEngine, "$config = " + js + "\r\n" + convertJS + "\r\nconvertToProperties($config);");
 				if (o instanceof String) {
 					// System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));

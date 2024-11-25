@@ -163,6 +163,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
+			if ("heights".equals(f.getName())) {
+				System.out.println("Debug");
+			}
 			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
@@ -181,7 +184,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			allFields.put(name, clzName + "." + name);
 
 			//*
-			if ("refToSet".equals(name)) {
+			if ("town".equals(name)) {
 				System.out.println("Debug");
 			}
 			//*/
@@ -203,7 +206,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		if (configAnn == null) return false;
 		String[] comments = configAnn.value();
 		if (comments == null || comments.length == 0) return false;
-		//builder.append("\r\n");
 		if (comments.length > 1) {
 			startBlockComment(builder);
 			for (int i = 0; i < comments.length; i++) {
@@ -261,11 +263,11 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					//if (typeBuilder != null) typeBuilder.append("String");
 					boolean secretAnn = f != null && f.getAnnotation(ConfigSecret.class) != null;
 					generateString(valueBuilder, (String) v, secretAnn);
-//					valueBuilder.append(secretAnn ? wrapAsSecretString((String) v)
-//							: wrapAsPlainString((String) v));
 				} else if (type == Class.class) {
 					//if (typeBuilder != null) typeBuilder.append("Class");
-					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo, needsWrapping);
+					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo, needsWrapping, compact);
+				} else if (type.isEnum() || type == Enum.class) {
+					generateEnums(valueBuilder, (Enum) v, definedType, needsTypeInfo, needsWrapping, compact);
 				} else if (Utils.isBasicDataType(type)) {
 					generateBasicData(valueBuilder, v, type, needsTypeInfo, needsWrapping, compact);
 				} else if (type.isArray()) {
@@ -393,11 +395,23 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	}
 	
 	protected boolean generateClass(StringBuilder builder, Class<?> v,
-			boolean needsTypeInfo, boolean needsWrapping) {
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (needsTypeInfo) {
 			builder.append("[Class:").append(v.getName()).append(']');
 		} else {
 			builder.append(v.getName());
+		}
+		return true;
+	}
+	
+	protected boolean generateEnums(StringBuilder builder, Enum<?> v, Class<?> type,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (needsTypeInfo) {
+			if (type != Enum.class) builder.append("[Enum:");
+			builder.append(v.getClass().getName()).append('.').append(v.name());
+			if (type != Enum.class) builder.append(']');
+		} else {
+			builder.append(v.name());
 		}
 		return true;
 	}
@@ -529,10 +543,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				return checkCompactness(collection.iterator().next(), definedCompType, paramCompType, null, false);
 			}
 			return checkArrayCompactness(collection.toArray(new Object[size]), definedCompType, paramCompType);
-//			for (Object o : collection) {
-//				if (!checkCompactness(o, definedCompType, paramCompType, null, false)) return false;
-//			}
-//			return true;
 		}
 		if (Map.class.isAssignableFrom(definedType)) {
 			if (forKey) return false;

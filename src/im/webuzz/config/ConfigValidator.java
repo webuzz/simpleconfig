@@ -57,7 +57,7 @@ public class ConfigValidator {
 
 	private static void formatExpectsAnnotation(StringBuilder expectBuilder, Annotation ann) {
 		expectBuilder.append("expecting ");
-		appendAnnotation(expectBuilder, ann);
+		appendAnnotation(expectBuilder, ann, false);
 	}
 
 	protected static void appendAnnotation(StringBuilder builder, Annotation ann) {
@@ -395,6 +395,9 @@ public class ConfigValidator {
 			}
 			return true;
 		} else if (type == Class.class || type == Boolean.class) {
+			// not validating
+			return true;
+		} else if (type.isEnum() || type == Enum.class) {
 			// not validating
 			return true;
 		} else if (Utils.isBasicDataType(type)) {

@@ -138,9 +138,10 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 	}
 
 	protected void generateString(StringBuilder builder, String v, boolean secret) {
-		if (v == null) {
-			builder.append($null);
-		} else if (v.length() == 0) {
+//		if (v == null) {
+//			builder.append($null);
+//		} else 
+		if (v.length() == 0) {
 			builder.append("\"\""); //$emptyString;
 		} else if (secret) {
 			builder.append("\"[secret:" + SecurityKit.encrypt(v) + "]\"");
@@ -150,19 +151,35 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 	}
 
 	@Override
-	protected boolean generateClass(StringBuilder builder, Class<?> v, boolean needsTypeInfo, boolean needsWrapping) {
-		if (v == null) {
-			builder.append($null);
-		} else if (needsTypeInfo) {
+	protected boolean generateClass(StringBuilder builder, Class<?> v,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+//		if (v == null) {
+//			builder.append($null);
+//		} else 
+		if (needsTypeInfo) {
 			builder.append("{ Class: \"").append(v.getName()).append("\" }");
 		} else {
 			builder.append("\"").append(v.getName()).append("\"");
 		}
 		return true;
 	}
+	
+	@Override
+	protected boolean generateEnums(StringBuilder builder, Enum<?> v, Class<?> type,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (needsTypeInfo) {
+			if (type != Enum.class) builder.append("{ Enum: ");
+			builder.append('\"').append(v.getClass().getName()).append('.').append(v.name()).append('\"');
+			if (type != Enum.class) builder.append(" }");
+		} else {
+			builder.append('\"').append(v.name()).append('\"');
+		}
+		return true;
+	}
 
 	@Override
-	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type, boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		Class<? extends Object> clazz = v.getClass();
 		if (needsTypeInfo) builder.append("{ ").append(clazz.getSimpleName()).append(": ");
 		if (Class.class == clazz) {
@@ -319,7 +336,8 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 				|| Object.class == valueType
 				|| valueType.isArray()
 				|| List.class.isAssignableFrom(valueType)
-				|| Set.class.isAssignableFrom(valueType);
+				|| Set.class.isAssignableFrom(valueType)
+				|| valueType.isEnum() || valueType == Enum.class;
 		if (singleLine) builder.append(' ');
 		if (multipleLines) {
 			if (moreIndents) {

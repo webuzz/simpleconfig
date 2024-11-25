@@ -55,6 +55,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		
 		basicData.add("String");
 		basicData.add("Class");
+		basicData.add("Enum");
 		basicData.add("Boolean");
 		basicData.add("Integer");
 		basicData.add("Long");

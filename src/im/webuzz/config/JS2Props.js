@@ -75,7 +75,7 @@ function visit(builder, ignoringProps, prefix, o) {
 	var oClass = o["class"];
 	if (oClass != null && oClass.indexOf("[") == 0) {
 		//builder[builder.length] = "# # " + oClass;
-		if (oClass.indexOf("[array") == 0 || oClass.indexOf("[list") == 0 || oClass.indexOf("[set") == 0) {
+if (oClass.indexOf("[array") == 0 || oClass.indexOf("[list") == 0 || oClass.indexOf("[set") == 0) {
 			o = o["value"];
 			if (o == null) {
 				builder[builder.length] = prefix + "=[null]";
@@ -145,7 +145,8 @@ function visit(builder, ignoringProps, prefix, o) {
 					|| "Double" == type || "Float" == type
 					|| "String" == type || "Class" == type
 					|| "BigDecimal" == type || "BigInteger" == type
-					|| "Boolean" == type || "Character" == type) {
+					|| "Boolean" == type || "Character" == type
+					|| "Enum" == type) {
 				builder[builder.length] = prefix + "=[" + type + ":" + value + "]";
 				return;
 			}
