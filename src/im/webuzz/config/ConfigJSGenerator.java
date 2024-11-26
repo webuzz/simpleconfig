@@ -210,9 +210,10 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-		if ("refToSet".equals(name)) {
-			System.out.println("DEbug");
-		}
+		/*
+		if ("anyArr4".equals(name)) {
+			System.out.println("Debug");
+		} // */
 		checkIndents(builder);
 		Class<?> vsType = vs.getClass();
 		if (needsTypeInfo) {

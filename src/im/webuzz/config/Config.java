@@ -59,14 +59,14 @@ public class Config {
 		"to find configuration file and will decide the priority of which file will be used.",
 		"The first extension will be the default file extension."
 	})
-	public static String[] configurationScanningExtensions = new String[] {
+	public static List<String> configurationScanningExtensions = Arrays.asList(new String[] {
 			".ini", // default file extension
 			".js", ".json",
 			".conf", ".config", ".cfg",
 			".props", ".properties",
 			".xml",
 			".txt"
-		};
+		});
 	
 	public static String[] configurationWatchmen = new String[] { "im.webuzz.config.ConfigFileWatchman" };
 
@@ -270,9 +270,9 @@ public class Config {
 	public static File getConfigruationFile(String keyPrefix) {
 		String folder = getConfigurationFolder();
 		File file = null;
-		String[] exts = Config.configurationScanningExtensions;
-		if (exts == null || exts.length == 0) {
-			exts = new String[] { ".ini" };
+		List<String> exts = Config.configurationScanningExtensions;
+		if (exts == null || exts.size() == 0) {
+			exts = Arrays.asList(new String[] { ".ini" });
 		}
 		if (exts != null) {
 			for (String ext : exts) {
@@ -284,7 +284,7 @@ public class Config {
 				}
 			}
 		}
-		return new File(folder, Config.parseFilePath(keyPrefix + exts[0]));
+		return new File(folder, Config.parseFilePath(keyPrefix + exts.iterator().next()));
 	}
 
 	protected static IConfigGenerator getConfigurationGenerator(String extension) {
@@ -653,6 +653,7 @@ public class Config {
 					Method m = clz.getMethod("decrypt", String.class); // password
 					Object result = m.invoke(clz, secret);
 					if (result instanceof String) {
+						System.out.println("Decrypted: " + secret + " ==> " + result);
 						return (String) result;
 					}
 				} catch (NoSuchMethodException e) {
@@ -663,6 +664,7 @@ public class Config {
 			}
 			// password = SecurityKit.decrypt(password);
 		}
+		System.out.println("Failed to parse " + secret);
 		return secret;
 	}
 

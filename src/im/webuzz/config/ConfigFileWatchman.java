@@ -20,9 +20,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+
+import java.nio.file.*;
+//import java.nio.file.attribute.FileTime;
+
+import static java.nio.file.StandardWatchEventKinds.*;
 
 /**
  * Synchronizing configuration from file system.
@@ -38,6 +44,7 @@ public class ConfigFileWatchman {
 	private static long lastUpdated = 0;
 
 	private static Map<String, Long> fileLastUpdateds = new ConcurrentHashMap<String, Long>();
+	private static Map<String, Class<?>> keyPrefixClassMap = new ConcurrentHashMap<String, Class<?>>();
 	
 	/**
 	 * Will be invoked by {@link im.webuzz.config.Config#loadWatchmen}
@@ -55,7 +62,119 @@ public class ConfigFileWatchman {
 			
 			@Override
 			public void run() {
-				lastUpdated = 0;
+				//lastUpdated = 0;
+				String mainFile = Config.getConfigurationMainFile();
+				String mainPathPrefix = null;
+				String mainFileName = null;
+				int mainIndex = mainFile.lastIndexOf('/');
+				if (mainIndex != -1) {
+					mainFileName = mainFile.substring(mainIndex + 1);
+					mainPathPrefix = mainFile.substring(0, mainIndex + 1);
+				} else {
+					mainFileName = mainFile;
+					mainPathPrefix = "";
+				}
+				String mainKeyPrefix = null;
+				int index = mainFileName.lastIndexOf('.');
+				if (index == -1) {
+					mainKeyPrefix = mainFileName;
+				} else {
+					mainKeyPrefix = mainFileName.substring(0, index);
+				}
+				String mainExtension = Config.getConfigurationMainExtension();
+				String mainFolder = Config.getConfigurationFolder();
+				Path path = Paths.get(mainFolder);
+				try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
+					try {
+						// SensitivityWatchEventModifier.HIGH); // Private SUN API
+						@SuppressWarnings({ "unchecked", "rawtypes" })
+						Enum modifier = Enum.valueOf((Class<? extends Enum>) Class.forName("com.sun.nio.file.SensitivityWatchEventModifier"), "HIGH");
+						path.register(watchService, new WatchEvent.Kind[]{ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE}, (WatchEvent.Modifier) modifier);
+					} catch (Throwable e) {
+						// e.printStackTrace();
+						path.register(watchService, new WatchEvent.Kind[]{ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE});
+					}
+
+					while (running) {
+						WatchKey key = watchService.take();
+
+						for (WatchEvent<?> event : key.pollEvents()) {
+							WatchEvent.Kind<?> kind = event.kind();
+							if (kind != ENTRY_MODIFY && kind != ENTRY_CREATE && kind != ENTRY_DELETE) continue;
+							Path filePath = (Path) event.context();
+							String newFileName = filePath.getFileName().toString();
+							int dotIndex = newFileName.lastIndexOf('.');
+							String extension = newFileName.substring(dotIndex); //.toLowerCase();
+							List<String> exts = Config.configurationScanningExtensions;
+							if (exts == null || !exts.contains(extension)) continue; // Unsupported extensions
+							String newKeyPrefix = null;
+							if (dotIndex == -1) {
+								newKeyPrefix = newFileName;
+							} else {
+								newKeyPrefix = newFileName.substring(0, dotIndex);
+							}
+							// To check if the current key prefix and the extension is the
+							// first available(or active) combination or not
+							// If not, print warning and continue
+							File file = Config.getConfigruationFile(newKeyPrefix);
+							if (file.exists()) {
+								// It should always be true for ENTRY_MODIFY and ENTRY_CREATE here
+								String activeFileName = file.getName();
+								if (kind == ENTRY_MODIFY || kind == ENTRY_CREATE) {
+									if (!activeFileName.equals(newFileName)) {
+										// inactive configuration file for the extension
+										System.out.println("[WARN] The updated file " + newFileName + " is disabled for configurations. Current enabled file is " + activeFileName);
+										continue;
+									} // else continue following logic codes
+								} else { // kind == ENTRY_DELETE
+									// As the file exists, so the current(DELETED) entry/file should be disabled
+									// and load the new existing file
+									
+									// Remove current file from fileLastUpdateds map
+									fileLastUpdateds.remove(newFileName);
+									// Update extension with the enable file
+									newFileName = activeFileName;
+									dotIndex = newFileName.lastIndexOf('.');
+									extension = newFileName.substring(dotIndex); //.toLowerCase();
+								}
+							} else {
+								// kind == ENTRY_DELETE may run into this branch
+								// Remove current file from fileLastUpdateds map
+								fileLastUpdateds.remove(newFileName);
+								
+								// In this case, the given file is deleted, and no new configuration files are
+								// found, print warning, no need to update configurations.
+								System.out.println("[WARN] After " + newFileName + " being deleted, no replacment configuration files are found!");
+								System.out.println("[WARN] Application restarting will run with the default configurations!");
+								continue;
+							}
+							Class<?> clz = keyPrefixClassMap.get(newKeyPrefix);
+							if (clz != null) {
+								String oldExtension = Config.getConfigExtension(clz);
+								if (oldExtension != null && !oldExtension.equals(extension)) {
+									System.out.println("[INFO] Configuration extension changed: switching from " + newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
+								}
+								//Path fullPath = path.resolve(filePath);
+								parseConfigFileForClass(file, newFileName, extension, clz);
+							} else if (newKeyPrefix.equals(mainKeyPrefix)) {
+								if (mainExtension != null && !mainExtension.equals(extension)) {
+									System.out.println("[INFO] Configuration extension changed: switching from " + newKeyPrefix + mainExtension + " to " + newKeyPrefix + extension);
+								}
+								mainExtension = extension;
+								updateFromConfigurationFiles(mainPathPrefix + mainKeyPrefix + extension, extension, mainFolder);
+							} // else unknown files
+						} // end of for key.pollEvents
+
+						boolean valid = key.reset();
+						if (!valid) {
+							System.out.println("[ERROR] The watching key of the file system's WatchService is invalid!");
+							//break;
+						}
+					}
+				} catch (IOException | InterruptedException e) {
+					e.printStackTrace();
+				}
+				/*
 				while (running) {
 					for (int i = 0; i < 10; i++) {
 						try {
@@ -71,6 +190,7 @@ public class ConfigFileWatchman {
 						updateFromConfigurationFiles(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
 					}
 				}
+				//*/
 			}
 			
 		}, "Configuration Local File Watchman");
@@ -100,16 +220,15 @@ public class ConfigFileWatchman {
 		String extension = fileName.substring(fileName.lastIndexOf('.'));
 
 		long lastUpdated = 0;
-		String absolutePath = file.getAbsolutePath();
 		Properties fileProps = new Properties();
 		try {
 			loadConfig(fileProps, file, extension);
 			lastUpdated = file.lastModified();
-			fileLastUpdateds.put(absolutePath, lastUpdated);
+			fileLastUpdateds.put(fileName, lastUpdated);
 			Config.recordConfigExtension(clazz, extension); // always update the configuration class' file extension
 			ConfigINIParser.parseConfiguration(fileProps, clazz, false, true, true);
 			if (Config.configurationLogging) {
-				System.out.println("[Config] Configuration " + clazz.getName() + "/" + absolutePath + " loaded.");
+				System.out.println("[Config] Configuration " + clazz.getName() + "/" + file.getAbsolutePath() + " loaded.");
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -205,44 +324,51 @@ public class ConfigFileWatchman {
 		for (int i = 0; i < configs.length; i++) {
 			Class<?> clz = configs[i];
 			String keyPrefix = Config.getKeyPrefix(clz);
-			if (keyPrefix == null || keyPrefix.length() == 0) {
-				continue;
-			}
+			if (keyPrefix == null || keyPrefix.length() == 0) continue;
 			File file = Config.getConfigruationFile(keyPrefix);
 			if (!file.exists()) continue;
 			String fileName = file.getName();
+			int extIndex = fileName.lastIndexOf('.');
+			if (extIndex > 0) {
+				keyPrefixClassMap.put(fileName.substring(0, extIndex), clz);
+			} else {
+				keyPrefixClassMap.put(fileName, clz);
+			}
 			String extension = fileName.substring(fileName.indexOf('.') + 1);
 			
-			long lastUpdated = 0;
-			String absolutePath = file.getAbsolutePath();
-			Long v = fileLastUpdateds.get(absolutePath);
-			if (v != null) {
-				lastUpdated = v.longValue();
-			}
-			if (file.lastModified() == lastUpdated) continue;
-			if (Config.configurationLogging && lastUpdated > 0) {
-				System.out.println("[Config] Configuration " + clz.getName() + " at " + absolutePath + " updated.");
-			}
-			Properties prop = new Properties();
-			try {
-				loadConfig(prop, file, extension);
-				lastUpdated = file.lastModified();
-				fileLastUpdateds.put(absolutePath, lastUpdated);
-				Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
-				if (Config.skipUpdatingWithInvalidItems) {
-					if (ConfigINIParser.parseConfiguration(prop, clz, false, false, true) != -1) { // checking first
-						ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
-					}
-				} else {
-					ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
-				}
-			} catch (Throwable e) {
-				e.printStackTrace();
-			}
+			parseConfigFileForClass(file, fileName, extension, clz);
 		}
 	}
 
-	public static void loadConfig(Properties prop, File file, String extension) throws Exception {
+	private static void parseConfigFileForClass(File file, String fileName, String extension, Class<?> clz) {
+		long lastUpdated = 0;
+		Long v = fileLastUpdateds.get(fileName);
+		if (v != null) {
+			lastUpdated = v.longValue();
+		}
+		if (file.lastModified() == lastUpdated) return;
+		if (Config.configurationLogging && lastUpdated > 0) {
+			System.out.println("[Config] Configuration " + clz.getName() + " at " + file.getAbsolutePath() + " updated.");
+		}
+		Properties prop = new Properties();
+		try {
+			loadConfig(prop, file, extension);
+			lastUpdated = file.lastModified();
+			fileLastUpdateds.put(fileName, lastUpdated);
+			Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
+			if (Config.skipUpdatingWithInvalidItems) {
+				if (ConfigINIParser.parseConfiguration(prop, clz, false, false, true) != -1) { // checking first
+					ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
+				}
+			} else {
+				ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
+			}
+		} catch (Throwable e) {
+			e.printStackTrace();
+		}
+	}
+
+	private static void loadConfig(Properties prop, File file, String extension) throws Exception {
 		String ext = extension.substring(1);
 		IConfigConverter converter = Config.converters.get(ext);
 		if (converter == null) {

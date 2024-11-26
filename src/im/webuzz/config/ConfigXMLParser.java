@@ -81,6 +81,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		plain,
 		emptyObject,
 		emptyString,
+		secretString,
 		nullValue,
 		basicData,
 		basicDirect,
@@ -190,6 +191,9 @@ public class ConfigXMLParser implements IConfigConverter {
 			if ("empty".equals(firstType)) {
 				return NodeType.emptyString;
 			}
+			if ("secret".equals(firstType)) {
+				return NodeType.secretString;
+			}
 			if (basicData.contains(firstType)) {
 				return NodeType.basicData;
 			}
@@ -295,6 +299,11 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		if (type == NodeType.emptyString) {
 			assign(builder, prefix, null).append(ConfigINIParser.$empty).append("\r\n");
+			return;
+		}
+		if (type == NodeType.secretString) {
+			String secretStr = getTextValue(getFirstElement(o)).trim();
+			assign(builder, prefix, null).append("[secret:").append(secretStr).append("]\r\n");
 			return;
 		}
 		if (type == NodeType.emptyObject) {
@@ -562,9 +571,9 @@ public class ConfigXMLParser implements IConfigConverter {
 
 	@Override
 	public InputStream convertToProperties(InputStream fis) throws Exception {
-        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-        dbf.setNamespaceAware(true);
-        dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
+		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+		dbf.setNamespaceAware(true);
+		dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
 		StringBuilder builder = new StringBuilder();
 		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement());
 		System.out.println(builder.toString());

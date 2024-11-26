@@ -241,15 +241,8 @@ public class ConfigGenerator {
 			int idx = mainTargetFileName.lastIndexOf('.');
 			if (idx != -1) {
 				mainExtension = mainTargetFileName.substring(idx);
-				String[] exts = Config.configurationScanningExtensions;
-				if (exts != null) {
-					for (int i = 0; i < exts.length; i++) {
-						if (exts[i].equals(mainExtension)) {
-							existed = true;
-							break;
-						}
-					}
-				}
+				List<String> exts = Config.configurationScanningExtensions;
+				if (exts != null) existed = exts.contains(mainExtension);
 			}
 			if (existed) {
 				indexOffset++;
@@ -286,9 +279,9 @@ public class ConfigGenerator {
 		generateUpdatedConfiguration(targetFolder, mainTargetFileName, classExtensions, classes);
 	}
 
-    public static boolean isAbstractClass(Class<?> clazz) {
-        int modifiers = clazz.getModifiers();
-        return Modifier.isAbstract(modifiers);
-    }
+	public static boolean isAbstractClass(Class<?> clazz) {
+		int modifiers = clazz.getModifiers();
+		return Modifier.isAbstract(modifiers);
+	}
 
 }

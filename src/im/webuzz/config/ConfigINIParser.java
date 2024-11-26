@@ -144,9 +144,13 @@ public class ConfigINIParser {
 			if ((modifiers & Modifier.PUBLIC) == 0) {
 				f.setAccessible(true);
 			}
+			/*
+			if ("myCity".equals(keyName)) {
+				System.out.println("X city");
+			} // */
 			int result = parseAndUpdateField(prop, keyName, p, clz, f, updating, null);
 			if (result == -1) return -1;
-			if (result == 1 && Config.configurationLogging && Config.initializedTime > 0
+			if (result == 1 && updating && Config.configurationLogging && Config.initializedTime > 0
 					&& now - Config.initializedTime > 3000) { // start monitoring fields after 3s
 				System.out.println("[Config] Configuration " + clz.getName() + "#" + name + " updated.");
 			}
@@ -209,9 +213,10 @@ public class ConfigINIParser {
 	private static int parseAndUpdateField(Properties prop, String keyName, String p,
 			Object obj, Field f, boolean updatingField, StringBuilder diffB) {
 		Class<?> type = f.getType();
-		if ("towns".equals(keyName)) {
+		/*
+		if ("myCity".equals(keyName)) {
 			System.out.println("X parse");
-		}
+		} // */
 		if (Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
 			Class<?> pType = recognizeObjectType(p);
 			if (type == Enum.class && pType == String.class) {
@@ -385,11 +390,7 @@ public class ConfigINIParser {
 					else if (type == BigInteger.class) nv = new BigInteger(p);
 					else if (type == Boolean.class) nv = Boolean.valueOf(p);
 					else nv = Character.valueOf(parseChar(p)); // Character.class
-					if (ov == null) {
-						changed = true;
-					} else {
-						changed = nv.equals(ov);
-					}
+					changed = ov == null ? true : !nv.equals(ov);
 				} else {
 					changed = ov != null;
 				}
@@ -460,7 +461,10 @@ public class ConfigINIParser {
 				String ovStr = null;
 				if (ov != null) ovStr = ov.name();
 				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
-					Object nv = Enum.valueOf((Class<? extends Enum>) type, nvStr);
+					Object nv = null;
+					if (nvStr != null && nvStr.length() > 0) {
+						nv = Enum.valueOf((Class<? extends Enum>) type, nvStr);
+					}
 					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
 					if (result == -1) return -1;
 					if (result == 1 && updatingField) f.set(obj, nv);
@@ -556,9 +560,10 @@ public class ConfigINIParser {
 	 * @return The parsed collection object. 
 	 */
 	private static Object parseCollection(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
+		/*
 		if ("towns".equals(keyName)) {
 			System.out.println("Tow");
-		}
+		} // */
 		if (ConfigINIParser.$null.equals(p) || p == null) return null;
 		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) {
 			if (List.class.isAssignableFrom(type)) {
@@ -735,9 +740,10 @@ public class ConfigINIParser {
 			valueParamType = actualTypeArgs[1]; // For map, second generic type
 			valueType = Utils.getRawType(valueParamType);
 		}
+		/*
 		if ("cityMap".equals(keyName)) {
 			System.out.println("XXX map");
-		}
+		} // */
 		int length = p.length();
 		if (length >= 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') { // readable format, multiple line configuration
 			if (length > 2) {

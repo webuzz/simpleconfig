@@ -40,10 +40,10 @@ public class Utils {
 
 	protected static boolean isAbstractClass(Class<?> clazz) {
 		if (clazz == null) return true;
-	    if (clazz.isPrimitive() || clazz.isArray() || clazz.isInterface()) {
-	        return false;
-	    }
-	    return Modifier.isAbstract(clazz.getModifiers());
+		if (clazz.isPrimitive() || clazz.isArray() || clazz.isInterface()) {
+			return false;
+		}
+		return Modifier.isAbstract(clazz.getModifiers());
 	}
 
 	protected static boolean isBasicDataType(Class<?> type) {
