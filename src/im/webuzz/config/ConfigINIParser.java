@@ -123,8 +123,8 @@ public class ConfigINIParser {
 			keyPrefix = Config.getKeyPrefix(clz);
 		}
 		Field[] fields = clz.getDeclaredFields();
-		Map<String, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz.getName()) : null;
+		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
 		boolean itemMatched = false;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
@@ -214,7 +214,7 @@ public class ConfigINIParser {
 			Object obj, Field f, boolean updatingField, StringBuilder diffB) {
 		Class<?> type = f.getType();
 		/*
-		if ("myCity".equals(keyName)) {
+		if ("configurationFilters".equals(keyName)) {
 			System.out.println("X parse");
 		} // */
 		if (Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
@@ -742,7 +742,7 @@ public class ConfigINIParser {
 		}
 		/*
 		if ("cityMap".equals(keyName)) {
-			System.out.println("XXX map");
+			System.out.println("city map");
 		} // */
 		int length = p.length();
 		if (length >= 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') { // readable format, multiple line configuration
@@ -850,9 +850,6 @@ public class ConfigINIParser {
 						}
 						if (alreadyParsed) continue;
 						String k = propName.substring(prefix.length());
-						Object key = recognizeAndParseObject(prop, prefix, k, keyType, keyParamType);
-						if (key == error) return error;
-						if (key == null) continue;
 						String[] split = k.split("\\.");
 						if (split.length > dots) {
 							if (!dotsReached) {
@@ -862,6 +859,9 @@ public class ConfigINIParser {
 							dotsNames.add(propName);
 							continue;
 						}
+						Object key = recognizeAndParseObject(prop, prefix, k, keyType, keyParamType);
+						if (key == error) return error;
+						if (key == null) continue;
 						String v = (String) prop.getProperty(propName);
 						Object val = recognizeAndParseObject(prop, propName, v, valueType, valueParamType);
 						if (val == error) return error;
@@ -924,8 +924,8 @@ public class ConfigINIParser {
 		if (ConfigINIParser.$empty.equals(p) || p.length() == 0 || obj == null) return obj;
 
 		String prefix = keyName + ".";
-		Map<String, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
+		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(type) : null;
 		if (ConfigINIParser.$object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {

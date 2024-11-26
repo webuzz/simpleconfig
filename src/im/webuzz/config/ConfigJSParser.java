@@ -114,7 +114,7 @@ public class ConfigJSParser implements IConfigConverter {
 				if (o instanceof String) {
 //					System.out.println(convertJS);
 //					System.out.println("js->ini");
-					System.out.println(o);
+//					System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
 			}

@@ -466,8 +466,8 @@ public class ConfigValidator {
 			}
 			return true;
 		} else { // 
-			Map<String, ConfigFieldFilter> configFilter = Config.configurationFilters;
-			ConfigFieldFilter filter = configFilter != null ? configFilter.get(type.getName()) : null;
+			Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
+			ConfigFieldFilter filter = configFilter != null ? configFilter.get(type) : null;
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];

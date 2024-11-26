@@ -68,7 +68,7 @@ public class Config {
 			".txt"
 		});
 	
-	public static String[] configurationWatchmen = new String[] { "im.webuzz.config.ConfigFileWatchman" };
+	public static Class<?>[] configurationWatchmen = new Class<?>[] { ConfigFileWatchman.class };
 
 	@ConfigComment({
 		"Array of configuration class names, listing all classes which are to be configured via files.",
@@ -76,22 +76,21 @@ public class Config {
 	})
 	public static String[] configurationClasses = null;
 
-	public static Map<String, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<String, ConfigFieldFilter>();
+	public static Map<Class<?>, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<>();
 	
-	public static Map<String, String> converterExtensions = new ConcurrentHashMap<String, String>();
-	protected static Map<String, IConfigConverter> converters = new ConcurrentHashMap<String, IConfigConverter>();
+	public static Map<String, Class<? extends IConfigConverter>> converterExtensions = new ConcurrentHashMap<>();
+	protected static Map<String, IConfigConverter> converters = new ConcurrentHashMap<>();
 
-	public static Map<String, String> generatorExtensions = new ConcurrentHashMap<String, String>();
-	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<String, IConfigGenerator>();
+	public static Map<String, Class<? extends IConfigGenerator>> generatorExtensions = new ConcurrentHashMap<>();
+	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<>();
 	
 	static {
-		//converterExtensions.put("ini", "im.webuzz.config.ConfigINIParser");
-		converterExtensions.put("js", "im.webuzz.config.ConfigJSParser");
-		converterExtensions.put("xml", "im.webuzz.config.ConfigXMLParser");
+		converterExtensions.put("js", ConfigJSParser.class);
+		converterExtensions.put("xml", ConfigXMLParser.class);
 		
-		generatorExtensions.put("ini", "im.webuzz.config.ConfigINIGenerator");
-		generatorExtensions.put("js", "im.webuzz.config.ConfigJSGenerator");
-		generatorExtensions.put("xml", "im.webuzz.config.ConfigXMLGenerator");
+		generatorExtensions.put("ini", ConfigINIGenerator.class);
+		generatorExtensions.put("js", ConfigJSGenerator.class);
+		generatorExtensions.put("xml", ConfigXMLGenerator.class);
 	}
 	
 	@ConfigPositive
@@ -103,17 +102,17 @@ public class Config {
 		"",
 		"im.webuzz.config.security.SecurityKit is a reference implementation.",
 	})
-	public static String configurationSecurityDecrypter = "im.webuzz.config.security.SecurityKit";
+	public static Class<?> configurationSecurityDecrypter = SecurityKit.class;
 	
 	public static boolean configurationLogging = true;
 	
-	public static String configurationAlarmer = null;
+	public static Class<?> configurationAlarmer = null;
 	public static boolean exitInitializingOnInvalidItems = true;
 	public static boolean skipUpdatingWithInvalidItems = true;
 	
-	protected static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<String, Class<?>>();
+	protected static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
 	
-	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<Class<?>, String>();
+	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<>();
 
 	private static volatile ClassLoader configurationLoader = null;
 	
@@ -121,8 +120,8 @@ public class Config {
 	protected static boolean initializationFinished = false;
 	
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
-	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-	private static Map<String, Class<?>> loadedClasses = new ConcurrentHashMap<String, Class<?>>(50);
+	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+	private static Map<String, Class<?>> loadedClasses = new ConcurrentHashMap<>(50);
 	
 	private static Properties argProps = null;
 
@@ -205,11 +204,10 @@ public class Config {
 			ConfigINIParser.parseConfiguration(argProps, clazz, true, true, true);
 		}
 		// Load watchman classes and start loadConfigClass task
-		String[] syncClasses = configurationWatchmen;
+		Class<?>[] syncClasses = configurationWatchmen;
 		if (syncClasses != null && syncClasses.length > 0) {
 			for (int i = 0; i < syncClasses.length; i++) {
-				String syncClazz = syncClasses[i];
-				Class<?> clz = loadConfigurationClass(syncClazz);
+				Class<?> clz = syncClasses[i];
 				if (clz != null) {
 					try {
 						Method method = clz.getMethod("loadConfigClass", Class.class);
@@ -291,24 +289,19 @@ public class Config {
 		String ext = extension.substring(1);
 		IConfigGenerator generator = generators.get(ext);
 		if (generator != null) return generator;
-		
-		String converterClass = generatorExtensions.get(ext);
-		if (converterClass != null && converterClass.length() > 0) {
-			try {
-				//Class<?> clazz = Class.forName(converterClass);
-				Class<?> clazz = Config.loadConfigurationClass(converterClass);
-				if (clazz != null) {
-					Object instance = clazz.newInstance();
-					if (instance instanceof IConfigGenerator) {
-						generator = (IConfigGenerator) instance;
-						generators.put(ext, generator);
-					}
+		try {
+			Class<?> clazz = generatorExtensions.get(ext);
+			if (clazz != null) {
+				Object instance = clazz.newInstance();
+				if (instance instanceof IConfigGenerator) {
+					generator = (IConfigGenerator) instance;
+					generators.put(ext, generator);
 				}
-			} catch (InstantiationException e) {
-				e.printStackTrace();
-			} catch (IllegalAccessException e) {
-				e.printStackTrace();
 			}
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
 		}
 		if (generator == null) generator = new ConfigINIGenerator();
 		return generator;
@@ -461,18 +454,17 @@ public class Config {
 	
 	protected static void loadWatchmen() {
 		// Load watchman classes and start synchronizing task
-		Set<String> loadedWatchmen = new HashSet<String>();
+		Set<Class<?>> loadedWatchmen = new HashSet<Class<?>>();
 		int loopLoadings = 5;
-		String[] syncClasses = configurationWatchmen;
+		Class<?>[] syncClasses = configurationWatchmen;
 		while (syncClasses != null && syncClasses.length > 0 && loopLoadings-- > 0) {
 			// by default, there is a watchman: im.webuzz.config.ConfigFileWatchman
 			for (int i = 0; i < syncClasses.length; i++) {
-				String clazz = syncClasses[i];
+				Class<?> clazz = syncClasses[i];
 				if (loadedWatchmen.contains(clazz)) continue;
-				Class<?> clz = loadConfigurationClass(clazz);
-				if (clz != null) {
+				if (clazz != null) {
 					try {
-						Method method = clz.getMethod("startWatchman", new Class[0]);
+						Method method = clazz.getMethod("startWatchman", new Class[0]);
 						if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
 							method.invoke(null, new Object[0]);
 							if (configurationLogging) {
@@ -485,7 +477,7 @@ public class Config {
 					loadedWatchmen.add(clazz);
 				}
 			}
-			String[] updatedClasses = configurationWatchmen;
+			Class<?>[] updatedClasses = configurationWatchmen;
 			if (Arrays.equals(updatedClasses, syncClasses)) break;
 			// Config.configurationWatchmen may be updated from file
 			syncClasses = updatedClasses;
@@ -645,25 +637,22 @@ public class Config {
 	 */
 	public static String parseSecret(final String secret) {
 		if (secret == null || secret.length() == 0) return secret;
-		String decrypterClass = configurationSecurityDecrypter;
-		if (decrypterClass != null && decrypterClass.length() > 0) {
-			Class<?> clz = loadConfigurationClass(decrypterClass);
-			if (clz != null) {
-				try {
-					Method m = clz.getMethod("decrypt", String.class); // password
-					Object result = m.invoke(clz, secret);
-					if (result instanceof String) {
-						System.out.println("Decrypted: " + secret + " ==> " + result);
-						return (String) result;
-					}
-				} catch (NoSuchMethodException e) {
-					// do nothing
-				} catch (Exception e) {
-					e.printStackTrace();
+		Class<?> decrypterClass = configurationSecurityDecrypter;
+		if (decrypterClass != null) {
+			try {
+				Method m = decrypterClass.getMethod("decrypt", String.class); // password
+				Object result = m.invoke(decrypterClass, secret);
+				if (result instanceof String) {
+					System.out.println("Decrypted: " + secret + " ==> " + result);
+					return (String) result;
 				}
+			} catch (NoSuchMethodException e) {
+				// do nothing
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
-			// password = SecurityKit.decrypt(password);
 		}
+		// password = SecurityKit.decrypt(password);
 		System.out.println("Failed to parse " + secret);
 		return secret;
 	}

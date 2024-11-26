@@ -259,7 +259,7 @@ public class ConfigFileWatchman {
 	}
 	
 	private static void updateFromConfigurationFiles(String configPath, String configExtension, String extraFolder) {
-		String[] oldWatchmen = Config.configurationWatchmen;
+		Class<?>[] oldWatchmen = Config.configurationWatchmen;
 //		boolean configurationSwitched = false;
 //		int loopLoadings = 5;
 //		do {
@@ -372,16 +372,12 @@ public class ConfigFileWatchman {
 		String ext = extension.substring(1);
 		IConfigConverter converter = Config.converters.get(ext);
 		if (converter == null) {
-			String converterClass = Config.converterExtensions.get(ext);
-			if (converterClass != null && converterClass.length() > 0) {
-				//Class<?> clazz = Class.forName(converterClass);
-				Class<?> clazz = Config.loadConfigurationClass(converterClass);
-				if (clazz != null) {
-					Object instance = clazz.newInstance();
-					if (instance instanceof IConfigConverter) {
-						converter = (IConfigConverter) instance;
-						Config.converters.put(ext, converter);
-					}
+			Class<?> clazz = Config.converterExtensions.get(ext);
+			if (clazz != null) {
+				Object instance = clazz.newInstance();
+				if (instance instanceof IConfigConverter) {
+					converter = (IConfigConverter) instance;
+					Config.converters.put(ext, converter);
 				}
 			}
 		}

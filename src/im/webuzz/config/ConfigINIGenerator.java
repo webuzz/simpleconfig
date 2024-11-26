@@ -10,6 +10,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -162,8 +163,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
 		Field[] fields = clz.getDeclaredFields();
 		String clzName = clz.getName();
-		Map<String, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clzName) : null;
+		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
@@ -582,8 +583,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		Class<?> clz = value.getClass();
 		Field[] fields = clz.getDeclaredFields();
 		if (fields.length == 0) return true;
-		Map<String, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz.getName()) : null;
+		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
@@ -831,10 +832,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	void generateMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-		Object[] keys = vs.keySet().toArray(new Object[vs.size()]);
-		if (sortedMapFormat) {
-			Arrays.sort(keys);
-		}
 		Class<?> keyType = null;
 		Type keyParamType = null;
 		Class<?> valueType = null;
@@ -866,6 +863,14 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			Class<?> commonType = Utils.calculateCommonType(vs.values(), conflictedClasses);
 			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
 				valueType = commonType;
+			}
+		}
+		Object[] keys = vs.keySet().toArray(keyType == Class.class ? new Class[vs.size()] : new Object[vs.size()]);
+		if (sortedMapFormat && keyType != null) {
+			if (Comparable.class.isAssignableFrom(keyType)) {
+				Arrays.sort(keys);
+			} else if (keyType == Class.class) {
+				Arrays.sort((Class[])keys, Comparator.comparing(Class::getName));
 			}
 		}
 		appendMap(builder, f, name, vs, keys,
@@ -1013,8 +1018,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		boolean separatorGenerated = true; //false;
 //		boolean fieldGenerated = false;
 		Field[] fields = o.getClass().getDeclaredFields();
-		Map<String, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(o.getClass().getName()) : null;
+		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
+		ConfigFieldFilter filter = configFilter != null ? configFilter.get(o.getClass()) : null;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
@@ -1121,7 +1126,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					compParamType = gaType.getGenericComponentType();
 				}
 				appendFieldType(builder, compType, compParamType, forComment).append("[]");
-			} else if (Map.class.isAssignableFrom(type) || List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type)) {
+			} else if (Map.class.isAssignableFrom(type) || List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type) || Class.class.isAssignableFrom(type)) {
 				builder.append(getTypeName(type)).append('<');
 				int argIndex = 0;
 				if (Map.class.isAssignableFrom(type)) {

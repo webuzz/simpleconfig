@@ -576,7 +576,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
 		StringBuilder builder = new StringBuilder();
 		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement());
-		System.out.println(builder.toString());
+//		System.out.println(builder.toString());
 		// System.out.println("==============");
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));
 	}
