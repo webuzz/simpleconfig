@@ -23,12 +23,14 @@ public class ConfigAgent {
 	}
 
 	public static void run(String[] args, int indexOffset) {
-		String[] watchmen = Config.configurationWatchmen;
+		Class<?>[] watchmen = Config.configurationWatchmen;
 		if (watchmen == null || watchmen.length == 0) {
 			System.out.println("[WARN] No watchmen are running. Config agent may be a dummy process, doing nothing.");
 		}
 		for (int i = 0; i < watchmen.length; i++) {
-			System.out.println("[INFO] " + watchmen[i] + " is running.");
+			Class<?> watchman = watchmen[i];
+			if (watchman == null) continue;
+			System.out.println("[INFO] " + watchman.getName() + " is running.");
 		}
 		Config.registerUpdatingListener(ConfigAgent.class);
 		System.out.println("[INFO] Config agent started.");

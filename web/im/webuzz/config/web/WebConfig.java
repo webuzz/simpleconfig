@@ -16,7 +16,7 @@ package im.webuzz.config.web;
 
 import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.annotations.ConfigSecret;
+import im.webuzz.config.annotations.ConfigCodec;
 
 @ConfigClass
 @ConfigComment({
@@ -43,7 +43,7 @@ public class WebConfig {
 	@ConfigComment({
 		"Marked as ${server.auth.password} in {@link #targetURLPattern}",
 	})
-	@ConfigSecret
+	@ConfigCodec(preferences = {"secret", "aes"})
 	public static String globalServerAuthPassword = null;
 	
 	@ConfigComment({
