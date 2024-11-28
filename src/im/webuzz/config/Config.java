@@ -35,7 +35,16 @@ import im.webuzz.config.agent.ConfigAgent;
 import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
-import im.webuzz.config.annotations.ConfigPositive;
+import im.webuzz.config.annotations.ConfigLength;
+import im.webuzz.config.annotations.ConfigNotNull;
+import im.webuzz.config.annotations.ConfigPattern;
+import im.webuzz.config.annotations.ConfigRange;
+import im.webuzz.config.codecs.AESCodec;
+import im.webuzz.config.codecs.Base64Codec;
+import im.webuzz.config.codecs.Bytes64Codec;
+import im.webuzz.config.codecs.BytesAESCodec;
+import im.webuzz.config.codecs.SecretCodec;
+import im.webuzz.config.security.SecurityConfig;
 import im.webuzz.config.security.SecurityKit;
 
 @ConfigClass
@@ -93,7 +102,7 @@ public class Config {
 		generatorExtensions.put("xml", ConfigXMLGenerator.class);
 	}
 	
-	@ConfigPositive
+	@ConfigRange(min = 1, max = 20)
 	public static int configurationMapSearchingDots = 10;
 
 	@ConfigComment({
@@ -103,6 +112,24 @@ public class Config {
 		"im.webuzz.config.security.SecurityKit is a reference implementation.",
 	})
 	public static Class<?> configurationSecurityDecrypter = SecurityKit.class;
+	
+	@ConfigNotNull
+	@ConfigLength(min = 3, max = 32, depth = 1)
+	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
+	public static Map<String, Class<? extends IConfigCodec<?>>> configurationCodecs = new ConcurrentHashMap<>();
+	
+	static {
+		configurationCodecs.put("secret", SecretCodec.class);
+		//configurationCodecs.put("Secret", SecretCodec.class);
+		configurationCodecs.put("aes", AESCodec.class);
+		//configurationCodecs.put("AES", AESCodec.class);
+		configurationCodecs.put("bytesaes", BytesAESCodec.class);
+		//configurationCodecs.put("BytesAES", BytesAESCodec.class);
+		configurationCodecs.put("base64", Base64Codec.class);
+		//configurationCodecs.put("Base64", Base64Codec.class);
+		configurationCodecs.put("bytes64", Bytes64Codec.class);
+		//configurationCodecs.put("Bytes64", Bytes64Codec.class);
+	}
 	
 	public static boolean configurationLogging = true;
 	
@@ -317,6 +344,7 @@ public class Config {
 	 */
 	public static String[] initialize(String[] args) {
 		allConfigs.put(Config.class.getName(), Config.class);
+		//allConfigs.put(SecurityConfig.class.getName(), SecurityConfig.class);
 		argProps = new Properties();
 		String[] retArgs = ConfigINIParser.parseArguments(args, argProps);
 
@@ -371,6 +399,8 @@ public class Config {
 		}
 		
 		loadWatchmen();
+		
+		registerUpdatingListener(SecurityConfig.class);
 		
 		String[] configClasses = configurationClasses;
 		if (configClasses != null) {
@@ -564,7 +594,7 @@ public class Config {
 		for (int i = 0; i < segments.length; i++) {
 			count--;
 			if (count < 0) {
-				System.out.println("Error in fixing URL: " + path);
+				System.out.println("[ERROR] Failed to fix the URL: " + path);
 				break;
 			}
 			String segment = segments[i];
@@ -636,6 +666,7 @@ public class Config {
 	 * @return
 	 */
 	public static String parseSecret(final String secret) {
+		// TODO: Use codecs instead od decrypter
 		if (secret == null || secret.length() == 0) return secret;
 		Class<?> decrypterClass = configurationSecurityDecrypter;
 		if (decrypterClass != null) {

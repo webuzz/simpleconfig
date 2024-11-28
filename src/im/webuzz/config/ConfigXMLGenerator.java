@@ -27,8 +27,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import im.webuzz.config.annotations.ConfigCodec;
 import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.security.SecurityKit;
 
 import java.util.Set;
 
@@ -182,14 +182,17 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	}
 	
 	@Override
-	protected void generateString(StringBuilder builder, String v, boolean secret) {
+	protected void appendEncodedString(StringBuilder builder, String codecKey, String encoded) {
+		builder.append('<').append(codecKey).append('>').append(encoded).append("</").append(codecKey).append('>');
+	}
+
+	@Override
+	protected void generateString(StringBuilder builder, String v) {
 //		if (v == null) {
 //			builder.append($null);
 //		} else 
 		if (v.length() == 0) {
 			builder.append($emptyString);
-		} else if (secret) {
-			builder.append("<secret>" + SecurityKit.encrypt(v) + "</secret>");
 		} else {
 			builder.append(configFormat(v));
 		}
@@ -257,6 +260,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	@Override
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
+			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == null || type == Object.class) {
 			type = vs.getClass();
@@ -335,7 +339,9 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 //				}
 //				if (!diffTypes) targetType = valueType;
 //				generateFieldValue(builder, null, null, null, o, targetType, valueParamType, diffTypes, true, compact, false);
-				generateFieldValue(builder, null, null, null, o, valueType, valueParamType, diffTypes, true, compact, false);
+				generateFieldValue(builder, null, null, null, o, valueType, valueParamType,
+						forKeys, forValues, depth + 1, codecs,
+						diffTypes, true, compact, false);
 				//k++;
 			}
 			/*
@@ -475,12 +481,17 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 				boolean wrapping = needsWrapping;
 				String wrappingTag = null;
 				if (valueType == String.class) {
-					wrappingTag = "String";
+					StringBuilder valueBuilder = new StringBuilder();
+					if (!encode(valueBuilder, o, forKeys, forValues, depth + 1, codecs)) {
+						wrappingTag = "String";
+					}
 				} else {
 					wrapping =true;
 				}
 				generateFieldValue(builder, null, wrappingTag,
-								null, o, valueType, valueParamType, diffTypes, wrapping, false, false);
+								null, o, valueType, valueParamType,
+								forKeys, forValues, depth + 1, codecs,
+								diffTypes, wrapping, false, false);
 			}
 		}
 		if (multipleLines) decreaseIndent();
@@ -499,6 +510,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	@Override
 	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
+			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
 		if ("mapArrs".equals(name)) {
@@ -515,11 +527,21 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		if (needsWrapping) {
 			appendIndents(builder).append("<map");
 		}
+		boolean directPropsMode = false;
 		if (keys.length == 0 || GeneratorConfig.preferKeyValueMapFormat
 				&& keyType == String.class && Utils.canKeysBeFieldNames(keys)) {
-			boolean basicType = isBasicType(valueType);
+			directPropsMode = true;
+			if (keys.length > 0 && codecs != null && codecs.length > 0) {
+				StringBuilder valueBuilder = new StringBuilder();
+				if (encode(valueBuilder, keys[0], true, false, depth + 1, codecs)) {
+					directPropsMode = false;
+				}
+			}
+		}
+		if (directPropsMode) {
+//			boolean basicType = isBasicType(valueType);
 			//boolean singleLine = vs.size() == 1 && basicType;
-			boolean multipleLines = vs.size() > 1 || !basicType;
+//			boolean multipleLines = vs.size() > 1 || !basicType;
 //			if (singleLine) {
 //				builder.append(' ');
 //			}
@@ -552,10 +574,10 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 			}
 			if (needsWrapping) builder.append('>');
 
-			if (multipleLines) {
+//			if (multipleLines) {
 				//builder.append("\r\n");
 				increaseIndent();
-			}
+//			}
 			if ("msas".equals(name)) {
 				System.out.println("Dxxxx");
 			}
@@ -573,17 +595,19 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 				}
 				if (!diffValueTypes) targetValueType = valueType;
 				String prefix = String.valueOf(k); // keywords.contains(k) ? "\"" + k + "\"" : String.valueOf(k);
-				generateFieldValue(builder, null, prefix, null, o, targetValueType, valueParamType, diffValueTypes, 
-						false, //targetValueType.isArray(),
+				generateFieldValue(builder, null, prefix, null, o, targetValueType, valueParamType,
+						false, true, depth + 1, codecs,
+						diffValueTypes, false, //targetValueType.isArray(),
 						compact, false);
 				//generateTypeObject(f, builder, prefix, o, targetValueType, valueParamType, diffValueTypes, compact);
 				//appendLinebreak(builder);
-				if (multipleLines) appendLinebreak(builder);
+//				if (multipleLines)
+					appendLinebreak(builder);
 			}
 			//if (singleLine) builder.append(' ');
-			if (multipleLines) {
+//			if (multipleLines) {
 				decreaseIndent();
-			}
+//			}
 			if (needsTypeInfo) {
 				//appendIndents(builder);
 				//builder.append("</map>");
@@ -636,7 +660,9 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 					diffKeyTypes = true;
 				}
 				if (!diffKeyTypes) targetKeyType = keyType;
-				generateFieldValue(valueBuilder, null, "key", null, k, targetKeyType, keyParamType, diffKeyTypes, false, compact, false);
+				generateFieldValue(valueBuilder, null, "key", null, k, targetKeyType, keyParamType,
+						true, false, depth + 1, codecs,
+						diffKeyTypes, false, compact, false);
 				//appendLinebreak(valueBuilder);
 				Object o = vs.get(k);
 				boolean diffValueTypes = false;
@@ -649,7 +675,9 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 					}
 				}
 				if (!diffValueTypes) targetValueType = valueType;
-				generateFieldValue(valueBuilder, null, "value", null, o, targetValueType, valueParamType, diffValueTypes, false, compact, false);
+				generateFieldValue(valueBuilder, null, "value", null, o, targetValueType, valueParamType,
+						false, true, depth + 1, codecs,
+						diffValueTypes, false, compact, false);
 				//appendLinebreak(valueBuilder);
 				
 				decreaseIndent();
@@ -686,8 +714,12 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	protected StringBuilder assign(StringBuilder builder, String name, StringBuilder value, StringBuilder typeBuilder, boolean compact) {
 		if (compact) {
 			if (name == null || name.length() == 0) return builder.append(value);
-			return builder.append('<').append(name).append('>')
-				.append(value)
+			builder.append('<').append(name);
+			Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+			if (codecs != null && codecs.keySet().contains(name)) {
+				builder.append(" type=\"assign\"");
+			}
+			return builder.append('>').append(value)
 				.append("</").append(name).append('>');
 		}
 		int length = value.length();
@@ -705,6 +737,10 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		builder.append('<').append(name);
 		if (typeBuilder != null && typeBuilder.length() > 0) {
 			builder.append(" class=\"").append(typeBuilder).append('\"');
+		}
+		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		if (codecs != null && codecs.keySet().contains(name)) {
+			builder.append(" type=\"assign\"");
 		}
 		builder.append('>');
 		boolean wrapping = length > 0 && (value.charAt(0) == '\t' || value.charAt(length - 1) == '\n');

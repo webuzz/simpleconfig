@@ -186,7 +186,7 @@ public class ConfigGenerator {
 		} // end if
 	}
 	
-	static void printUsage() {
+	public static void printUsage() {
 		System.out.println("Usage:");
 		System.out.println("\t... " + ConfigGenerator.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
 				+ " <target configuration folder> [main configuration file name or file extension, e.g. config.ini or .ini]"

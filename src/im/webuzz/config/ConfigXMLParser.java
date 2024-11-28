@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -81,7 +82,8 @@ public class ConfigXMLParser implements IConfigConverter {
 		plain,
 		emptyObject,
 		emptyString,
-		secretString,
+		codecString,
+		codecDirect,
 		nullValue,
 		basicData,
 		basicDirect,
@@ -103,6 +105,7 @@ public class ConfigXMLParser implements IConfigConverter {
 	private NodeType parseType(Element o) {
 		if (o == null) return NodeType.unknown;
 		NamedNodeMap attributes = o.getAttributes();
+		boolean assignment = false;
 		if (attributes != null && attributes.getLength() > 0) {
 			// <xxx class="array"> ...
 			// <xxx class="array:..."> ...
@@ -124,12 +127,20 @@ public class ConfigXMLParser implements IConfigConverter {
 					}
 				}
 			}
+			Node typeItem = attributes.getNamedItem("type");
+			if (typeItem != null) {
+				assignment = "assign".equals(typeItem.getNodeValue());
+			}
 		}
 		String typeName = o.getNodeName();
 		if ("map".equals(typeName)) return NodeType.mapDirect;
 		if ("list".equals(typeName)) return NodeType.listDirect;
 		if ("set".equals(typeName)) return NodeType.setDirect;
 		if ("array".equals(typeName)) return NodeType.arrayDirect;
+		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		if (codecs != null && codecs.containsKey(typeName) && !assignment) {
+			return NodeType.codecDirect;
+		}
 		NodeList childNodes = o.getChildNodes();
 		if (childNodes == null) return NodeType.object;
 		int length = childNodes.getLength();
@@ -191,11 +202,11 @@ public class ConfigXMLParser implements IConfigConverter {
 			if ("empty".equals(firstType)) {
 				return NodeType.emptyString;
 			}
-			if ("secret".equals(firstType)) {
-				return NodeType.secretString;
-			}
 			if (basicData.contains(firstType)) {
 				return NodeType.basicData;
+			}
+			if (codecs != null && codecs.containsKey(firstType) && !assignment) {
+				return NodeType.codecString;
 			}
 			// else other types
 			//return objectType;
@@ -206,7 +217,8 @@ public class ConfigXMLParser implements IConfigConverter {
 					|| "#text".equals(firstType)) {
 				return NodeType.plainCollection;
 			}
-			if (knownObjects.contains(firstType) || basicData.contains(firstType)) {
+			if (knownObjects.contains(firstType) || basicData.contains(firstType)
+					|| (codecs != null && codecs.containsKey(firstType))) {
 				return NodeType.collection;
 			}
 			return NodeType.mapKnown;
@@ -301,9 +313,15 @@ public class ConfigXMLParser implements IConfigConverter {
 			assign(builder, prefix, null).append(ConfigINIParser.$empty).append("\r\n");
 			return;
 		}
-		if (type == NodeType.secretString) {
-			String secretStr = getTextValue(getFirstElement(o)).trim();
-			assign(builder, prefix, null).append("[secret:").append(secretStr).append("]\r\n");
+		if (type == NodeType.codecString) {
+			Element el = getFirstElement(o);
+			String secretStr = getTextValue(el).trim();
+			assign(builder, prefix, null).append('[').append(el.getNodeName()).append(':').append(secretStr).append("]\r\n");
+			return;
+		}
+		if (type == NodeType.codecDirect) {
+			String secretStr = getTextValue(o).trim();
+			assign(builder, prefix, null).append('[').append(o.getNodeName()).append(':').append(secretStr).append("]\r\n");
 			return;
 		}
 		if (type == NodeType.emptyObject) {

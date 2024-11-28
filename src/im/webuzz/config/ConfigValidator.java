@@ -19,7 +19,7 @@ import im.webuzz.config.annotations.ConfigNumberEnum;
 import im.webuzz.config.annotations.ConfigPattern;
 import im.webuzz.config.annotations.ConfigPositive;
 import im.webuzz.config.annotations.ConfigRange;
-import im.webuzz.config.annotations.ConfigSecret;
+import im.webuzz.config.annotations.ConfigCodec;
 import im.webuzz.config.annotations.ConfigSince;
 
 public class ConfigValidator {
@@ -66,7 +66,7 @@ public class ConfigValidator {
 	protected static void appendAnnotation(StringBuilder builder, Annotation ann, boolean multiple) {
 		builder.append('@').append(ann.annotationType().getSimpleName());
 		if (ann instanceof ConfigNotNull || ann instanceof ConfigNotEmpty || ann instanceof ConfigLength
-				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern
+				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern || ann instanceof ConfigCodec
 				|| ann instanceof ConfigRange || ann instanceof ConfigNumberEnum
 				|| ann instanceof ConfigSince) {
 			builder.append('(');
@@ -100,23 +100,65 @@ public class ConfigValidator {
 			} else if (ann instanceof ConfigEnum) {
 				ConfigEnum a = (ConfigEnum) ann;
 				String[] values = a.value();
-				boolean first = true;
-				for (String value : values) {
-					if (!first) builder.append(", ");
-					if (value == null) {
-						builder.append("null");
-					} else if (value.length() == 0) {
-						builder.append("\"\"");
-					} else {
-						builder.append('\"').append(formatString(value)).append('\"');
+				if (values != null) {
+					if (values.length > 1) builder.append('{');
+					boolean first = true;
+					for (String value : values) {
+						if (!first) builder.append(", ");
+						if (value == null) {
+							builder.append("null");
+						} else if (value.length() == 0) {
+							builder.append("\"\"");
+						} else {
+							builder.append('\"').append(formatString(value)).append('\"');
+						}
+						first = false;
 					}
-					first = false;
+					if (values.length > 1) builder.append('}');
 				}
 			} else if (ann instanceof ConfigPattern) {
 				ConfigPattern a = (ConfigPattern) ann;
 				String value = a.value();
 				if (value != null && value.length() > 0) {
 					builder.append('\"').append(formatString(value)).append('\"');
+				}
+			} else if (ann instanceof ConfigCodec) {
+				ConfigCodec a = (ConfigCodec) ann;
+				String[] values = a.preferences();
+				if (values != null && values.length > 0) {
+					builder.append("preferences = ");
+					if (values.length > 1) builder.append('{');
+					boolean first = true;
+					for (String value : values) {
+						if (!first) builder.append(", ");
+						if (value == null) {
+							builder.append("null");
+						} else if (value.length() == 0) {
+							builder.append("\"\"");
+						} else {
+							builder.append('\"').append(formatString(value)).append('\"');
+						}
+						first = false;
+					}
+					if (values.length > 1) builder.append('}');
+				}
+				if (a.key()) {
+					if (builder.charAt(builder.length() - 1) != '(') {
+						builder.append(", ");
+					}
+					builder.append("key = true");
+				}
+				if (a.value()) {
+					if (builder.charAt(builder.length() - 1) != '(') {
+						builder.append(", ");
+					}
+					builder.append("value = true");
+				}
+				if (a.depth() >= 0 || multiple) {
+					if (builder.charAt(builder.length() - 1) != '(') {
+						builder.append(", ");
+					}
+					builder.append("depth = ").append(a.depth());
 				}
 			} else if (ann instanceof ConfigRange) {
 				ConfigRange a = (ConfigRange) ann;
@@ -134,12 +176,16 @@ public class ConfigValidator {
 			} else if (ann instanceof ConfigNumberEnum) {
 				ConfigNumberEnum a = (ConfigNumberEnum) ann;
 				double[] values = a.value();
-				boolean first = true;
-				for (double value : values) {
-					if (!first) builder.append(", ");
-					builder.append(value);
-					trimEndingDot0(builder);
-					first = false;
+				if (values != null) {
+					if (values.length > 1) builder.append('{');
+					boolean first = true;
+					for (double value : values) {
+						if (!first) builder.append(", ");
+						builder.append(value);
+						trimEndingDot0(builder);
+						first = false;
+					}
+					if (values.length > 1) builder.append('}');
 				}
 			} else if (ann instanceof ConfigSince) {
 				ConfigSince a = (ConfigSince) ann;
@@ -181,7 +227,7 @@ public class ConfigValidator {
 				numberAnnotations.add(ann);
 			} else if (ann instanceof ConfigRange) {
 				numberAnnotations.add(ann);
-			} else if (ann instanceof ConfigSecret) {
+			} else if (ann instanceof ConfigCodec) {
 				stringAnnotations.add(ann);
 			}
 		}

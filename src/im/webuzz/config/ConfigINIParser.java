@@ -228,8 +228,9 @@ public class ConfigINIParser {
 		}
 		//StringBuilder errBuilder = new StringBuilder();
 		try {
+			Object decoded = decode(p);
 			if (type == String.class) {
-				String nv = parseString(p);
+				String nv = decoded != null ? (String) decoded : parseString(p);
 				String ov = (String) f.get(obj);
 				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
 					if (diffB != null) diffB.append(ov).append('>').append(p);
@@ -315,7 +316,7 @@ public class ConfigINIParser {
 					return result;
 				}
 			} else if (type != null && type.isArray()) {
-				Object nv = parseCollection(prop, keyName, p, type, f.getGenericType());
+				Object nv = decoded != null ? decoded : parseCollection(prop, keyName, p, type, f.getGenericType());
 				if (nv == error) return -1;
 				if (!DeepComparator.arrayDeepEquals(type.getComponentType().isPrimitive(), nv, f.get(obj))) {
 					if (diffB != null) diffB.append("[...]").append('>')
@@ -326,7 +327,7 @@ public class ConfigINIParser {
 					return result;
 				}
 			} else if (List.class.isAssignableFrom(type)) {
-				Object ret = parseCollection(prop, keyName, p, type, f.getGenericType());
+				Object ret = decoded != null ? decoded : parseCollection(prop, keyName, p, type, f.getGenericType());
 				if (ret == error) return -1;
 				List nv = (List) ret;
 				List ov = (List) f.get(obj);
@@ -339,7 +340,7 @@ public class ConfigINIParser {
 					return result;
 				}
 			} else if (Set.class.isAssignableFrom(type)) {
-				Object ret = parseCollection(prop, keyName, p, type, f.getGenericType());
+				Object ret =decoded != null ? decoded :  parseCollection(prop, keyName, p, type, f.getGenericType());
 				if (ret == error) return -1;
 				Set nv = (Set) ret;
 				Set ov = (Set) f.get(obj);
@@ -352,7 +353,7 @@ public class ConfigINIParser {
 					return result;
 				}
 			} else if (Map.class.isAssignableFrom(type)) {
-				Object ret = parseMap(prop, keyName, p, type, f.getGenericType());
+				Object ret = decoded != null ? decoded : parseMap(prop, keyName, p, type, f.getGenericType());
 				if (ret == error) return -1;
 				Map nv = (Map) ret;
 				Map ov = (Map) f.get(obj);
@@ -372,7 +373,10 @@ public class ConfigINIParser {
 				Object ov = f.get(obj);
 				boolean changed = false;
 				Object nv = null;
-				if (!p.equals(ConfigINIParser.$null)) {
+				if (decoded != null) {
+					nv = decoded;
+					changed = ov == null ? true : !nv.equals(ov);
+				} else if (!p.equals(ConfigINIParser.$null)) {
 					int length = p.length();
 					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
 						int idx = p.indexOf(':');
@@ -403,8 +407,12 @@ public class ConfigINIParser {
 				}
 			} else if (type == Class.class) {
 				Class<?> ov = (Class<?>) f.get(obj);
+				Class<?> nv = null;
 				String nvStr = null;
-				if (p != null && !ConfigINIParser.$null.equals(p)) {
+				if (decoded != null) {
+					nv = (Class<?>) decoded;
+					nvStr = nv.getName();
+				} else if (p != null && !ConfigINIParser.$null.equals(p)) {
 					int length = p.length();
 					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
 						int idx = p.indexOf(':');
@@ -418,8 +426,7 @@ public class ConfigINIParser {
 				String ovStr = null;
 				if (ov != null) ovStr = ov.getName();
 				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
-					Class<?> nv = null;
-					if (nvStr != null && nvStr.length() > 0) {
+					if (nvStr != null && nvStr.length() > 0 && nv == null) {
 						StringBuilder err = new StringBuilder();
 						nv = Config.loadConfigurationClass(nvStr, err);
 						if (nv == null) {
@@ -437,8 +444,12 @@ public class ConfigINIParser {
 				}
 			} else if (type.isEnum() || type == Enum.class) {
 				Enum<?> ov = (Enum<?>) f.get(obj);
+				Enum<?> nv = null;
 				String nvStr = null;
-				if (p != null && !ConfigINIParser.$null.equals(p)) {
+				if (decoded != null) {
+					nv = (Enum<?>) decoded;
+					nvStr = nv.name();
+				} else if (p != null && !ConfigINIParser.$null.equals(p)) {
 					String suffix = null;
 					int length = p.length();
 					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
@@ -461,8 +472,7 @@ public class ConfigINIParser {
 				String ovStr = null;
 				if (ov != null) ovStr = ov.name();
 				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
-					Object nv = null;
-					if (nvStr != null && nvStr.length() > 0) {
+					if (nvStr != null && nvStr.length() > 0 && nv == null) {
 						nv = Enum.valueOf((Class<? extends Enum>) type, nvStr);
 					}
 					int result = ConfigValidator.validateObject(f, nv, 0, keyName);
@@ -471,7 +481,7 @@ public class ConfigINIParser {
 					return result;
 				}
 			} else {
-				Object nv = parseObject(prop, keyName, p, type, f.getGenericType());
+				Object nv = decoded != null ? decoded : parseObject(prop, keyName, p, type, f.getGenericType());
 				if (nv == error) return -1;
 				Object ov = f.get(obj);
 				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
@@ -493,6 +503,34 @@ public class ConfigINIParser {
 		return 0;
 	}
 
+	protected static Object decode(String p) {
+		Object decoded = null;
+		if (p != null && !ConfigINIParser.$null.equals(p)) {
+			int length = p.length();
+			if (length > 1 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+				int idx = p.indexOf(':');
+				if (idx != -1) {
+					String key = p.substring(1, idx);
+					Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+					if (codecs != null) {
+						Class<? extends IConfigCodec<?>> clazz = codecs.get(key);
+						if (clazz != null) {
+							try {
+								IConfigCodec<?> codec = (IConfigCodec<?>) clazz.newInstance();
+								decoded = codec.decode(p.substring(idx + 1, length - 1));
+							} catch (InstantiationException e) {
+								e.printStackTrace();
+							} catch (IllegalAccessException e) {
+								e.printStackTrace();
+							}
+						}
+					}
+				}
+			}
+		}
+		return decoded;
+	}
+
 	/**
 	 * Parse the given string into a string, which will be used for the configuration field.
 	 * Known string pattern:
@@ -506,13 +544,6 @@ public class ConfigINIParser {
 	private static String parseString(String p) {
 		if (ConfigINIParser.$null.equals(p) || p == null) return null;
 		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) return "";
-		if (p.indexOf("[secret:") == 0) { // "[secret:#######]";
-			return Config.parseSecret(p.substring(8, p.length() - 1));
-		}
-		if (p.indexOf("[base64:") == 0) { // "[base64:#######]";
-			byte[] bytes = Base64.base64ToByteArray(p.substring(8, p.length() - 1));
-			return new String(bytes, Config.configFileEncoding);
-		}
 		return p;
 	}
 
@@ -561,7 +592,7 @@ public class ConfigINIParser {
 	 */
 	private static Object parseCollection(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
 		/*
-		if ("towns".equals(keyName)) {
+		if ("strBytes".equals(keyName)) {
 			System.out.println("Tow");
 		} // */
 		if (ConfigINIParser.$null.equals(p) || p == null) return null;
@@ -597,6 +628,8 @@ public class ConfigINIParser {
 			if (length > 2) {
 				int idx = p.indexOf(':');
 				if (idx != -1) {
+					Object decoded = decode(p);
+					if (decoded != null) return decoded;
 					String typeStr = p.substring(1, idx).trim();
 					if ("array".equals(typeStr) || "list".equals(typeStr) || "set".equals(typeStr)) {
 						p = p.substring(idx + 1, length - 1).trim();
@@ -741,7 +774,7 @@ public class ConfigINIParser {
 			valueType = Utils.getRawType(valueParamType);
 		}
 		/*
-		if ("cityMap".equals(keyName)) {
+		if ("mms".equals(keyName)) {
 			System.out.println("city map");
 		} // */
 		int length = p.length();
@@ -1001,6 +1034,8 @@ public class ConfigINIParser {
 		if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
 			int idx = p.indexOf(':');
 			if (idx != -1) {
+				Object decoded = decode(p);
+				if (decoded != null) return decoded;
 				String typePrefix = p.substring(0, idx);
 				if (!($object.startsWith(typePrefix)
 						|| $array.startsWith(typePrefix) || $list.startsWith(typePrefix)
@@ -1071,7 +1106,24 @@ public class ConfigINIParser {
 				return Config.loadConfigurationClass(rawType);
 			}
 			String prefix = p.substring(0, idx);
-			if (prefix.equals("[base64") || prefix.equals("[secret")) return String.class;
+			
+			Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+			if (codecs != null) {
+				Class<? extends IConfigCodec<?>> clazz = codecs.get(prefix.substring(1).trim());
+				if (clazz != null) {
+					Type[] genericInterfaces = clazz.getGenericInterfaces();
+					if (genericInterfaces != null && genericInterfaces.length > 0) {
+						Type paramType = genericInterfaces[0];
+						if (paramType instanceof ParameterizedType) {
+							Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
+							Class<?> objType = Utils.getRawType(valueType);
+							if (objType != null) return objType;
+						} else if (paramType instanceof Class<?>) {
+							return (Class<?>) paramType;
+						}
+					}
+				}
+			}
 			
 			String suffix = p.substring(idx + 1, length - 1);
 			if (ConfigINIParser.$array.startsWith(prefix)) {

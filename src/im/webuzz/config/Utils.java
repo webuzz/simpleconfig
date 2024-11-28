@@ -140,4 +140,24 @@ public class Utils {
 		return true;
 	}
 
+
+	public static boolean canAKeyBeAPrefixedName(String key) {
+		int len = key.length();
+		for (int i = 0; i < len; i++) {
+			char c = key.charAt(i);
+			if (!(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || '.' == c || '-' == c || '_' == c || '$' == c || ('0' <= c && c <= '9'))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public static boolean canKeysBePrefixedNames(Object[] keys) {
+		for (int i = 0; i < keys.length; i++) {
+			if (!(keys[i] instanceof String) || !canAKeyBeAPrefixedName((String) keys[i])) return false;
+		}
+		return true;
+	}
+
+
 }

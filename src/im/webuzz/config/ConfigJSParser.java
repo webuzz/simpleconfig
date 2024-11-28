@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
 
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
@@ -108,9 +109,27 @@ public class ConfigJSParser implements IConfigConverter {
 		if (!js.endsWith(";")) {
 			js += ";";
 		}
+		StringBuilder builder = new StringBuilder();
+		builder.append("$configurationCodecs = ");
+		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		if (codecs != null) {
+			String[] cs = codecs.keySet().toArray(new String[codecs.size()]);
+			builder.append('[');
+			boolean first = true;
+			for (String c : cs) {
+				if (!first) builder.append(", ");
+				builder.append('\"').append(c).append('\"');
+				first = false;
+			}
+			builder.append(']');
+		} else {
+			builder.append("null");
+		}
+		//System.out.println(builder.toString());
+		builder.append(";\r\n$config = ").append(js).append("\r\n");
 		try {
 			if (checkInitialize()) {
-				Object o = evalMethod.invoke(jsEngine, "$config = " + js + "\r\nconvertToProperties($config);");
+				Object o = evalMethod.invoke(jsEngine,  builder.toString() + "convertToProperties($config);");
 				if (o instanceof String) {
 //					System.out.println(convertJS);
 //					System.out.println("js->ini");
@@ -123,7 +142,7 @@ public class ConfigJSParser implements IConfigConverter {
 			// If malicious js (last) modifies #convertToProperties, try to correct it to original JavaScript.
 			// So normal js configuration won't be affected.
 			if (checkInitialize()) {
-				Object o = evalMethod.invoke(jsEngine, "$config = " + js + "\r\n" + convertJS + "\r\nconvertToProperties($config);");
+				Object o = evalMethod.invoke(jsEngine, builder.toString() + convertJS + "\r\nconvertToProperties($config);");
 				if (o instanceof String) {
 					// System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));

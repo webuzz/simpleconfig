@@ -75,7 +75,7 @@ function visit(builder, ignoringProps, prefix, o) {
 	var oClass = o["class"];
 	if (oClass != null && oClass.indexOf("[") == 0) {
 		//builder[builder.length] = "# # " + oClass;
-if (oClass.indexOf("[array") == 0 || oClass.indexOf("[list") == 0 || oClass.indexOf("[set") == 0) {
+		if (oClass.indexOf("[array") == 0 || oClass.indexOf("[list") == 0 || oClass.indexOf("[set") == 0) {
 			o = o["value"];
 			if (o == null) {
 				builder[builder.length] = prefix + "=[null]";
@@ -149,6 +149,14 @@ if (oClass.indexOf("[array") == 0 || oClass.indexOf("[list") == 0 || oClass.inde
 					|| "Enum" == type) {
 				builder[builder.length] = prefix + "=[" + type + ":" + value + "]";
 				return;
+			}
+			if (typeof $configurationCodecs != null) {
+				for (var i = 0; i < $configurationCodecs.length; i++) {
+					if ($configurationCodecs[i] == type) {
+						builder[builder.length] = prefix + "=[" + type + ":" + value + "]";
+						return;
+					}
+				}
 			}
 		}
 		builder[builder.length] = prefix + "=" + (objBuilder.length == 0 ? "[empty]" : objBuilder.join(";"));
