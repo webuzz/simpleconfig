@@ -1,9 +1,16 @@
-function isPlainObject(o, prefix, ignoringProps) {
+if ((typeof $configurationCodecs) == "undefined") {
+	$configurationCodecs = [ "secret", "aes", "base64", "bytes64", "bytesaes" ];
+}
+
+var $imwebuzzconfigparser = function() {};
+
+/* private */
+$imwebuzzconfigparser.prototype.isPlainObject = function(o, prefix, ignoringProps) {
 	if (o == null) return true;
 	var fieldCount = 0;
 	var strLength = prefix == null ? 0 : (prefix.length + 1);
 	for (var p in o) {
-		if (!isAField(p, 1, ignoringProps)) continue;
+		if (!this.isAField(p, 1, ignoringProps)) continue;
 		var op = o[p];
 		if (op == null) continue;
 		var opType = typeof op;
@@ -23,9 +30,10 @@ function isPlainObject(o, prefix, ignoringProps) {
 	}
 	if (fieldCount > 8) return false;
 	return true;
-}
+};
 
-function isPlainArray(o, prefix) {
+/* private */
+$imwebuzzconfigparser.prototype.isPlainArray = function(o, prefix) {
 	if (o == null) return true;
 	var length = o.length;
 	if (length > 15) return false;
@@ -48,17 +56,19 @@ function isPlainArray(o, prefix) {
 		}
 	}
 	return true;
-}
+};
 
-function isAField(p, offset, ignoringProps) {
+/* private */
+$imwebuzzconfigparser.prototype.isAField = function(p, offset, ignoringProps) {
 	if (ignoringProps == null) return true;
 	for (var i = offset; i < ignoringProps.length; i++) {
 		if (ignoringProps[i] == p) return false;
 	}
 	return true;
-}
+};
 
-function visit(builder, ignoringProps, prefix, o) {
+/* private */
+$imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix, o) {
 	if (o == null) {
 		builder[builder.length] = prefix + "=[null]";
 		return; 
@@ -92,7 +102,7 @@ function visit(builder, ignoringProps, prefix, o) {
 		var length = o.length;
 		if (length == 0) {
 			builder[builder.length] = prefix + "=[empty]";
-		} else if (oClass == null && isPlainArray(o, prefix)) {
+		} else if (oClass == null && this.isPlainArray(o, prefix)) {
 			var objBuilder = [];
 			for (var i = 0; i < length; i++) {
 				var pv = o[i];
@@ -113,19 +123,19 @@ function visit(builder, ignoringProps, prefix, o) {
 				for (var j = 0; j < leadingZeros; j++) {
 					index = "0" + index;
 				}
-				visit(builder, ignoringProps, prefix + "." + index, o[i]);
+				this.visit(builder, ignoringProps, prefix + "." + index, o[i]);
 			}
 		}
 		return;
 	}
 	// Convert normal object or map to key-value pairs
-	if (oClass == null && isPlainObject(o, prefix, ignoringProps)) {
+	if (oClass == null && this.isPlainObject(o, prefix, ignoringProps)) {
 		var objBuilder = [];
 		var fields = 0;
 		var type = null;
 		var value = null;
 		for (var p in o) {
-			if (!isAField(p, offset, ignoringProps)) continue;
+			if (!this.isAField(p, offset, ignoringProps)) continue;
 			var pv = o[p];
 			if (pv == null) {
 				pv = "[null]";
@@ -150,7 +160,7 @@ function visit(builder, ignoringProps, prefix, o) {
 				builder[builder.length] = prefix + "=[" + type + ":" + value + "]";
 				return;
 			}
-			if (typeof $configurationCodecs != null) {
+			if ($configurationCodecs != null) {
 				for (var i = 0; i < $configurationCodecs.length; i++) {
 					if ($configurationCodecs[i] == type) {
 						builder[builder.length] = prefix + "=[" + type + ":" + value + "]";
@@ -163,14 +173,14 @@ function visit(builder, ignoringProps, prefix, o) {
 	} else {
 		var generated = false;
 		for (var p in o) {
-			if (!isAField(p, offset, ignoringProps)) continue;
+			if (!this.isAField(p, offset, ignoringProps)) continue;
 			if (prefix == null) {
-				visit(builder, ignoringProps, p, o[p]);
+				this.visit(builder, ignoringProps, p, o[p]);
 			} else {
 				if (!generated) {
 					builder[builder.length] = prefix + (oClass == null ? "=[]" : ("=" + oClass));
 				}
-				visit(builder, ignoringProps, prefix + "." + p, o[p]);
+				this.visit(builder, ignoringProps, prefix + "." + p, o[p]);
 			}
 			generated = true;
 		}
@@ -178,9 +188,10 @@ function visit(builder, ignoringProps, prefix, o) {
 			builder[builder.length] = prefix + "=[empty]";
 		}
 	}
-}
+};
 
-function convertToProperties(configObj) {
+/* public */ // Will be invoked by class ConfigJSParser
+$imwebuzzconfigparser.prototype.convertToProperties = function(configObj) {
 	var ignoringProps = [ "class" ];
 	var emptyObject = {};
 	for (var p in emptyObject) {
@@ -189,7 +200,7 @@ function convertToProperties(configObj) {
 	// All properties in an empty object will be ignored
 	
 	var configProps = [];
-	visit(configProps, ignoringProps, null, configObj);
+	this.visit(configProps, ignoringProps, null, configObj);
 	for (var i = 0; i < configProps.length; i++) {
 		var line = configProps[i];
 		line = line.replace(new RegExp("\n", "gm"), "\\n");
@@ -197,4 +208,4 @@ function convertToProperties(configObj) {
 		configProps[i] = line;
 	}
 	return configProps.join("\r\n");
-}
+};

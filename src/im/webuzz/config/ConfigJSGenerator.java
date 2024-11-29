@@ -420,15 +420,10 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
-		if (compact) {
-			// TODO:
-			System.out.println("!!!!!!!! Need to compact the map object!");
-			compact = false;
-			//return;
-		}
-		if ("msas".equals(name)) {
+		/*
+		if ("strMap".equals(name)) {
 			System.out.println("xxx mapAas");
-		}
+		} //*/
 		startObjectBlock(builder, valueType, false, needsWrapping);
 		boolean directPropsMode = false;
 		if (keys.length == 0 || GeneratorConfig.preferKeyValueMapFormat
@@ -468,10 +463,13 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 				builder.append("]\",");
 			}
 			//if (singleLine) builder.append(' ');
-			//if (multipleLines) {
+			if (compact) {
+				builder.append(' ');
+			} else {
 				builder.append("\r\n");
 				increaseIndent();
-			//}
+			}
+			int index = 0;
 			for (Object k : keys) {
 				//if (vs.size() > 1) builder.append(indents);
 				Object o = vs.get(k);
@@ -489,15 +487,23 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 				generateFieldValue(builder, null, prefix, null, o, targetValueType, valueParamType,
 						false, true, depth + 1, codecs,
 						diffValueTypes, false, compact, false);
-				//appendLinebreak(builder);
-				if (/*multipleLines && */!needsClassToAvoidCodec) appendLinebreak(builder);
+				if (size > 1/* && index != size - 1*/) {
+					if (compact) {
+						if (index != size - 1) builder.append(", ");
+					} else {
+						appendLinebreak(builder);
+					}
+				}
+				index++;
 			}
-			//if (singleLine) builder.append(' ');
-			//if (multipleLines) {
+			if (compact) {
+				builder.append(' ');
+			} else {
 				decreaseIndent();
 				appendIndents(builder);
-			//}
+			}
 		} else {
+			compact = false;
 			//builder.append("\r\n");
 			//increaseIndent();
 			builder.append(' ');

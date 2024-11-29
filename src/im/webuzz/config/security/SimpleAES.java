@@ -160,7 +160,7 @@ public class SimpleAES {
 		try {
 			return doAES(Cipher.ENCRYPT_MODE, sKeySpec0, sBytes);
 		} catch (Exception e) {
-			//e.printStackTrace();
+			e.printStackTrace();
 			return null;
 		}
 	}
@@ -180,8 +180,9 @@ public class SimpleAES {
 					e2.printStackTrace();
 					return null;
 				}
+			} else {
+				e.printStackTrace();
 			}
-			//e.printStackTrace();
 			return null;
 		}
 	}

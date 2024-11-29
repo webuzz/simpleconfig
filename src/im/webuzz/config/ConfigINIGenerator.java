@@ -234,9 +234,11 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			boolean compact, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
-		if ("refToFloatArr".equals(name)) {
+		/*
+		if ("strMap".equals(name)) {
 			System.out.println("object array");
 		}
+		//*/
 		Class<?> type = definedType;
 		if (f != null) {
 			type = f.getType();
@@ -453,15 +455,17 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
 					if (Utils.getRawType(valueType) != v.getClass()) continue;
 				} else if (paramType != v.getClass()) continue;
+				IConfigCodec<T> codec = (IConfigCodec<T>) Config.codecs.get(codecKey);
 				try {
-					IConfigCodec<T> codec = (IConfigCodec<T>) clazz.newInstance();
+					if (codec == null) {
+						codec = (IConfigCodec<T>) clazz.newInstance();
+						Config.codecs.put(codecKey, codec);
+					}
 					String encoded = codec.encode(v);
 					if (encoded == null || encoded.length() == 0) continue;
 					appendEncodedString(builder, codecKey, encoded);
 					return true;
-				} catch (InstantiationException e) {
-					e.printStackTrace();
-				} catch (IllegalAccessException e) {
+				} catch (Throwable e) {
 					e.printStackTrace();
 				}
 			}
@@ -619,7 +623,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			}
 			if (size == 1) {
 				return checkCompactness(Array.get(value, 0), definedCompType, paramCompType,
-						forKeys, forValues, depth, codecs, null);
+						forKeys, forValues, depth + 1, codecs, null);
 			}
 			/*
 			Class<?> realCompType = realType.getComponentType();
@@ -646,10 +650,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
 				return false; // List or set object is wrapped in another object
 			}
-			collection.iterator().next();
 			if (size == 1) {
 				return checkCompactness(collection.iterator().next(), definedCompType, paramCompType,
-						forKeys, forValues, depth, codecs, null);
+						forKeys, forValues, depth + 1, codecs, null);
 			}
 			return checkArrayCompactness(collection.toArray(new Object[size]), definedCompType, paramCompType,
 					forKeys, forValues, depth, codecs);
@@ -671,14 +674,13 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				paramValueType = actualTypeArgs[1];
 				definedValueType = Utils.getRawType(paramValueType);
 			}
-			for (Object o : map.keySet()) {
-				if (checkCompactness(o, definedKeyType, paramKeyType,
-						true, forValues, depth, codecs, null)) return false;
-			}
-			for (Object o : map.values()) {
-				if (checkCompactness(o, definedValueType, paramValueType,
-						forKeys, true, depth, codecs, null)) return false;
-			}
+			if (!checkArrayCompactness(map.keySet().toArray(new Object[size]),
+					definedKeyType, paramKeyType,
+					true, forValues, depth, codecs)) return false;
+
+			if (!checkArrayCompactness(map.values().toArray(new Object[size]),
+					definedValueType, paramValueType,
+					true, forValues, depth, codecs)) return false;
 			return true;
 		}
 		
@@ -740,7 +742,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		StringBuilder compactBuilder = new StringBuilder();
 		for (int i = 0; i < arr.length; i++) {
 			if (!checkCompactness(arr[i], compType, paramCompType,
-					forKeys, forValues, depth, codecs, null)) return false;
+					forKeys, forValues, depth + 1, codecs, null)) return false;
 			if (compType.isPrimitive() || compType == String.class
 					|| Utils.isBasicDataType(compType)) {
 				if (i != 0) compactBuilder.append($compactSeparator);

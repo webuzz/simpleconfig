@@ -36,6 +36,7 @@ import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
 import im.webuzz.config.annotations.ConfigLength;
+import im.webuzz.config.annotations.ConfigNotEmpty;
 import im.webuzz.config.annotations.ConfigNotNull;
 import im.webuzz.config.annotations.ConfigPattern;
 import im.webuzz.config.annotations.ConfigRange;
@@ -56,7 +57,7 @@ public class Config {
 	
 	public static final Charset configFileEncoding = Charset.forName("UTF-8");
 
-	protected static final String keyPrefixFieldName = "configKeyPrefix";
+	private static final String keyPrefixFieldName = "configKeyPrefix";
 
 	//public static boolean configurationMultipleFiles = true;
 	private static String configurationFolder = null;
@@ -68,6 +69,9 @@ public class Config {
 		"to find configuration file and will decide the priority of which file will be used.",
 		"The first extension will be the default file extension."
 	})
+	@ConfigNotNull
+	@ConfigNotEmpty
+	@ConfigPattern("(\\.[a-zA-Z0-9]+)")
 	public static List<String> configurationScanningExtensions = Arrays.asList(new String[] {
 			".ini", // default file extension
 			".js", ".json",
@@ -87,11 +91,21 @@ public class Config {
 
 	public static Map<Class<?>, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<>();
 	
+	@ConfigNotNull
+	@ConfigPattern("([a-zA-Z0-9]+)")
 	public static Map<String, Class<? extends IConfigConverter>> converterExtensions = new ConcurrentHashMap<>();
 	protected static Map<String, IConfigConverter> converters = new ConcurrentHashMap<>();
 
+	@ConfigNotNull
+	@ConfigPattern("([a-zA-Z0-9]+)")
 	public static Map<String, Class<? extends IConfigGenerator>> generatorExtensions = new ConcurrentHashMap<>();
 	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<>();
+	
+	@ConfigNotNull
+	@ConfigLength(min = 3, max = 32, depth = 1)
+	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
+	public static Map<String, Class<? extends IConfigCodec<?>>> configurationCodecs = new ConcurrentHashMap<>();
+	protected static Map<String, IConfigCodec<?>> codecs = new ConcurrentHashMap<>();
 	
 	static {
 		converterExtensions.put("js", ConfigJSParser.class);
@@ -100,25 +114,7 @@ public class Config {
 		generatorExtensions.put("ini", ConfigINIGenerator.class);
 		generatorExtensions.put("js", ConfigJSGenerator.class);
 		generatorExtensions.put("xml", ConfigXMLGenerator.class);
-	}
-	
-	@ConfigRange(min = 1, max = 20)
-	public static int configurationMapSearchingDots = 10;
 
-	@ConfigComment({
-		"The class for configured password decryption.",
-		"If not set, password is in plain text. ",
-		"",
-		"im.webuzz.config.security.SecurityKit is a reference implementation.",
-	})
-	public static Class<?> configurationSecurityDecrypter = SecurityKit.class;
-	
-	@ConfigNotNull
-	@ConfigLength(min = 3, max = 32, depth = 1)
-	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
-	public static Map<String, Class<? extends IConfigCodec<?>>> configurationCodecs = new ConcurrentHashMap<>();
-	
-	static {
 		configurationCodecs.put("secret", SecretCodec.class);
 		//configurationCodecs.put("Secret", SecretCodec.class);
 		configurationCodecs.put("aes", AESCodec.class);
@@ -131,20 +127,23 @@ public class Config {
 		//configurationCodecs.put("Bytes64", Bytes64Codec.class);
 	}
 	
+	@ConfigRange(min = 1, max = 20)
+	public static int configurationMapSearchingDots = 10;
+	
 	public static boolean configurationLogging = true;
 	
 	public static Class<?> configurationAlarmer = null;
 	public static boolean exitInitializingOnInvalidItems = true;
 	public static boolean skipUpdatingWithInvalidItems = true;
-	
-	protected static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
-	
-	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<>();
 
-	private static volatile ClassLoader configurationLoader = null;
 	
 	protected static volatile long initializedTime = 0;
 	protected static boolean initializationFinished = false;
+
+	private static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
+	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<>();
+
+	private static volatile ClassLoader configurationLoader = null;
 	
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -201,7 +200,7 @@ public class Config {
 		System.out.println("[ERROR] Unknown configuration item " + cfg);
 	}
 	
-	public static void registerPackage(String starredPkgName) {
+	protected static void registerPackage(String starredPkgName) {
 		String pkgName = starredPkgName.substring(0, starredPkgName.length() - 2);
 		try {
 			List<Class<?>> classes = AnnotationScanner.getAnnotatedClassesInPackage(pkgName, ConfigClass.class);
@@ -217,7 +216,7 @@ public class Config {
 		}
 	}
 	
-	public static void registerClass(Class<?> clazz) {
+	protected static void registerClass(Class<?> clazz) {
 		registerUpdatingListener(clazz);
 	}
 
@@ -463,7 +462,10 @@ public class Config {
 	}
 
 	public static boolean reportErrorToContinue(String msg) {
-		System.out.println("[ERROR] " + msg);
+		String[] msgs = msg.split("(\r\n|\n|\r)");
+		for (int i = 0; i < msgs.length; i++) {
+			System.out.println("[ERROR] " + msgs[i]);
+		}
 		if (configurationAlarmer != null) {
 			// TODO: Use alarm to send an alert to the operator 
 		}
@@ -665,26 +667,15 @@ public class Config {
 	 * @param secret
 	 * @return
 	 */
+	@Deprecated
 	public static String parseSecret(final String secret) {
 		// TODO: Use codecs instead od decrypter
 		if (secret == null || secret.length() == 0) return secret;
-		Class<?> decrypterClass = configurationSecurityDecrypter;
-		if (decrypterClass != null) {
-			try {
-				Method m = decrypterClass.getMethod("decrypt", String.class); // password
-				Object result = m.invoke(decrypterClass, secret);
-				if (result instanceof String) {
-					System.out.println("Decrypted: " + secret + " ==> " + result);
-					return (String) result;
-				}
-			} catch (NoSuchMethodException e) {
-				// do nothing
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+		Object result = ConfigINIParser.decodeRaw("secret", secret);
+		if (result instanceof String) {
+			//System.out.println("Decrypted: " + secret + " ==> " + result);
+			return (String) result;
 		}
-		// password = SecurityKit.decrypt(password);
-		System.out.println("Failed to parse " + secret);
 		return secret;
 	}
 

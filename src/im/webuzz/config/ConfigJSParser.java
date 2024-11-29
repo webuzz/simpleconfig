@@ -126,10 +126,10 @@ public class ConfigJSParser implements IConfigConverter {
 			builder.append("null");
 		}
 		//System.out.println(builder.toString());
-		builder.append(";\r\n$config = ").append(js).append("\r\n");
+		builder.append(";$config = ").append(js).append("\r\n");
 		try {
 			if (checkInitialize()) {
-				Object o = evalMethod.invoke(jsEngine,  builder.toString() + "convertToProperties($config);");
+				Object o = evalMethod.invoke(jsEngine,  builder.toString() + "new $imwebuzzconfigparser().convertToProperties($config);");
 				if (o instanceof String) {
 //					System.out.println(convertJS);
 //					System.out.println("js->ini");
@@ -142,7 +142,7 @@ public class ConfigJSParser implements IConfigConverter {
 			// If malicious js (last) modifies #convertToProperties, try to correct it to original JavaScript.
 			// So normal js configuration won't be affected.
 			if (checkInitialize()) {
-				Object o = evalMethod.invoke(jsEngine, builder.toString() + convertJS + "\r\nconvertToProperties($config);");
+				Object o = evalMethod.invoke(jsEngine, builder.toString() + convertJS + "\r\nnew $imwebuzzconfigparser().convertToProperties($config);");
 				if (o instanceof String) {
 					// System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));

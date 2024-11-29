@@ -16,6 +16,7 @@ package im.webuzz.config.web;
 
 import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotations.ConfigRange;
 import im.webuzz.config.annotations.ConfigCodec;
 
 @ConfigClass
@@ -74,6 +75,7 @@ public class WebConfig {
 
 	@ConfigComment({
 		"Interval of checking web remote server for configuration file update.",
+		"Time unit is millisecond."
 	})
 	public static long webRequestInterval = 10000;
 
@@ -82,10 +84,15 @@ public class WebConfig {
 	})
 	public static boolean webRequestSupportsMD5ETag = true;
 
+	@ConfigRange(min = 0, max = 64)
 	public static int webCoreWorkers = 1;
 	
-	public static int webMaxWorkers = 50; // 50 for configuration web synchronizing is considered as enough
+	@ConfigComment("Default is 50, It is considered as enough for configuration web synchronizing.")
+	@ConfigRange(min = 4, max = 512)
+	public static int webMaxWorkers = 50;
 	
+	@ConfigComment("Time unit is second.")
+	@ConfigRange(min = 1, max = 300)
 	public static int webWorkerIdleInterval = 30;
 	
 	@ConfigComment({

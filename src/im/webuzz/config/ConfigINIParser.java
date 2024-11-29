@@ -504,31 +504,41 @@ public class ConfigINIParser {
 	}
 
 	protected static Object decode(String p) {
-		Object decoded = null;
-		if (p != null && !ConfigINIParser.$null.equals(p)) {
-			int length = p.length();
-			if (length > 1 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
-				int idx = p.indexOf(':');
-				if (idx != -1) {
-					String key = p.substring(1, idx);
-					Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
-					if (codecs != null) {
-						Class<? extends IConfigCodec<?>> clazz = codecs.get(key);
-						if (clazz != null) {
-							try {
-								IConfigCodec<?> codec = (IConfigCodec<?>) clazz.newInstance();
-								decoded = codec.decode(p.substring(idx + 1, length - 1));
-							} catch (InstantiationException e) {
-								e.printStackTrace();
-							} catch (IllegalAccessException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-				}
+		if (p == null || ConfigINIParser.$null.equals(p)) return null;
+		int length = p.length();
+		if (length <= 1 || p.charAt(0) != '[' || p.charAt(length - 1) != ']'
+				|| p.indexOf(']') != length - 1) { // e.g. =[...];[...];[...]
+			return null;
+		}
+		int idx = p.indexOf(':');
+		if (idx == -1) return null;
+		String key = p.substring(1, idx);
+		String rawEncoded = p.substring(idx + 1, length - 1);
+		return decodeRaw(key, rawEncoded);
+	}
+
+	protected static Object decodeRaw(String codecKey, String rawEncoded) {
+		IConfigCodec<?> codec = Config.codecs.get(codecKey);
+		if (codec != null) {
+			try {
+				return codec.decode(rawEncoded);
+			} catch (Throwable e) {
+				e.printStackTrace();
+				return null;
 			}
 		}
-		return decoded;
+		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		if (codecs == null) return null;
+		Class<? extends IConfigCodec<?>> clazz = codecs.get(codecKey);
+		if (clazz == null) return null;
+		try {
+			codec = (IConfigCodec<?>) clazz.newInstance();
+			Config.codecs.put(codecKey, codec);
+			return codec.decode(rawEncoded);
+		} catch (Throwable e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 	/**
