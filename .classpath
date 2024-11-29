@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry including="**/*.java" kind="src" path="src"/>
-	<classpathentry kind="src" path="generator"/>
-	<classpathentry kind="src" path="js"/>
-	<classpathentry kind="src" path="jsgenerator"/>
-	<classpathentry kind="src" path="xml"/>
-	<classpathentry kind="src" path="xmlgenerator"/>
-	<classpathentry including="**/*.java" kind="src" path="web"/>
-	<classpathentry including="**/*.java" kind="src" path="security"/>
-	<classpathentry kind="src" path="agent"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
-	<classpathentry kind="output" path="target/classes"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/net.sf.j2s.ajax"/>
-	<!--classpathentry combineaccessrules="false" kind="src" path="/im.webuzz.nio"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/im.webuzz.http"/-->
+  <classpathentry kind="src" path="src"/>
+  <classpathentry kind="src" path="web" including="**/*.java"/>
+  <classpathentry kind="src" path="test"/>
+  <classpathentry kind="output" path="target/classes"/>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+  <!--
+  <classpathentry kind="var" path="M2_REPO/org/openjdk/nashorn/nashorn-core/15.4/nashorn-core-15.4.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/ow2/asm/asm/7.3.1/asm-7.3.1.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/ow2/asm/asm-commons/7.3.1/asm-commons-7.3.1.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/ow2/asm/asm-tree/7.3.1/asm-tree-7.3.1.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/ow2/asm/asm-analysis/7.3.1/asm-analysis-7.3.1.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/ow2/asm/asm-util/7.3.1/asm-util-7.3.1.jar"/>
+  -->
 </classpath>
