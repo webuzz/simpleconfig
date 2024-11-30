@@ -145,7 +145,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		}
 		builder.append("\r\n");
 	}
-	protected void endObjectBlock(StringBuilder builder, boolean needsWrapping) {
+	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
 	}
 	
 	public void startGenerate(StringBuilder builder, Class<?> clz, boolean combinedConfigs) {
@@ -234,8 +234,8 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			boolean compact, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
-		/*
-		if ("strMap".equals(name)) {
+		//*
+		if ("genders".equals(name)) {
 			System.out.println("object array");
 		}
 		//*/
@@ -266,7 +266,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				else if (type == float.class) valueBuilder.append(f.getFloat(o));
 				else if (type == short.class) valueBuilder.append(f.getShort(o));
 				else if (type == byte.class) valueBuilder.append(f.getByte(o));
-				else valueBuilder.append(f.getChar(o)); // if (type == char.class) {
+				else appendChar(valueBuilder, f.getChar(o)); // if (type == char.class) {
 			} else { 
 				if (f != null) paramType = f.getGenericType();
 				if (f != null) v = f.get(o);
@@ -281,7 +281,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 					//if (typeBuilder != null) typeBuilder.append("Class");
 					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo, needsWrapping, compact);
 				} else if (type.isEnum() || type == Enum.class) {
-					generateEnums(valueBuilder, (Enum) v, definedType, needsTypeInfo, needsWrapping, compact);
+					generateEnum(valueBuilder, (Enum) v, definedType, needsTypeInfo, needsWrapping, compact);
 				} else if (Utils.isBasicDataType(type)) {
 					generateBasicData(valueBuilder, v, type, needsTypeInfo, needsWrapping, compact);
 				} else if (type.isArray()) {
@@ -400,10 +400,6 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		return false;
 	}
 
-	protected void appendEncodedString(StringBuilder builder, String codecKey, String encoded) {
-		builder.append('[').append(codecKey).append(':').append(encoded).append(']');
-	}
-
 	@SuppressWarnings("unchecked")
 	protected <T> boolean encode(StringBuilder builder, T v, boolean isKeys, boolean isValues, int depth, ConfigCodec[] configCodecs) {
 		if (v == null || configCodecs == null || configCodecs.length == 0) return false;
@@ -448,13 +444,9 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				if (codecKey == null || codecKey.length() == 0) continue;
 				Class<? extends IConfigCodec<?>> clazz = codecs.get(codecKey);
 				if (clazz == null) continue;
-				Type[] genericInterfaces = clazz.getGenericInterfaces();
-				if (genericInterfaces == null || genericInterfaces.length == 0) continue;
-				Type paramType = genericInterfaces[0];
-				if (paramType instanceof ParameterizedType) {
-					Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
-					if (Utils.getRawType(valueType) != v.getClass()) continue;
-				} else if (paramType != v.getClass()) continue;
+				Type paramType = clazz.getGenericInterfaces()[0];
+				Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
+				if (Utils.getRawType(valueType) != v.getClass()) continue;
 				IConfigCodec<T> codec = (IConfigCodec<T>) Config.codecs.get(codecKey);
 				try {
 					if (codec == null) {
@@ -484,15 +476,16 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		return false;
 	}
 
+	protected void appendEncodedString(StringBuilder builder, String codecKey, String encoded) {
+		builder.append('[').append(codecKey).append(':').append(encoded).append(']');
+	}
+
 	protected void generateString(StringBuilder builder, String v) {
-//		if (v == null) {
-//			builder.append($null);
-//		} else 
 		if (v.length() == 0) {
 			builder.append($emptyString);
-		} else {
-			builder.append(configFormat(v));
-		}
+			return;
+		} 
+		builder.append(configFormat(v));
 	}
 
 	protected String configFormat(String str) {
@@ -505,48 +498,46 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	
 	protected boolean generateClass(StringBuilder builder, Class<?> v,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-		if (needsTypeInfo) {
-			builder.append("[Class:").append(v.getName()).append(']');
-		} else {
+		if (!needsTypeInfo) {
 			builder.append(v.getName());
+			return true;
 		}
+		builder.append("[Class:").append(v.getName()).append(']');
 		return true;
 	}
 	
-	protected boolean generateEnums(StringBuilder builder, Enum<?> v, Class<?> type,
+	protected boolean generateEnum(StringBuilder builder, Enum<?> v, Class<?> type,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-		if (needsTypeInfo) {
-			if (type != Enum.class) builder.append("[Enum:");
-			builder.append(v.getClass().getName()).append('.').append(v.name());
-			if (type != Enum.class) builder.append(']');
-		} else {
+		if (!needsTypeInfo) {
 			builder.append(v.name());
-		}
+			return true;
+		}			
+		if (type != Enum.class) builder.append("[Enum:");
+		builder.append(v.getClass().getName()).append('.').append(v.name());
+		if (type != Enum.class) builder.append(']');
 		return true;
 	}
 
-	protected void generateBasicData(StringBuilder builder, Object o, Class<?> type,
+	protected void generateBasicData(StringBuilder builder, Object v, Class<?> type,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-		if (type == Class.class) {
-			Class<?> c = (Class<?>) o;
-			if (needsTypeInfo) {
-				builder.append("[").append(type.getSimpleName()).append(':').append(c.getName()).append("]");
-			} else {
-				builder.append(c.getName());
-			}
-			return;
-		}
-		if (needsTypeInfo) {
-			builder.append("[").append(type.getSimpleName()).append(':').append(o).append("]");
+		Class<? extends Object> clazz = v.getClass();
+		if (needsTypeInfo) builder.append('[').append(clazz.getSimpleName()).append(':');
+		if (Character.class == clazz) {
+			appendChar(builder, ((Character) v).charValue());
 		} else {
-			builder.append(o);
+			builder.append(v);
+		}
+		if (needsTypeInfo) builder.append(']');
+	}
+
+	protected void appendChar(StringBuilder builder, char ch) {
+		if (0x20 <= ch && ch <= 0x7e) {
+			builder.append('\'').append(ch).append('\'');
+		} else {
+			builder.append("0x").append(Integer.toHexString(ch));
 		}
 	}
 
-	protected boolean supportsCompactArrays() {
-		return false;
-	}
-	
 	// For array, list and set
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean checkCompactness(Object value, Class<?> definedType, Type paramType,
@@ -601,13 +592,11 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			}
 			return true;
 		}
-		if (Utils.isBasicDataType(definedType)) {
-			return true;
-		}
+		if (Utils.isBasicDataType(definedType)) return true;
 		if (definedType.isArray()) {
 			if (forKeys) return false;
 			Class<?> definedCompType = definedType.getComponentType();
-			if (definedCompType.isArray() && !supportsCompactArrays()) return false;
+			if (definedCompType.isArray()) return false;
 			int size = Array.getLength(value);
 			if (definedCompType.isPrimitive()) {
 				return checkPrimitiveArrayCompactness(value, size, definedCompType);
@@ -731,7 +720,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			else if (compType == float.class) cb.append(Array.getFloat(arr, i));
 			else if (compType == short.class) cb.append(Array.getShort(arr, i));
 			else if (compType == byte.class) cb.append(Array.getByte(arr, i));
-			else cb.append(Array.getChar(arr, i));
+			else appendChar(cb, Array.getChar(arr, i)); // if (compType == char.class)
 		}
 		if (cb.length() > 100) return false;
 		return true;
@@ -925,28 +914,14 @@ public class ConfigINIGenerator implements IConfigGenerator {
 	}
 
 	protected StringBuilder appendArrayPrimitive(StringBuilder builder, Object vs, int k, Class<?> compType, boolean compact) {
-		if (compType == int.class) {
-			builder.append(Array.getInt(vs, k));
-		} else if (compType == long.class) {
-			builder.append(Array.getLong(vs, k));
-		} else if (compType == byte.class) {
-			builder.append(Array.getByte(vs, k));
-		} else if (compType == short.class) {
-			builder.append(Array.getShort(vs, k));
-		} else if (compType == char.class) {
-			char ch = Array.getChar(vs, k);
-			if (0x20 <= ch && ch <= 0x7e) {
-				builder.append(ch);
-			} else {
-				builder.append("0x").append(Integer.toHexString(ch));
-			}
-		} else if (compType == boolean.class) {
-			builder.append(Array.getBoolean(vs, k));
-		} else if (compType == float.class) {
-			builder.append(Array.getFloat(vs, k));
-		} else if (compType == double.class) {
-			builder.append(Array.getDouble(vs, k));
-		}
+		if (compType == int.class) builder.append(Array.getInt(vs, k));
+		else if (compType == long.class) builder.append(Array.getLong(vs, k));
+		else if (compType == byte.class) builder.append(Array.getByte(vs, k));
+		else if (compType == short.class) builder.append(Array.getShort(vs, k));
+		else if (compType == boolean.class) builder.append(Array.getBoolean(vs, k));
+		else if (compType == float.class) builder.append(Array.getFloat(vs, k));
+		else if (compType == double.class) builder.append(Array.getDouble(vs, k));
+		else if (compType == char.class) appendChar(builder, Array.getChar(vs, k));
 		return builder;
 	}
 
@@ -1000,7 +975,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				forKeys, forValues, depth, codecs,
 				needsTypeInfo, keyNeedsTypeInfo, valueNeedsTypeInfo, needsWrapping, compact);
 	}
-	
+
 	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
@@ -1010,52 +985,112 @@ public class ConfigINIGenerator implements IConfigGenerator {
 			System.out.println("XXX");
 		}
 		if (compact) {
-			if (typeBuilder != null) typeBuilder.append("map");
-			boolean first = true;
-			for (Object k : keys) {
-				if (!first) {
-					builder.append(";");
-				}
-				Object o = vs.get(k);
-				builder.append(configFormat(k.toString()))
-						.append('>');
-				boolean diffValueTypes = false;
-				Class<?> targetValueType = null;
-				if (o != null) {
-					targetValueType = o.getClass();
-					if (valueType != null && valueType != targetValueType && !valueType.isInterface()
-							&& !Utils.isAbstractClass(valueType)) {
-						diffValueTypes = true;
-					}
-				}
-				if (!diffValueTypes) targetValueType = valueType;
-				generateFieldValue(builder, null, null, null, o, valueType, null,
-						false, true, depth + 1, codecs,
-						diffValueTypes, false, compact, false);
-				first = false;
+			int size = keys.length;
+			for (int i = 0; i < size; i++) {
+				Object k = keys[i];
+				builder.append(k).append('>');
+				appendMapKeyValue(builder, null, null, vs.get(k),
+						valueType, valueParamType,
+						depth, codecs, compact);
+				if (i != size - 1) builder.append(";");
 			}
 			return;
 		}
-		int oldLength = builder.length();
-		if ((keyNeedsTypeInfo && keyType != null && keyType != Object.class && keyType != String.class)
-				|| (valueNeedsTypeInfo && valueType != null && valueType != Object.class && valueType != String.class)){
-			builder.append("[map:");
-			appendFieldType(builder, keyType, null, false);
-			builder.append(',');
-			appendFieldType(builder, valueType, null, false);
-			builder.append("]");
-		} else {
-			builder.append("[map]");
-		}
-		if (typeBuilder != null) {
-			typeBuilder.append(builder.substring(oldLength + 1, builder.length() - 1));
-		}
-		builder.append("\r\n");
+		builder.append('[');
+		appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+		builder.append("]\r\n");
 
+		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {
+			for (Object k : keys) {
+				appendMapKeyValue(builder, name, k, vs.get(k),
+						valueType, valueParamType,
+						depth, codecs, compact);
+				appendLinebreak(builder);
+			}
+			return;
+		}
+		// Start entries mode
+		int index = startingIndex;
+		//String entriesPrefix = name + ".entries";
+		//builder.append(entriesPrefix).append("=[]\r\n");
+		for (Object k : keys) {
+			String kvPrefix = name + "." + index;
+			builder.append(kvPrefix).append("=[]\r\n");
+			appendMapEntry(builder, kvPrefix, k, vs.get(k),
+					keyType, keyParamType, valueType, valueParamType,
+					depth, codecs);
+			index++;
+		}
+	}
+
+	protected boolean needsToAvoidCodecKeys(Object[] keys) {
+		if (keys.length != 1) return false;
+		Object k = keys[0];
+		if (k instanceof Number || k.getClass().isArray()
+				|| k instanceof Collection<?> || k instanceof Map<?, ?>) return false;
+		Map<String, Class<? extends IConfigCodec<?>>> configCodecs = Config.configurationCodecs;
+		if (configCodecs == null) return false;
+		// e.g { aes: "AES algorithm" }
+		return configCodecs.containsKey(String.valueOf(k));
+	}
+
+	protected void appendMapKeyValue(StringBuilder builder, String name, Object k, Object v,
+			Class<?> valueType, Type valueParamType,
+			int depth, ConfigCodec[] codecs, boolean compact) {
+		boolean diffValueTypes = false;
+		Class<?> targetValueType = null;
+		if (v != null) {
+			targetValueType = v.getClass();
+			diffValueTypes = checkTypeDefinition(valueType, targetValueType);
+		}
+		if (!diffValueTypes) targetValueType = valueType;
+		String prefix = k == null ? null : prefixedField(name, String.valueOf(k));;
+		generateFieldValue(builder, null, prefix, null, v, targetValueType, valueParamType,
+				false, true, depth + 1, codecs,
+				diffValueTypes, false, compact, false);
+	}
+
+	protected void appendMapEntry(StringBuilder builder, String kvPrefix, Object k, Object v,
+			Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
+			int depth, ConfigCodec[] codecs) {
+		boolean compact = false;
+		Class<?> targetKeyType = k.getClass();
+		boolean diffKeyTypes = checkTypeDefinition(keyType, targetKeyType);
+		if (!diffKeyTypes) targetKeyType = keyType;
+		String prefix = prefixedField(kvPrefix, "key");
+		generateFieldValue(builder, null, prefix, null, k, targetKeyType, keyParamType,
+				true, false, depth + 1, codecs,
+				diffKeyTypes, false, compact, false);
+		appendLinebreak(builder);
+		boolean diffValueTypes = false;
+		Class<?> targetValueType = null;
+		if (v != null) {
+			targetValueType = v.getClass();
+			diffValueTypes = checkTypeDefinition(valueType, targetValueType);
+		}
+		if (!diffValueTypes) targetValueType = valueType;
+		prefix = prefixedField(kvPrefix, "value");
+		generateFieldValue(builder, null, prefix, null, v, targetValueType, valueParamType,
+				false, true, depth + 1, codecs,
+				diffValueTypes, false, compact, false);
+		appendLinebreak(builder);
+	}
+
+	// Return given real type is different the defined type or not
+	protected boolean checkTypeDefinition(Class<?> definedType, Class<?> realType) {
+		return definedType != null && definedType != realType
+				&& !definedType.isInterface() // value is not defined as List, Set, Map, ...
+				&& !Utils.isAbstractClass(definedType); // value is not defined as Number, AbstractList, ...
+	}
+
+	protected boolean checkPlainKeys(Class<?> keyType, Object[] keys) {
+		return keyType == String.class && Utils.canKeysBePrefixedNames(keys);		
+	}
+	
+	protected boolean supportsDirectKeyValueMode(Object[] keys, Class<?> keyType, int depth, ConfigCodec[] codecs) {
 		boolean directPropsMode = false;
 		if (keys.length == 0 || GeneratorConfig.preferKeyValueMapFormat
-				&& (keyType == null && isBasicType(keyType)
-						|| keyType == String.class && Utils.canKeysBePrefixedNames(keys))) { // make sure if the key is valid here or not
+				&& checkPlainKeys(keyType, keys)) { // make sure if the key is valid here or not
 			directPropsMode = true;
 			if (keys.length > 0 && codecs != null && codecs.length > 0) {
 				StringBuilder valueBuilder = new StringBuilder();
@@ -1064,64 +1099,18 @@ public class ConfigINIGenerator implements IConfigGenerator {
 				}
 			}
 		}
-		if (directPropsMode) {
-			for (Object k : keys) {
-				Object o = vs.get(k);
-				boolean diffValueTypes = false;
-				Class<?> targetValueType = null;
-				if (o != null) {
-					targetValueType = o.getClass();
-					if (valueType != null && valueType != targetValueType && !valueType.isInterface()
-							&& !Utils.isAbstractClass(valueType)) {
-						diffValueTypes = true;
-					}
-				}
-				if (!diffValueTypes) targetValueType = valueType;
-				String newPrefix = name + "." + k;
-				generateFieldValue(builder, null, newPrefix, null, o, targetValueType, valueParamType,
-						false, true, depth + 1, codecs,
-						diffValueTypes, false, compact, false);
-				appendLinebreak(builder);
-			}
-		} else {
-			int index = startingIndex;
-			String entriesPrefix = name + ".entries";
-			builder.append(entriesPrefix).append("=[]");
-			builder.append("\r\n");
-			for (Object k : keys) {
-				String kvPrefix = entriesPrefix + "." + index;
-				builder.append(kvPrefix).append("=[]");
-				builder.append("\r\n");
-				//Class<?> targetType = null;
-				//boolean diffTypes = o != null && valueType != (targetType = o.getClass());
-				boolean diffKeyTypes = false;
-				Class<?> targetKeyType = k.getClass();
-				if (keyType != null && keyType != targetKeyType && !keyType.isInterface()
-						&& !Utils.isAbstractClass(keyType)) {
-					diffKeyTypes = true;
-				}
-				if (!diffKeyTypes) targetKeyType = keyType;
-				generateFieldValue(builder, null, kvPrefix + ".key", null, k, targetKeyType, keyParamType,
-						true, false, depth + 1, codecs,
-						diffKeyTypes, false, compact, false);
-				appendLinebreak(builder);
-				boolean diffValueTypes = false;
-				Object o = vs.get(k);
-				Class<?> targetValueType = null;
-				if (o != null) {
-					targetValueType = o.getClass();
-					if (valueType != null && valueType != targetValueType && !valueType.isInterface()
-							&& !Utils.isAbstractClass(valueType)) {
-						diffValueTypes = true;
-					}
-				}
-				if (!diffValueTypes) targetValueType = valueType;
-				generateFieldValue(builder, null, kvPrefix + ".value", null, o, targetValueType, valueParamType,
-						false, true, depth + 1, codecs,
-						diffValueTypes, false, compact, false);
-				appendLinebreak(builder);
-				index++;
-			}
+		return directPropsMode;
+	}
+
+	protected void appendMapType(StringBuilder builder, Class<?> keyType, Class<?> valueType, boolean keyNeedsTypeInfo,
+			boolean valueNeedsTypeInfo) {
+		builder.append("map");
+		if ((keyNeedsTypeInfo && keyType != null && keyType != Object.class)
+				|| (valueNeedsTypeInfo && valueType != null && valueType != Object.class)){
+			builder.append(':');
+			appendFieldType(builder, keyType, null, false);
+			builder.append(',');
+			appendFieldType(builder, valueType, null, false);
 		}
 	}
 	
@@ -1212,7 +1201,7 @@ public class ConfigINIGenerator implements IConfigGenerator {
 		} // end of for fields
 		//if (generated) {
 			decreaseIndent();
-			endObjectBlock(builder, needsWrapping);
+			endObjectBlock(builder, true, needsWrapping);
 			//appendLinebreak(builder);
 		//}
 	}

@@ -2,6 +2,8 @@ if ((typeof $configurationCodecs) == "undefined") {
 	$configurationCodecs = [ "secret", "aes", "base64", "bytes64", "bytesaes" ];
 }
 
+// Use a long and uncommon variable name to avoid conflictions with
+// same variable name used in configuration *.js file.
 var $imwebuzzconfigparser = function() {};
 
 /* private */
@@ -83,15 +85,20 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 	}
 	var offset = 1;
 	var oClass = o["class"];
-	if (oClass != null && oClass.indexOf("[") == 0) {
+	var needsObjectPrefix = false;
+	if (oClass != null) {
 		//builder[builder.length] = "# # " + oClass;
-		if (oClass.indexOf("[array") == 0 || oClass.indexOf("[list") == 0 || oClass.indexOf("[set") == 0) {
+		if (oClass.indexOf("array") == 0 || oClass.indexOf("list") == 0 || oClass.indexOf("set") == 0) {
 			o = o["value"];
 			if (o == null) {
 				builder[builder.length] = prefix + "=[null]";
 				return; 
 			}
 		} else {
+			if (oClass.indexOf("map") != 0 && oClass.indexOf("object" != 0)) {
+				// e.g. "class": "com.company.ClassA",
+				needsObjectPrefix = true;
+			}
 			offset = 0; // ignoring the first "class" property
 		}
 	} else {
@@ -115,7 +122,14 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 			}
 			builder[builder.length] = prefix + "=" + (objBuilder.length == 0 ? "[empty]" : objBuilder.join(";"));
 		} else {
-			builder[builder.length] = prefix + (oClass == null ? "=[]" : ("=" + oClass));
+			// Map "entries" is an array which needs to skip its "[array] or []".
+			// It is defined in last map's key-value line.
+			var skipEntries = oClass == null && builder.length > 0
+					 && builder[builder.length - 1].indexOf(prefix + "=") == 0;
+			if (!skipEntries) {
+				builder[builder.length] = prefix + (oClass == null ? "=[]"
+						: ("=[" + (needsObjectPrefix ? "object:" : "") + oClass + "]"));
+			}
 			var maxZeros = ("" + length).length;
 			for (var i = 0; i < length; i++) {
 				var index = "" + i;
@@ -178,9 +192,14 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 				this.visit(builder, ignoringProps, p, o[p]);
 			} else {
 				if (!generated) {
-					builder[builder.length] = prefix + (oClass == null ? "=[]" : ("=" + oClass));
+					builder[builder.length] = prefix + (oClass == null ? "=[]"
+							: ("=[" + (needsObjectPrefix ? "object:" : "") + oClass + "]"));
 				}
-				this.visit(builder, ignoringProps, prefix + "." + p, o[p]);
+				if ("entries" == p && o[p] != null && o[p].length > 0) {
+					this.visit(builder, ignoringProps, prefix, o[p]);
+				} else {
+					this.visit(builder, ignoringProps, prefix + "." + p, o[p]);
+				}
 			}
 			generated = true;
 		}

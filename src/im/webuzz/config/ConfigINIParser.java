@@ -133,6 +133,10 @@ public class ConfigINIParser {
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
 			String name = f.getName();
+			//*
+			if ("genders".equals(name)) {
+				System.out.println("X city");
+			} // */
 			if (filter != null && filter.filterName(name)) continue;
 			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
 			String p = prop.getProperty(keyName);
@@ -144,10 +148,6 @@ public class ConfigINIParser {
 			if ((modifiers & Modifier.PUBLIC) == 0) {
 				f.setAccessible(true);
 			}
-			/*
-			if ("myCity".equals(keyName)) {
-				System.out.println("X city");
-			} // */
 			int result = parseAndUpdateField(prop, keyName, p, clz, f, updating, null);
 			if (result == -1) return -1;
 			if (result == 1 && updating && Config.configurationLogging && Config.initializedTime > 0
@@ -184,19 +184,23 @@ public class ConfigINIParser {
 			suffix = p;
 		}
 		int nameIdx = suffix.lastIndexOf('.');
-		if (nameIdx != -1) {
-			String typeStr = suffix.substring(0, nameIdx).trim();
-			StringBuilder err = new StringBuilder();
-			Class<?> pType = Config.loadConfigurationClass(typeStr, err);
-			if (pType == null) {
-				StringBuilder errMsg = new StringBuilder();
-				errMsg.append("Invalid value for field \"").append(keyName)
-						.append("\": ").append(err);
-				if (!Config.reportErrorToContinue(errMsg.toString())) return error;
-			}
-			return pType;
+		if (nameIdx == -1) {
+			StringBuilder errMsg = new StringBuilder();
+			errMsg.append("Invalid value for field \"").append(keyName)
+					.append("\": \"").append(p).append("\" is not an enum!");
+			Config.reportErrorToContinue(errMsg.toString());
+			return error;
 		}
-		return error;
+		String typeStr = suffix.substring(0, nameIdx).trim();
+		StringBuilder err = new StringBuilder();
+		Class<?> pType = Config.loadConfigurationClass(typeStr, err);
+		if (pType == null) {
+			StringBuilder errMsg = new StringBuilder();
+			errMsg.append("Invalid value for field \"").append(keyName)
+					.append("\": ").append(err);
+			if (!Config.reportErrorToContinue(errMsg.toString())) return error;
+		}
+		return pType;
 	}
 	/**
 	 * Parse the given key-prefixed properties for a field value, update the field if necessary.
@@ -213,8 +217,8 @@ public class ConfigINIParser {
 	private static int parseAndUpdateField(Properties prop, String keyName, String p,
 			Object obj, Field f, boolean updatingField, StringBuilder diffB) {
 		Class<?> type = f.getType();
-		/*
-		if ("configurationFilters".equals(keyName)) {
+		//*
+		if ("genders".equals(keyName)) {
 			System.out.println("X parse");
 		} // */
 		if (Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
@@ -807,26 +811,30 @@ public class ConfigINIParser {
 				}
 			}
 			Set<String> names = prop.stringPropertyNames();
-			int dots = 1;
-			boolean hasKey = false;
 			String prefix = keyName + ".";
-			String entriesKey = prefix + "entries";
-			String entries = (String) prop.getProperty(entriesKey);
-			if (entries != null && entries.startsWith("[") && entries.endsWith("]")) {
-				String entriesPrefix = entriesKey + ".";
-				List<String> filteredNames = new ArrayList<String>();
-				for (String propName : names) {
-					if (propName.startsWith(entriesPrefix)) {
-						String k = propName.substring(entriesPrefix.length());
-						String[] split = k.split("\\.");
-						if (split.length > 1) continue;
-						filteredNames.add(k);
+			int prefixLength = prefix.length();
+			boolean entriesMode = true;
+			Set<String> filteredKeyNames = new HashSet<String>();
+			for (String propName : names) {
+				if (propName.startsWith(prefix)) {
+					String k = propName.substring(prefixLength);
+					filteredKeyNames.add(k);
+					if (!entriesMode) continue;
+					int kLength = k.length();
+					for (int i = 0; i < kLength; i++) {
+						char c = k.charAt(i);
+						if (c == '.') break;
+						if (c < '0' || '9' < c) {
+							entriesMode = false;
+							break;
+						}
 					}
 				}
-				String[] keyNames = filteredNames.toArray(new String[filteredNames.size()]);
-				//Set<Object> value = Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>(keyNames.length << 2));
-				for (String propName : keyNames) {
-					String newPropName = entriesPrefix + propName;
+			}
+			if (filteredKeyNames.isEmpty()) return value;
+			if (entriesMode) {
+				for (String propName : filteredKeyNames) {
+					String newPropName = prefix + propName;
 					String v = (String) prop.getProperty(newPropName);
 					if (v == null) continue;
 					if (!v.startsWith("[") || !v.endsWith("]")) {
@@ -879,46 +887,52 @@ public class ConfigINIParser {
 			
 			Set<String> parsedKeys = new HashSet<String>();
 			Set<String> dotsNames = null;
+			names = filteredKeyNames;
+			int dots = 0;
 			do {
 				boolean dotsReached = false;
-				for (String propName : names) {
-					if (propName.startsWith(prefix)) {
-						hasKey = true;
-						boolean alreadyParsed = false;
-						for (String key : parsedKeys) {
-							if (propName.startsWith(key)) {
-								alreadyParsed = true;
-								break;
-							}
+				for (String k : names) {
+					boolean alreadyParsed = false;
+					for (String key : parsedKeys) {
+						if (k.startsWith(key)) {
+							alreadyParsed = true;
+							break;
 						}
-						if (alreadyParsed) continue;
-						String k = propName.substring(prefix.length());
-						String[] split = k.split("\\.");
-						if (split.length > dots) {
-							if (!dotsReached) {
-								dotsNames = new HashSet<String>();
-								dotsReached = true;
-							}
-							dotsNames.add(propName);
-							continue;
-						}
-						Object key = recognizeAndParseObject(prop, prefix, k, keyType, keyParamType);
-						if (key == error) return error;
-						if (key == null) continue;
-						String v = (String) prop.getProperty(propName);
-						Object val = recognizeAndParseObject(prop, propName, v, valueType, valueParamType);
-						if (val == error) return error;
-						value.put(key, val);
-						if (v == null || v.length() <= 0 || (v.startsWith("[") && v.endsWith("]"))) {
-							parsedKeys.add(propName + ".");
-						} // else given v is a line for object, no need to put it into parsed keys set
 					}
+					if (alreadyParsed) continue;
+					int foundDots = 0;
+					int kLength = k.length();
+					for (int i = 0; i < kLength; i++) {
+						if (k.charAt(i) == '.') {
+							foundDots++;
+							if (foundDots > dots) break;
+						}
+					}
+					if (foundDots > dots) {
+						if (!dotsReached) {
+							dotsNames = new HashSet<String>();
+							dotsReached = true;
+						}
+						dotsNames.add(k);
+						continue;
+					}
+					String newPropName = prefix + k;
+					Object key = recognizeAndParseObject(prop, keyName, k, keyType, keyParamType);
+					if (key == error) return error;
+					if (key == null) continue;
+					String v = (String) prop.getProperty(newPropName);
+					Object val = recognizeAndParseObject(prop, newPropName, v, valueType, valueParamType);
+					if (val == error) return error;
+					value.put(key, val);
+					if (v == null || v.length() <= 0 || (v.startsWith("[") && v.endsWith("]"))) {
+						parsedKeys.add(k + ".");
+					} // else given v is a line for object, no need to put it into parsed keys set
 				}
 				if (!dotsReached) break;
 				dots++;
 				names = dotsNames;
 				dotsNames = null;
-			} while (hasKey && dots < Math.max(1, Config.configurationMapSearchingDots));
+			} while (dots < Math.max(1, Config.configurationMapSearchingDots));
 			return value;
 		}
 		// single line configuration, should be simple like Map<String, String>
@@ -1086,13 +1100,8 @@ public class ConfigINIParser {
 		}
 		if (type == BigDecimal.class) return new BigDecimal(p);
 		if (type == BigInteger.class) return new BigInteger(p);
-		if (type.isArray()) {
-			return parseCollection(prop, keyName, p, type, paramType);
-		}
-		if (List.class.isAssignableFrom(type)) { // List<Object>
-			return parseCollection(prop, keyName, p, type, paramType);
-		}
-		if (Set.class.isAssignableFrom(type)) { // Set<Object>
+		if (type.isArray() || List.class.isAssignableFrom(type)
+				|| Set.class.isAssignableFrom(type)) {
 			return parseCollection(prop, keyName, p, type, paramType);
 		}
 		if (Map.class.isAssignableFrom(type)) { // Map<String, Object>
@@ -1121,17 +1130,10 @@ public class ConfigINIParser {
 			if (codecs != null) {
 				Class<? extends IConfigCodec<?>> clazz = codecs.get(prefix.substring(1).trim());
 				if (clazz != null) {
-					Type[] genericInterfaces = clazz.getGenericInterfaces();
-					if (genericInterfaces != null && genericInterfaces.length > 0) {
-						Type paramType = genericInterfaces[0];
-						if (paramType instanceof ParameterizedType) {
-							Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
-							Class<?> objType = Utils.getRawType(valueType);
-							if (objType != null) return objType;
-						} else if (paramType instanceof Class<?>) {
-							return (Class<?>) paramType;
-						}
-					}
+					Type paramType = clazz.getGenericInterfaces()[0];
+					Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
+					Class<?> objType = Utils.getRawType(valueType);
+					if (objType != null) return objType;
 				}
 			}
 			

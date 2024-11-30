@@ -78,11 +78,12 @@ public class ConfigXMLParser implements IConfigConverter {
 	}
 	
 	private static enum NodeType {
+		none,
 		unknown,
 		plain,
 		emptyObject,
 		emptyString,
-		codecString,
+		codecObject,
 		codecDirect,
 		nullValue,
 		basicData,
@@ -102,10 +103,9 @@ public class ConfigXMLParser implements IConfigConverter {
 		object,
 	};
 
-	private NodeType parseType(Element o) {
+	private NodeType parseType(Element o, NodeType containerType) {
 		if (o == null) return NodeType.unknown;
 		NamedNodeMap attributes = o.getAttributes();
-		boolean assignment = false;
 		if (attributes != null && attributes.getLength() > 0) {
 			// <xxx class="array"> ...
 			// <xxx class="array:..."> ...
@@ -127,10 +127,6 @@ public class ConfigXMLParser implements IConfigConverter {
 					}
 				}
 			}
-			Node typeItem = attributes.getNamedItem("type");
-			if (typeItem != null) {
-				assignment = "assign".equals(typeItem.getNodeValue());
-			}
 		}
 		String typeName = o.getNodeName();
 		if ("map".equals(typeName)) return NodeType.mapDirect;
@@ -138,8 +134,11 @@ public class ConfigXMLParser implements IConfigConverter {
 		if ("set".equals(typeName)) return NodeType.setDirect;
 		if ("array".equals(typeName)) return NodeType.arrayDirect;
 		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
-		if (codecs != null && codecs.containsKey(typeName) && !assignment) {
-			return NodeType.codecDirect;
+		if (codecs != null && codecs.containsKey(typeName)) {
+			if (containerType != NodeType.mapDirect && containerType != NodeType.mapGeneric
+					&& containerType != NodeType.mapKnown && containerType != NodeType.object) {
+				return NodeType.codecDirect;
+			}
 		}
 		NodeList childNodes = o.getChildNodes();
 		if (childNodes == null) return NodeType.object;
@@ -151,9 +150,6 @@ public class ConfigXMLParser implements IConfigConverter {
 		boolean sameElementName = true;
 		boolean containsBasicData = false;
 		boolean containsKnowObjects = false;
-		if ("configurationFilters".equals(o.getNodeName())) {
-			System.out.println("1234");
-		}
 		for (int i = 0; i < length; i++) {
 			Node item = childNodes.item(i);
 			if (item instanceof Text) {
@@ -205,8 +201,8 @@ public class ConfigXMLParser implements IConfigConverter {
 			if (basicData.contains(firstType)) {
 				return NodeType.basicData;
 			}
-			if (codecs != null && codecs.containsKey(firstType) && !assignment) {
-				return NodeType.codecString;
+			if (codecs != null && codecs.containsKey(firstType)) {
+				return NodeType.codecObject;
 			}
 			// else other types
 			//return objectType;
@@ -299,8 +295,8 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		return true;
 	}
-	public void visit(StringBuilder builder, String prefix, Element o) {
-		NodeType type = parseType(o);
+	public void visit(StringBuilder builder, String prefix, Element o, NodeType containerType) {
+		NodeType type = parseType(o, containerType);
 		if (type == NodeType.plain) {
 			assign(builder, prefix, null).append(getTextValue(o).trim()).append("\r\n");
 			return;
@@ -313,7 +309,7 @@ public class ConfigXMLParser implements IConfigConverter {
 			assign(builder, prefix, null).append(ConfigINIParser.$empty).append("\r\n");
 			return;
 		}
-		if (type == NodeType.codecString) {
+		if (type == NodeType.codecObject) {
 			Element el = getFirstElement(o);
 			String secretStr = getTextValue(el).trim();
 			assign(builder, prefix, null).append('[').append(el.getNodeName()).append(':').append(secretStr).append("]\r\n");
@@ -354,8 +350,6 @@ public class ConfigXMLParser implements IConfigConverter {
 		}
 		if (type == NodeType.mapEntries) {
 			appendType(builder, prefix, o, null);
-			prefix += ".entries";
-			builder.append(prefix).append("=[]\r\n");
 			Element[] mapEntries = getChildElements(o, true);
 			int nodeLength = mapEntries.length + GeneratorConfig.startingIndex;
 			int maxZeros = ("" + nodeLength).length();
@@ -366,7 +360,7 @@ public class ConfigXMLParser implements IConfigConverter {
 				for (int j = 0; j < leadingZeros; j++) {
 					index = "0" + index;
 				}
-				visit(builder, prefix + "." + index, entry);
+				visit(builder, prefix + "." + index, entry, type);
 				idx++;
 			}
 			return;
@@ -376,7 +370,7 @@ public class ConfigXMLParser implements IConfigConverter {
 			Element[] children = getChildElements(o, true);
 			Element[] mapKVs = children;
 			for (Element entry : mapKVs) {
-				visit(builder, prefix + "." + entry.getNodeName(), entry);
+				visit(builder, prefix + "." + entry.getNodeName(), entry, type);
 			}
 			return;
 		}
@@ -385,7 +379,7 @@ public class ConfigXMLParser implements IConfigConverter {
 			Element[] children = getChildElements(o, true);
 			Element[] mapKVs = children;
 			for (Element entry : mapKVs) {
-				visit(builder, prefix + "." + entry.getNodeName(), entry);
+				visit(builder, prefix + "." + entry.getNodeName(), entry, type);
 			}
 			return;
 		}
@@ -476,7 +470,7 @@ public class ConfigXMLParser implements IConfigConverter {
 					index = "0" + index;
 				}
 				String newPrefix = prefix + "." + index;
-				visit(builder, newPrefix, element);
+				visit(builder, newPrefix, element, type);
 				idx++;
 			}
 			return;
@@ -544,7 +538,7 @@ public class ConfigXMLParser implements IConfigConverter {
 			}
 			Element el = (Element) item;
 			if (prefix == null) {
-				visit(builder, el.getNodeName(), el);
+				visit(builder, el.getNodeName(), el, type);
 				if (addComments) builder.append("\r\n");
 			} else {
 				if (!generated) {
@@ -552,7 +546,7 @@ public class ConfigXMLParser implements IConfigConverter {
 					generated = true;
 				}
 				String newPrefix = prefix + "." + el.getNodeName();
-				visit(builder, newPrefix, el);
+				visit(builder, newPrefix, el, type);
 			}
 		}
 	}
@@ -593,7 +587,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		dbf.setNamespaceAware(true);
 		dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
 		StringBuilder builder = new StringBuilder();
-		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement());
+		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement(), NodeType.none);
 //		System.out.println(builder.toString());
 		// System.out.println("==============");
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));

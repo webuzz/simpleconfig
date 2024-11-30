@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2010 - 2015 java2script.org, webuzz.im and others
+ * Copyright (c) 2010 - 2024 webuzz.im and others
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -125,15 +125,16 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 		}
 		if (needsTypeInfo) {
 			//appendIndents(builder);
-			builder.append(" \"class\": \"[object:");
+			builder.append(" \"class\": \""); //object:");
 			appendFieldType(builder, type, null, false);
-			builder.append("]\",");
+			builder.append("\",");
 		}
 	}
 
 	@Override
-	protected void endObjectBlock(StringBuilder builder, boolean needsWrapping) {
-		appendIndents(builder).append("}");
+	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
+		if (needsIndents) appendIndents(builder);
+		builder.append("}");
 	}
 
 	@Override
@@ -143,9 +144,6 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 
 	@Override
 	protected void generateString(StringBuilder builder, String v) {
-//		if (v == null) {
-//			builder.append($null);
-//		} else 
 		if (v.length() == 0) {
 			builder.append("\"\""); //$emptyString;
 			return;
@@ -156,27 +154,24 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 	@Override
 	protected boolean generateClass(StringBuilder builder, Class<?> v,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-//		if (v == null) {
-//			builder.append($null);
-//		} else 
-		if (needsTypeInfo) {
-			builder.append("{ Class: \"").append(v.getName()).append("\" }");
-		} else {
+		if (!needsTypeInfo) {
 			builder.append("\"").append(v.getName()).append("\"");
+			return true;
 		}
+		builder.append("{ Class: \"").append(v.getName()).append("\" }");
 		return true;
 	}
 	
 	@Override
-	protected boolean generateEnums(StringBuilder builder, Enum<?> v, Class<?> type,
+	protected boolean generateEnum(StringBuilder builder, Enum<?> v, Class<?> type,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-		if (needsTypeInfo) {
-			if (type != Enum.class) builder.append("{ Enum: ");
-			builder.append('\"').append(v.getClass().getName()).append('.').append(v.name()).append('\"');
-			if (type != Enum.class) builder.append(" }");
-		} else {
+		if (!needsTypeInfo) {
 			builder.append('\"').append(v.name()).append('\"');
+			return true;
 		}
+		if (type != Enum.class) builder.append("{ Enum: ");
+		builder.append('\"').append(v.getClass().getName()).append('.').append(v.name()).append('\"');
+		if (type != Enum.class) builder.append(" }");
 		return true;
 	}
 
@@ -185,28 +180,15 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		Class<? extends Object> clazz = v.getClass();
 		if (needsTypeInfo) builder.append("{ ").append(clazz.getSimpleName()).append(": ");
-		if (Class.class == clazz) {
-			builder.append("\"").append(((Class<?>) v).getName()).append("\"");
-		} else if (BigInteger.class == clazz || BigDecimal.class == clazz) {
+		if (BigInteger.class == clazz || BigDecimal.class == clazz) {
 			builder.append("\"").append(v).append("\"");
 		} else if (Character.class == clazz) {
-			Character c = (Character) v;
-			char ch = c.charValue();
-			if (0x20 <= ch && ch <= 0x7e) {
-				builder.append('\'').append(ch).append('\'');
-			} else {
-				builder.append("0x").append(Integer.toHexString(ch));
-			}
+			appendChar(builder, ((Character) v).charValue());
 		} else {
 			builder.append(v);
 		}
 		if (needsTypeInfo) builder.append(" }");
 	}
-
-//	@Override
-//	protected boolean supportsCompactArrays() {
-//		return true;
-//	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
@@ -245,21 +227,22 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 			} else {
 				String typeStr;
 				if (List.class.isAssignableFrom(vsType)) {
-					typeStr = "[list]"; //$list;
+					typeStr = "list"; //$list;
 				} else if (Set.class.isAssignableFrom(vsType)) {
-					typeStr = "[set]"; //$set;
+					typeStr = "set"; //$set;
 				} else {
-					typeStr = "[array]"; //$array;
+					typeStr = "array"; //$array;
 				}
 				builder.append("{ \"class\": \"");
+				// TODO
 				if (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
 						|| valueType.isInterface() || Utils.isAbstractClass(valueType)) {
 					builder.append(typeStr);
 				} else {
-					builder.append(typeStr.substring(0, typeStr.length() - 1)).append(':');
+					builder.append(typeStr).append(':');
 					//builder.append("[array:");
 					appendFieldType(builder, valueType, null, false);
-					builder.append("]");
+					//builder.append("]");
 				}
 				builder.append("\", value: ");
 			}
@@ -412,7 +395,12 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 				builder.append(" }");
 			}
 		}
-	}	
+	}
+
+	@Override
+	protected boolean checkPlainKeys(Class<?> keyType, Object[] keys) {
+		return keyType == String.class && Utils.canKeysBeFieldNames(keys);		
+	}
 
 	@Override
 	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
@@ -420,187 +408,101 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
-		/*
-		if ("strMap".equals(name)) {
+		//*
+		if ("mapArrs".equals(name)) {
 			System.out.println("xxx mapAas");
 		} //*/
+		// treating map as an object, starting with "{" and ending with "}"
 		startObjectBlock(builder, valueType, false, needsWrapping);
-		boolean directPropsMode = false;
-		if (keys.length == 0 || GeneratorConfig.preferKeyValueMapFormat
-				&& keyType == String.class && Utils.canKeysBeFieldNames(keys)) {
-			directPropsMode = true;
-			if (keys.length > 0 && codecs != null && codecs.length > 0) {
-				StringBuilder valueBuilder = new StringBuilder();
-				if (encode(valueBuilder, keys[0], true, false, depth + 1, codecs)) {
-					directPropsMode = false;
-				}
-			}
+		if (needsTypeInfo || needsToAvoidCodecKeys(keys)) {
+			// For cases need to avoid codec keys, we will get { "class": "[map]", aes: "AES Algorithm" }
+			builder.append(" \"class\": \"");
+			appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+			builder.append("\",");
 		}
-		if (directPropsMode) {
-			//boolean basicType = isBasicType(valueType);
-			int size = vs.size();
-			//boolean singleLine = size == 1 && basicType;
-			//boolean multipleLines = size > 1 || !basicType;
-			boolean needsClassToAvoidCodec = false;
-			if (size == 1 && keys[0] instanceof String) {
-				Map<String, Class<? extends IConfigCodec<?>>> configurationCodecs = Config.configurationCodecs;
-				if (configurationCodecs != null && configurationCodecs.containsKey(keys[0])) {
-					needsClassToAvoidCodec = true;
-					//multipleLines = true;
-				}
-			}
-			if (needsTypeInfo || needsClassToAvoidCodec) {
-				//appendIndents(builder);
-				//if (multipleLines) builder.append(' ');
-				builder.append(" \"class\": \"[map");
-				if (keyNeedsTypeInfo || valueNeedsTypeInfo) {
-					builder.append(':');
-					appendFieldType(builder, keyType, null, false);
-					builder.append(',');
-					appendFieldType(builder, valueType, null, false);
-
-				}
-				builder.append("]\",");
-			}
-			//if (singleLine) builder.append(' ');
+		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {
+			int size = keys.length;
 			if (compact) {
 				builder.append(' ');
 			} else {
 				builder.append("\r\n");
 				increaseIndent();
 			}
-			int index = 0;
-			for (Object k : keys) {
-				//if (vs.size() > 1) builder.append(indents);
-				Object o = vs.get(k);
-				boolean diffValueTypes = false;
-				Class<?> targetValueType = null;
-				if (o != null) {
-					targetValueType = o.getClass();
-					if (valueType != null && valueType != targetValueType && !valueType.isInterface()
-							&& !Utils.isAbstractClass(valueType)) {
-						diffValueTypes = true;
-					}
+			for (int i = 0; i < size; i++) {
+				Object k = keys[i];
+				appendMapKeyValue(builder, null, k, vs.get(k),
+						valueType, valueParamType,
+						depth, codecs, compact);
+				if (size > 1) {
+					if (!compact) appendLinebreak(builder);
+					else if (i != size - 1) builder.append(", ");
 				}
-				if (!diffValueTypes) targetValueType = valueType;
-				String prefix = Utils.wrapAsJSFieldName(k); // keywords.contains(k) ? "\"" + k + "\"" : String.valueOf(k);
-				generateFieldValue(builder, null, prefix, null, o, targetValueType, valueParamType,
-						false, true, depth + 1, codecs,
-						diffValueTypes, false, compact, false);
-				if (size > 1/* && index != size - 1*/) {
-					if (compact) {
-						if (index != size - 1) builder.append(", ");
-					} else {
-						appendLinebreak(builder);
-					}
-				}
-				index++;
 			}
 			if (compact) {
 				builder.append(' ');
 			} else {
 				decreaseIndent();
-				appendIndents(builder);
 			}
-		} else {
-			compact = false;
-			//builder.append("\r\n");
-			//increaseIndent();
-			builder.append(' ');
-			if (needsTypeInfo) {
-				builder.append("\"class\": \"[map");
-				if (keyNeedsTypeInfo || valueNeedsTypeInfo) {
-					builder.append(':');
-					appendFieldType(builder, keyType, null, false);
-					builder.append(',');
-					appendFieldType(builder, valueType, null, false);
-
-				}
-				builder.append("]\", ");
-				//builder.append("\"class\": \"[map]\", ");
-			}
-			StringBuilder valueBuilder = new StringBuilder();
-			valueBuilder.append("[ {\r\n");
-			increaseIndent();
-			for (int i = 0; i < keys.length; i++) {
-				Object k = keys[i];
-				boolean diffKeyTypes = false;
-				Class<?> targetKeyType = k.getClass();
-				if (keyType != null && keyType != targetKeyType && !keyType.isInterface()
-						&& !Utils.isAbstractClass(keyType)) {
-					diffKeyTypes = true;
-				}
-				if (!diffKeyTypes) targetKeyType = keyType;
-				generateFieldValue(valueBuilder, null, "key", null, k, targetKeyType, keyParamType,
-						true, false, depth + 1, codecs,
-						diffKeyTypes, false, compact, false);
-				appendLinebreak(valueBuilder);
-				Object o = vs.get(k);
-				boolean diffValueTypes = false;
-				Class<?> targetValueType = null;
-				if (o != null) {
-					targetValueType = o.getClass();
-					if (valueType != null && valueType != targetValueType && !valueType.isInterface()
-							&& !Utils.isAbstractClass(valueType)) {
-						diffValueTypes = true;
-					}
-				}
-				if (!diffValueTypes) targetValueType = valueType;
-				generateFieldValue(valueBuilder, null, "value", null, o, targetValueType, valueParamType,
-						false, true, depth + 1, codecs,
-						diffValueTypes, false, compact, false);
-				appendLinebreak(valueBuilder);
-				
-				if (i != keys.length - 1) {
-					decreaseIndent();
-					appendIndents(valueBuilder).append("}, {\r\n");
-					increaseIndent();
-				}
-			}
-			decreaseIndent();
-			appendIndents(valueBuilder).append("} ]");
-			assign(builder, "entries", valueBuilder, typeBuilder, true);
-			builder.append(' ');
-			//builder.append("\r\n");
-			//decreaseIndent();
-			//appendIndents(builder);
+			endObjectBlock(builder, !compact, needsWrapping); // #endObjectBlock will prepare indents
+			return;
 		}
-		builder.append("}");
-		//endObjectBlock(builder);
+		
+		// start entries mode
+		builder.append(' ');
+		StringBuilder valueBuilder = new StringBuilder();
+		valueBuilder.append("[ {\r\n");
+		increaseIndent();
+		for (int i = 0; i < keys.length; i++) {
+			Object k = keys[i];
+			appendMapEntry(valueBuilder, null, k, vs.get(k),
+					keyType, keyParamType, valueType, valueParamType,
+					depth, codecs);
+			if (i != keys.length - 1) {
+				decreaseIndent();
+				appendIndents(valueBuilder).append("}, {\r\n");
+				increaseIndent();
+			}
+		}
+		decreaseIndent();
+		appendIndents(valueBuilder).append("} ]");
+		assign(builder, "entries", valueBuilder, typeBuilder, true);
+		builder.append(' '); // ending white-space before closing bracket
+		endObjectBlock(builder, false, needsWrapping);
 	}
 	
 	@Override
 	protected StringBuilder assign(StringBuilder builder, String name, StringBuilder value, StringBuilder typeBuilder, boolean compact) {
-		if (name == null || name.length() == 0) {
-			if (!compact) {
-				int length = value.length();
-				if (length == 0) return builder;
-				if (length >= 3 && value.substring(0, 3).equals("{\r\n")
-						|| length > 10 && value.substring(0, 10).equals("{ \"class\":")) {
-					// start with no indents
-					int builderLength = builder.length();
-					if (builderLength >= 2 && builder.substring(builderLength - 2, builderLength).equals("[ ")) {
-						return builder.append(value);
-					}
-					if (builderLength >= 1 && builder.charAt(builderLength - 1) == '[') {
-						return builder.append(' ').append(value);
-					}
-					if (builderLength >= 5 && builder.substring(builderLength - 5, builderLength).equals("\t},\r\n")) {
-						builder.delete(builderLength - 2, builderLength);
-						return builder.append(' ').append(value);
-					}
-				}
-				if (value.charAt(0) == '\t') {
-					int builderLength = builder.length();
-					if (builderLength > 0 && builder.charAt(builderLength - 1) != '\n') builder.append("\r\n");
-				} else {
-					appendIndents(builder);
-				}
-			}
-			return builder.append(value);
+		if (name != null && name.length() > 0) {
+			if (!compact) appendIndents(builder);
+			return builder.append(name).append(": ").append(value);
 		}
-		if (!compact) appendIndents(builder);
-		return builder.append(name).append(": ").append(value);
+		
+		// name is empty, inside complicate object
+		if (compact) return builder.append(value);
+		int length = value.length();
+		if (length == 0) return builder;
+		if (length >= 3 && value.substring(0, 3).equals("{\r\n")
+				|| length > 10 && value.substring(0, 10).equals("{ \"class\":")) {
+			// start with no indents
+			int builderLength = builder.length();
+			if (builderLength >= 2 && builder.substring(builderLength - 2, builderLength).equals("[ ")) {
+				return builder.append(value);
+			}
+			if (builderLength >= 1 && builder.charAt(builderLength - 1) == '[') {
+				return builder.append(' ').append(value);
+			}
+			if (builderLength >= 5 && builder.substring(builderLength - 5, builderLength).equals("\t},\r\n")) {
+				builder.delete(builderLength - 2, builderLength);
+				return builder.append(' ').append(value);
+			}
+		}
+		if (value.charAt(0) == '\t') {
+			int builderLength = builder.length();
+			if (builderLength > 0 && builder.charAt(builderLength - 1) != '\n') builder.append("\r\n");
+		} else {
+			appendIndents(builder);
+		}
+		return builder.append(value);
 	}
 
 }

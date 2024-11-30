@@ -135,7 +135,7 @@ public class Utils {
 
 	public static boolean canKeysBeFieldNames(Object[] keys) {
 		for (int i = 0; i < keys.length; i++) {
-			if (!(keys[i] instanceof String) || !canAKeyBeAFieldName((String) keys[i])) return false;
+			if (!(keys[i] instanceof String && canAKeyBeAFieldName((String) keys[i]))) return false;
 		}
 		return true;
 	}
@@ -154,7 +154,7 @@ public class Utils {
 
 	public static boolean canKeysBePrefixedNames(Object[] keys) {
 		for (int i = 0; i < keys.length; i++) {
-			if (!(keys[i] instanceof String) || !canAKeyBeAPrefixedName((String) keys[i])) return false;
+			if (!(keys[i] instanceof String && canAKeyBeAPrefixedName((String) keys[i]))) return false;
 		}
 		return true;
 	}
