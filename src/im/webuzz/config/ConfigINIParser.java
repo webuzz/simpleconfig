@@ -757,13 +757,12 @@ public class ConfigINIParser {
 	 * ppp.ooo.kkk1=vvv1
 	 * 2. Entries with key-value object, in this case, the key may be complicate object
 	 * ppp.ooo=[map]
-	 * ppp.ooo.entries=[]
-	 * ppp.ooo.entries.0=[]
-	 * ppp.ooo.entries.0.key=kkk0
-	 * ppp.ooo.entries.0.value=vvv0
-	 * ppp.ooo.entries.1=[]
-	 * ppp.ooo.entries.1.key=kkk1
-	 * ppp.ooo.entries.2.value=vvv1
+	 * ppp.ooo.0=[]
+	 * ppp.ooo.0.key=kkk0
+	 * ppp.ooo.0.value=vvv0
+	 * ppp.ooo.1=[]
+	 * ppp.ooo.1.key=kkk1
+	 * ppp.ooo.2.value=vvv1
 	 * The object may be encoded in multiple lines or a single line.
 	 * @param prop
 	 * @param keyName
