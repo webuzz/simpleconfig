@@ -25,6 +25,7 @@ import java.util.HashMap;
 //import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -34,6 +35,8 @@ import java.util.Map;
  *
  */
 public class ConfigGenerator {
+
+	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<>();
 
 	static String readFile(File file) {
 		FileInputStream fis = null;
@@ -119,7 +122,7 @@ public class ConfigGenerator {
 			StringBuilder builder = null;
 			boolean globalConfig = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
 			String fileExt = classWithExtensions.get(clz);
-			IConfigGenerator cg = Config.getConfigurationGenerator(fileExt);
+			IConfigGenerator cg = getConfigurationGenerator(fileExt);
 			if (globalConfig) {
 				builder = defaultBuilder;
 				if (builder.length() > 0) {
@@ -206,6 +209,28 @@ public class ConfigGenerator {
 			}
 		}
 		classExtensions.put(lastClass, extension);
+	}
+
+	protected static IConfigGenerator getConfigurationGenerator(String extension) {
+		String ext = extension.substring(1);
+		IConfigGenerator generator = generators.get(ext);
+		if (generator != null) return generator;
+		try {
+			Class<?> clazz = GeneratorConfig.generatorExtensions.get(ext);
+			if (clazz != null) {
+				Object instance = clazz.newInstance();
+				if (instance instanceof IConfigGenerator) {
+					generator = (IConfigGenerator) instance;
+					generators.put(ext, generator);
+				}
+			}
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
+		}
+		if (generator == null) generator = new ConfigINIGenerator();
+		return generator;
 	}
 
 	public static void main(String[] args) {

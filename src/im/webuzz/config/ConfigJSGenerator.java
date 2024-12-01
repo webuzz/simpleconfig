@@ -18,8 +18,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,21 +31,7 @@ import im.webuzz.config.annotations.ConfigCodec;
  * @author zhourenjian
  *
  */
-public class ConfigJSGenerator extends ConfigINIGenerator {
-
-	public ConfigJSGenerator() {
-		$null = "null";
-		$object = "{}";
-		$array = "[]";
-		$map = $object;
-		$set = $object;
-		$list = $object;
-		$emptyObject = $object;
-		$emptyArray = $array;
-		$emptyString = "";
-		indents = "";
-		$compactSeparator = ", ";
-	}
+public class ConfigJSGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected void increaseIndent() {
@@ -126,7 +110,7 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 		if (needsTypeInfo) {
 			//appendIndents(builder);
 			builder.append(" \"class\": \""); //object:");
-			appendFieldType(builder, type, null, false);
+			Utils.appendFieldType(builder, type, null, false);
 			builder.append("\",");
 		}
 	}
@@ -135,6 +119,20 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
 		if (needsIndents) appendIndents(builder);
 		builder.append("}");
+	}
+
+	protected void generateNull(StringBuilder builder) {
+		builder.append("null");
+	}
+
+	@Override
+	protected void generateEmptyArray(StringBuilder builder) {
+		builder.append("[]");
+	}
+
+	@Override
+	protected void generateEmptyObject(StringBuilder builder) {
+		builder.append("{}");
 	}
 
 	@Override
@@ -148,7 +146,7 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 			builder.append("\"\""); //$emptyString;
 			return;
 		}
-		builder.append('\"').append(configFormat(v)).append('\"');
+		builder.append('\"').append(formatString(v)).append('\"');
 	}
 
 	@Override
@@ -190,7 +188,6 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 		if (needsTypeInfo) builder.append(" }");
 	}
 	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
@@ -202,124 +199,55 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 		} // */
 		checkIndents(builder);
 		Class<?> vsType = vs.getClass();
+		if (valueType == null) valueType = Object.class;
+		Object[] values = getObjectArray(vs, vsSize, vsType, valueType);
 		if (needsTypeInfo) {
 			if (valueType == null
 					|| GeneratorConfig.summarizeCollectionType && valueType == Object.class) {
 				Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-				Collection<Object> os = null;
-				if (vsType.isArray()) {
-					if (!valueType.isPrimitive()) {
-						os = Arrays.asList((Object[]) vs);
-					}
-				} else { // Collection
-					os = (Collection) vs;
-				}
-				if (os != null) {
-					Class<?> commonType = Utils.calculateCommonType(os, conflictedClasses);
-					if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
-						valueType = commonType;
-					}
+				Class<?> commonType = Utils.calculateCommonType(values, conflictedClasses);
+				if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
+					valueType = commonType;
 				}
 			}
 			if (type != Object.class && (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
 					|| valueType.isInterface() || Utils.isAbstractClass(valueType))) {
 				needsTypeInfo = false;
 			} else {
-				String typeStr;
-				if (List.class.isAssignableFrom(vsType)) {
-					typeStr = "list"; //$list;
-				} else if (Set.class.isAssignableFrom(vsType)) {
-					typeStr = "set"; //$set;
-				} else {
-					typeStr = "array"; //$array;
-				}
-				builder.append("{ \"class\": \"");
+				builder.append("{ \"class\": \"").append(Utils.getCollectionTypeName(vsType));
 				// TODO
 				if (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
 						|| valueType.isInterface() || Utils.isAbstractClass(valueType)) {
-					builder.append(typeStr);
 				} else {
-					builder.append(typeStr).append(':');
-					//builder.append("[array:");
-					appendFieldType(builder, valueType, null, false);
-					//builder.append("]");
+					builder.append(':');
+					Utils.appendFieldType(builder, valueType, null, false);
 				}
 				builder.append("\", value: ");
 			}
 		}
 		if (compact) {
 			builder.append("[");
-			//boolean singleItem = vsSize == 1;
 			if (vsSize >= 1) builder.append(' ');
-			if (valueType.isPrimitive()) {
-				for (int k = 0; k < vsSize; k++) {
-					if (k > 0) builder.append(", ");
-					appendArrayPrimitive(builder, vs, k, valueType, compact);
-				}
-				if (vsSize >= 1) builder.append(' ');
-				builder.append("]");
-				if (needsTypeInfo) builder.append(" }");
-				return;
-			}
-			int size = vsSize;
-			Object[] values = null;
-			if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
-				values = ((Collection) vs).toArray(new Object[size]);
-			} else if (vsType.isArray()) {
-				//if (!valueType.isPrimitive()) {
-					values = (Object[]) vs;
-				//}
-			}
 			for (int k = 0; k < vsSize; k++) {
-				Object o = values[k];
-			//int k = 0;
-			//for (Object o : (Collection) vs) {
 				if (k > 0) builder.append(", ");
-				Class<?> targetType = null;
-				//boolean diffTypes = o != null && valueType != (targetType = o.getClass());
-				boolean diffTypes = false;
-				if (o != null) {
-					targetType = o.getClass();
-					if (valueType != null && (valueType != targetType || valueType.isInterface()
-							|| Utils.isAbstractClass(valueType))) {
-						diffTypes = true;
-					}
+				if (values == null) {
+					appendArrayPrimitive(builder, vs, k, valueType, compact);
+					continue;
 				}
-				if (!diffTypes) targetType = valueType;
-				generateFieldValue(builder, null, null, null, o, targetType, valueParamType,
+				Object v = values[k];
+				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
+				generateFieldValue(builder, null, null, null, v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
 						diffTypes, true, compact, false);
-				//generateTypeObject(null, builder, null, o, type, null, needsTypeInfo, true);
-				//k++;
 			}
-			/*
-			builder.append("\r\n");
-
-			boolean first = true;
-			for (Object o : vs) {
-				if (!first) builder.append(", ");
-				first = false;
-				builder.append(type == String.class ? wrapAsPlainString((String) o) : (o == null ? $null : o));
-			}
-			//*/
 			if (vsSize >= 1) builder.append(' ');
 			builder.append("]");
-			//appendLinebreak(builder);
 			if (needsTypeInfo) builder.append(" }");
 			return;
 		}
 		builder.append("[");
-		if (valueType == null) valueType = Object.class;
-		boolean basicType = isBasicType(valueType);
+		boolean basicType = Utils.isBasicType(valueType);
 		int size = vsSize;
-		Object[] values = null;
-		if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
-			values = ((Collection) vs).toArray(new Object[size]);
-		} else if (vsType.isArray()) {
-			if (!valueType.isPrimitive()) {
-				values = (Object[]) vs;
-			}
-		}
 		boolean singleLine = size == 1 && basicType;
 		boolean multipleLines = size > 1 || !basicType;
 		boolean moreIndents = basicType || valueType.isPrimitive()
@@ -337,44 +265,18 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 				builder.append(' ');
 			}
 		}
-		if (multipleLines && !moreIndents) {
-			System.out.println("XXX");
-		}
 		
 		for (int k = 0; k < vsSize; k++) {
 			if (values == null) {
 				if (!singleLine) appendIndents(builder);
 				appendArrayPrimitive(builder, vs, k, valueType, compact);
 			} else {
-				Object o = values[k];
-//				if (multipleLines && (basicType
-//						|| ((valueType == Object.class || Utils.isAbstractClass(valueType))
-//								&& o != null && isBasicType(o.getClass())))) {
-//					appendIndents(builder);
-//				}
-				//Class<?> targetType = null;
-				boolean typesIsDifferent = false;
-				if (o != null) {
-					Class<?> targetType = o.getClass();
-					if (valueType != null && valueType != targetType) {
-						if (List.class == valueType
-								|| Set.class == valueType
-								|| Map.class == valueType) {
-							// These 3 collection types will be initialized to specific instances
-							// List => ArrayList
-							// Set => SynchronizedSet
-							// Map => ConcurrentHashMap
-						} else { // if (valueType.isInterface() || Utils.isAbstractClass(valueType)) {
-							typesIsDifferent = true;
-						}
-					}
-				}
-				//if (!diffTypes) targetType = valueType;
+				Object v = values[k];
+				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
 				generateFieldValue(builder, null, null, null,
-						o, valueType, valueParamType,
+						v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
-						typesIsDifferent, true, singleLine, false);
-				//generateTypeObject(f, builder, "", o, targetType, valueParamType, diffTypes, false);
+						diffTypes, true, singleLine, false);
 			}
 			if (singleLine && size > 1 && k != size - 1) builder.append(", ");
 			if (multipleLines) appendLinebreak(builder);
@@ -417,7 +319,7 @@ public class ConfigJSGenerator extends ConfigINIGenerator {
 		if (needsTypeInfo || needsToAvoidCodecKeys(keys)) {
 			// For cases need to avoid codec keys, we will get { "class": "[map]", aes: "AES Algorithm" }
 			builder.append(" \"class\": \"");
-			appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+			Utils.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 			builder.append("\",");
 		}
 		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {

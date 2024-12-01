@@ -9,23 +9,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import im.webuzz.config.annotations.ConfigEnum;
-import im.webuzz.config.annotations.ConfigIgnore;
-import im.webuzz.config.annotations.ConfigLength;
-import im.webuzz.config.annotations.ConfigNonNegative;
-import im.webuzz.config.annotations.ConfigNotEmpty;
-import im.webuzz.config.annotations.ConfigNotNull;
-import im.webuzz.config.annotations.ConfigNumberEnum;
-import im.webuzz.config.annotations.ConfigPattern;
-import im.webuzz.config.annotations.ConfigPositive;
-import im.webuzz.config.annotations.ConfigRange;
-import im.webuzz.config.annotations.ConfigCodec;
-import im.webuzz.config.annotations.ConfigSince;
+import im.webuzz.config.annotations.*;
 
 public class ConfigValidator {
 
-	private static ConfigINIGenerator generator = new ConfigINIGenerator();
-	
 	private static StringBuilder trimEndingDot0(StringBuilder builder) {
 		int length = builder.length();
 		if (builder.substring(length - 2, length).equals(".0")) {
@@ -51,7 +38,7 @@ public class ConfigValidator {
 			return;
 		}
 		builder.append('[');
-		generator.appendFieldType(builder, type, null, true);
+		Utils.appendFieldType(builder, type, null, true);
 		builder.append(":...]");
 	}
 

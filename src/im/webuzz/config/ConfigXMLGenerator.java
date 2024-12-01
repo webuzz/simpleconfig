@@ -14,23 +14,17 @@
 
 package im.webuzz.config;
 
-import static im.webuzz.config.GeneratorConfig.addFieldComment;
-import static im.webuzz.config.GeneratorConfig.addTypeComment;
-import static im.webuzz.config.GeneratorConfig.skipSimpleTypeComment;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import im.webuzz.config.annotations.ConfigCodec;
 import im.webuzz.config.annotations.ConfigComment;
 
-import java.util.Set;
+import static im.webuzz.config.GeneratorConfig.*;
 
 /**
  * Generate configuration default file in XML format.
@@ -38,20 +32,7 @@ import java.util.Set;
  * @author zhourenjian
  *
  */
-public class ConfigXMLGenerator extends ConfigINIGenerator {
-
-	public ConfigXMLGenerator() {
-		$null = "<null />";
-		$object = "object";
-		$array = "array";
-		$map = "map";
-		$set = "set";
-		$list = "list";
-		$emptyObject = "<empty />";
-		$emptyArray = "<empty />";
-		$emptyString = "<empty />";
-		indents = "";
-	}
+public class ConfigXMLGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected void increaseIndent() {
@@ -119,7 +100,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		appendIndents(builder);
 		if (needsTypeInfo) {
 			builder.append("<object class=\"");
-			appendFieldType(builder, type, null, false);
+			Utils.appendFieldType(builder, type, null, false);
 			builder.append("\"");
 		} else {
 			builder.append("<object");
@@ -161,7 +142,7 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 			if (commentAdded) { 
 				StringBuilder typeBuilder = new StringBuilder();
 				if (annCount > 0) typeBuilder.append(annBuilder);
-				appendFieldType(typeBuilder, type, paramType, true);
+				Utils.appendFieldType(typeBuilder, type, paramType, true);
 				typeBuilder.append("\r\n");
 				appendIndents(typeBuilder);
 				// Insert field type back into block comment
@@ -170,16 +151,31 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 				startBlockComment(builder);
 				appendIndents(builder);
 				builder.append(annBuilder);
-				appendFieldType(builder, type, paramType, true);
+				Utils.appendFieldType(builder, type, paramType, true);
 				endBlockComment(builder);
 			} else {
 				startLineComment(builder);
-				appendFieldType(builder, type, paramType, true);
+				Utils.appendFieldType(builder, type, paramType, true);
 				endLineComment(builder);
 			}
 		}
 	}
-	
+
+	@Override
+	protected void generateNull(StringBuilder builder) {
+		builder.append("<null />");
+	}
+
+	@Override
+	protected void generateEmptyArray(StringBuilder builder) {
+		builder.append("<empty />");
+	}
+
+	@Override
+	protected void generateEmptyObject(StringBuilder builder) {
+		builder.append("<empty />");
+	}
+
 	@Override
 	protected void appendEncodedString(StringBuilder builder, String codecKey, String encoded) {
 		builder.append('<').append(codecKey).append('>')
@@ -190,14 +186,14 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 	@Override
 	protected void generateString(StringBuilder builder, String v) {
 		if (v.length() == 0) {
-			builder.append($emptyString);
+			// TODO: "\"\"" ?
+			builder.append("<empty />");
 			return;
 		}
 		builder.append(configFormat(v));
 	}
 
-	@Override
-	protected String configFormat(String str) {
+	private String configFormat(String str) {
 		return str.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;").trim();
 	}
 	
@@ -242,26 +238,16 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		if (needsTag) builder.append("</").append(typeName).append('>');
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == null || type == Object.class) type = vs.getClass();
-		String typeStr;
-		if (List.class.isAssignableFrom(type)) {
-			typeStr = $list;
-		} else if (Set.class.isAssignableFrom(type)) {
-			typeStr = $set;
-		} else {
-			typeStr = $array;
-		}
-		if ("iarrs".equals(name)) {
-			System.out.println(1234);
-		}
-		if (needsWrapping) appendIndents(builder).append('<').append(typeStr);
 		Class<?> vsType = vs.getClass();
+		String typeStr = Utils.getCollectionTypeName(vsType);
+		Object[] values = getObjectArray(vs, vsSize, vsType, valueType);
+		if (needsWrapping) appendIndents(builder).append('<').append(typeStr);
 		if (compact) {
 			if (needsTypeInfo) {
 				//checkIndents(builder).append('<').append(typeStr).append('>');
@@ -271,105 +257,31 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 				else if (typeBuilder != null) typeBuilder.append(typeStr);
 			}
 			if (needsWrapping) builder.append('>');
-			if (vsType.isArray() && valueType.isPrimitive()) {
-				for (int k = 0; k < vsSize; k++) {
+			for (int k = 0; k < vsSize; k++) {
+				if (values == null) {
 					if (k > 0) builder.append(";");
 					appendArrayPrimitive(builder, vs, k, valueType, compact);
+					continue;
 				}
-				if (needsWrapping) builder.append("</").append(typeStr).append('>');
-				return;
-			}
-			int size = vsSize;
-			Object[] values = null;
-			if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
-				values = ((Collection) vs).toArray(new Object[size]);
-			} else if (vsType.isArray()) {
-				if (!valueType.isPrimitive()) {
-					values = (Object[]) vs;
-				}
-			}
-
-			for (int k = 0; k < values.length; k++) {
-				Object o = values[k];
+				Object v = values[k];
 				if (k > 0 && builder.charAt(builder.length() - 1) != '>') builder.append(";");
-				//Class<?> targetType = null;
-				//boolean diffTypes = o != null && valueType != (targetType = o.getClass());
-				boolean diffTypes = false;
-				if (o != null) {
-					Class<?> targetType = o.getClass();
-					if (valueType != null && valueType != targetType) {
-						if (List.class == valueType
-								|| Set.class == valueType
-								|| Map.class == valueType) {
-							// These 3 collection types will be initialized to specific instances
-							// List => ArrayList
-							// Set => SynchronizedSet
-							// Map => ConcurrentHashMap
-						} else { // if (valueType.isInterface() || Utils.isAbstractClass(valueType)) {
-							diffTypes = true;
-						}
-					}
-				}
-//				if (o != null) {
-//					targetType = o.getClass();
-//					if (valueType != null && (valueType != targetType || valueType.isInterface()
-//							|| Utils.isAbstractClass(valueType))) {
-//						diffTypes = true;
-//					}
-//				}
-//				if (!diffTypes) targetType = valueType;
-//				generateFieldValue(builder, null, null, null, o, targetType, valueParamType, diffTypes, true, compact, false);
-				generateFieldValue(builder, null, null, null, o, valueType, valueParamType,
+				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
+				generateFieldValue(builder, null, null, null, v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
 						diffTypes, true, compact, false);
-				//k++;
 			}
-			/*
-			builder.append("\r\n");
-
-			boolean first = true;
-			for (Object o : vs) {
-				if (!first) builder.append(", ");
-				first = false;
-				builder.append(type == String.class ? wrapAsPlainString((String) o) : (o == null ? $null : o));
-			}
-			//*/
-			//if (singleItem) builder.append(' ');
-			//builder.append("]");
 			if (needsWrapping) builder.append("</").append(typeStr).append('>');
-			//appendLinebreak(builder);
 			return;
 		}
 		//checkIndents(builder);
 		if (needsTypeInfo) {
-//			if ("anyList".equals(name)) {
-//				System.out.println("Debug[[");
-//			}
-//			String typeStr;
-//			if (List.class.isAssignableFrom(type)) {
-//				typeStr = "[list]"; //$list;
-//			} else if (Set.class.isAssignableFrom(type)) {
-//				typeStr = "[set]"; //$set;
-//			} else {
-//				typeStr = "[array]"; //$array;
-//			}
 			//builder.append("{ \"class\": \"");
-			if (needsTypeInfo && (valueType == null
+			if (needsTypeInfo && values != null && (valueType == null
 					|| GeneratorConfig.summarizeCollectionType && valueType == Object.class)) {
 				Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-				Collection<Object> os = null;
-				if (vsType.isArray()) {
-					if (!valueType.isPrimitive()) {
-						os = Arrays.asList((Object[]) vs);
-					}
-				} else { // Collection
-					os = (Collection) vs;
-				}
-				if (os != null) {
-					Class<?> commonType = Utils.calculateCommonType(os, conflictedClasses);
-					if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
-						valueType = commonType;
-					}
+				Class<?> commonType = Utils.calculateCommonType(values, conflictedClasses);
+				if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
+					valueType = commonType;
 				}
 			}
 			if (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
@@ -380,96 +292,49 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 					// TODO:
 				} else if (typeBuilder != null) typeBuilder.append(typeStr);
 			} else {
-				/*
-				builder.append('<').append(typeStr);
-				builder.append(" class=\"");
-				//builder.append(typeStr.substring(0, typeStr.length() - 1)).append(':');
-				//builder.append("[array:");
-				appendFieldType(builder, valueType, null, false);
-				builder.append('\"');
-				//*/
 				if (needsWrapping) {
 					// TODO:
 					builder.append(" class=\"").append(typeStr).append(':');
-					appendFieldType(typeBuilder, valueType, null, false);
+					Utils.appendFieldType(typeBuilder, valueType, null, false);
 					builder.append('\"');
 				} else if (typeBuilder != null) {
 					typeBuilder.append(typeStr).append(':');
-					appendFieldType(typeBuilder, valueType, null, false);
+					Utils.appendFieldType(typeBuilder, valueType, null, false);
 				}
 			}
 			//builder.append("\", value: ");
 			//builder.append('>');
 		}
 		if (needsWrapping) builder.append('>');
-		//builder.append("[");
 		if (valueType == null) valueType = Object.class;
-		boolean basicType = isBasicType(valueType);
-		int size = vsSize;
-		Object[] values = null;
-		if (List.class.isAssignableFrom(vsType) || Set.class.isAssignableFrom(vsType)) {
-			values = ((Collection) vs).toArray(new Object[size]);
-		} else if (vsType.isArray()) {
-			if (!valueType.isPrimitive()) {
-				values = (Object[]) vs;
-			}
-		}
-		boolean multipleLines = size >= 1 || !basicType;
+		boolean basicType = Utils.isBasicType(valueType);
+		boolean multipleLines = vsSize >= 1 || !basicType;
 		if (multipleLines) increaseIndent();
 		boolean first = true;
 		for (int k = 0; k < vsSize; k++) {
 			if (values == null) {
 				appendArrayPrimitive(builder, vs, k, valueType, compact);
 			} else {
-				Object o = values[k];
+				Object v = values[k];
 				if (first && multipleLines && (basicType
 						|| ((valueType == Object.class || Utils.isAbstractClass(valueType))
-								&& o != null && isBasicType(o.getClass())))) {
+								&& v != null && Utils.isBasicType(v.getClass())))) {
 					//appendIndents(builder);
 					first = false;
 				}
-				//Class<?> targetType = null;
-				boolean diffTypes = false;
-				if (o != null) {
-					Class<?> targetType = o.getClass();
-					if (valueType != null && valueType != targetType) {
-						if (List.class == valueType
-								|| Set.class == valueType
-								|| Map.class == valueType) {
-							// These 3 collection types will be initialized to specific instances
-							// List => ArrayList
-							// Set => SynchronizedSet
-							// Map => ConcurrentHashMap
-						} else { // if (valueType.isInterface() || Utils.isAbstractClass(valueType)) {
-							diffTypes = true;
-						}
-					}
-				}
-//				if (o != null) {
-//					targetType = o.getClass();
-//					if (valueType != null) {
-//						if (valueType == List.class || valueType == Map.class || valueType == Set.class) {
-//							
-//						}
-//						if (valueType != targetType && !valueType.isInterface()
-//								&& !Utils.isAbstractClass(valueType)) {
-//							diffTypes = true;
-//						}
-//					}
-//				}
-				//if (!diffTypes) targetType = valueType;
+				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
 				boolean wrapping = needsWrapping;
 				String wrappingTag = null;
 				if (valueType == String.class) {
 					StringBuilder valueBuilder = new StringBuilder();
-					if (!encode(valueBuilder, o, forKeys, forValues, depth + 1, codecs)) {
+					if (!encode(valueBuilder, v, forKeys, forValues, depth + 1, codecs)) {
 						wrappingTag = "String";
 					}
 				} else {
 					wrapping =true;
 				}
 				generateFieldValue(builder, null, wrappingTag,
-								null, o, valueType, valueParamType,
+								null, v, valueType, valueParamType,
 								forKeys, forValues, depth + 1, codecs,
 								diffTypes, wrapping, false, false);
 			}
@@ -509,10 +374,10 @@ public class ConfigXMLGenerator extends ConfigINIGenerator {
 		if (needsTypeInfo || (keyNeedsTypeInfo || valueNeedsTypeInfo) || needsToAvoidCodecKeys(keys)) {
 			if (needsWrapping) {
 				builder.append(" class=\"");
-				appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+				Utils.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 				builder.append('\"');
 			} else if (typeBuilder != null) {
-				appendMapType(typeBuilder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+				Utils.appendMapType(typeBuilder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 			}
 		}
 		if (needsWrapping) builder.append('>');

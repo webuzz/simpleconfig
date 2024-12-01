@@ -95,11 +95,6 @@ public class Config {
 	@ConfigPattern("([a-zA-Z0-9]+)")
 	public static Map<String, Class<? extends IConfigConverter>> converterExtensions = new ConcurrentHashMap<>();
 	protected static Map<String, IConfigConverter> converters = new ConcurrentHashMap<>();
-
-	@ConfigNotNull
-	@ConfigPattern("([a-zA-Z0-9]+)")
-	public static Map<String, Class<? extends IConfigGenerator>> generatorExtensions = new ConcurrentHashMap<>();
-	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<>();
 	
 	@ConfigNotNull
 	@ConfigLength(min = 3, max = 32, depth = 1)
@@ -110,10 +105,6 @@ public class Config {
 	static {
 		converterExtensions.put("js", ConfigJSParser.class);
 		converterExtensions.put("xml", ConfigXMLParser.class);
-		
-		generatorExtensions.put("ini", ConfigINIGenerator.class);
-		generatorExtensions.put("js", ConfigJSGenerator.class);
-		generatorExtensions.put("xml", ConfigXMLGenerator.class);
 
 		configurationCodecs.put("secret", SecretCodec.class);
 		//configurationCodecs.put("Secret", SecretCodec.class);
@@ -309,28 +300,6 @@ public class Config {
 			}
 		}
 		return new File(folder, Config.parseFilePath(keyPrefix + exts.iterator().next()));
-	}
-
-	protected static IConfigGenerator getConfigurationGenerator(String extension) {
-		String ext = extension.substring(1);
-		IConfigGenerator generator = generators.get(ext);
-		if (generator != null) return generator;
-		try {
-			Class<?> clazz = generatorExtensions.get(ext);
-			if (clazz != null) {
-				Object instance = clazz.newInstance();
-				if (instance instanceof IConfigGenerator) {
-					generator = (IConfigGenerator) instance;
-					generators.put(ext, generator);
-				}
-			}
-		} catch (InstantiationException e) {
-			e.printStackTrace();
-		} catch (IllegalAccessException e) {
-			e.printStackTrace();
-		}
-		if (generator == null) generator = new ConfigINIGenerator();
-		return generator;
 	}
 	
 	@Deprecated

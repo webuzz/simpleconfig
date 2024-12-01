@@ -1,8 +1,13 @@
 package im.webuzz.config;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import im.webuzz.config.annotations.ConfigClass;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
+import im.webuzz.config.annotations.ConfigNotNull;
+import im.webuzz.config.annotations.ConfigPattern;
 
 @ConfigClass
 @ConfigKeyPrefix("generator")
@@ -34,4 +39,14 @@ public class GeneratorConfig {
 
 	@ConfigComment("For array or collection, if all items are save typed, generate the type for the array or collection.")
 	public static boolean summarizeCollectionType = true;
+
+	@ConfigNotNull
+	@ConfigPattern("([a-zA-Z0-9]+)")
+	public static Map<String, Class<? extends IConfigGenerator>> generatorExtensions = new ConcurrentHashMap<>();
+	static {
+		generatorExtensions.put("ini", ConfigINIGenerator.class);
+		generatorExtensions.put("js", ConfigJSGenerator.class);
+		generatorExtensions.put("xml", ConfigXMLGenerator.class);
+	}
+	
 }

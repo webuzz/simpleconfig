@@ -380,7 +380,7 @@ public class ConfigINIParser {
 				if (decoded != null) {
 					nv = decoded;
 					changed = ov == null ? true : !nv.equals(ov);
-				} else if (!p.equals(ConfigINIParser.$null)) {
+				} else if (!p.equals($null)) {
 					int length = p.length();
 					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
 						int idx = p.indexOf(':');
@@ -416,7 +416,7 @@ public class ConfigINIParser {
 				if (decoded != null) {
 					nv = (Class<?>) decoded;
 					nvStr = nv.getName();
-				} else if (p != null && !ConfigINIParser.$null.equals(p)) {
+				} else if (p != null && !$null.equals(p)) {
 					int length = p.length();
 					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
 						int idx = p.indexOf(':');
@@ -453,7 +453,7 @@ public class ConfigINIParser {
 				if (decoded != null) {
 					nv = (Enum<?>) decoded;
 					nvStr = nv.name();
-				} else if (p != null && !ConfigINIParser.$null.equals(p)) {
+				} else if (p != null && !$null.equals(p)) {
 					String suffix = null;
 					int length = p.length();
 					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
@@ -508,7 +508,7 @@ public class ConfigINIParser {
 	}
 
 	protected static Object decode(String p) {
-		if (p == null || ConfigINIParser.$null.equals(p)) return null;
+		if (p == null || $null.equals(p)) return null;
 		int length = p.length();
 		if (length <= 1 || p.charAt(0) != '[' || p.charAt(length - 1) != ']'
 				|| p.indexOf(']') != length - 1) { // e.g. =[...];[...];[...]
@@ -556,8 +556,8 @@ public class ConfigINIParser {
 	 * @return the raw string object
 	 */
 	private static String parseString(String p) {
-		if (ConfigINIParser.$null.equals(p) || p == null) return null;
-		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) return "";
+		if ($null.equals(p) || p == null) return null;
+		if ($empty.equals(p) || p.length() == 0) return "";
 		return p;
 	}
 
@@ -609,8 +609,8 @@ public class ConfigINIParser {
 		if ("strBytes".equals(keyName)) {
 			System.out.println("Tow");
 		} // */
-		if (ConfigINIParser.$null.equals(p) || p == null) return null;
-		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) {
+		if ($null.equals(p) || p == null) return null;
+		if ($empty.equals(p) || p.length() == 0) {
 			if (List.class.isAssignableFrom(type)) {
 				return new ArrayList<Object>();
 			} else if (Set.class.isAssignableFrom(type)) {
@@ -772,9 +772,9 @@ public class ConfigINIParser {
 	 * @return
 	 */
 	private static Object parseMap(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
-		if (ConfigINIParser.$null.equals(p) || p == null) return null;
+		if ($null.equals(p) || p == null) return null;
 		Map<Object, Object> value = new ConcurrentHashMap<Object, Object>();
-		if (ConfigINIParser.$empty.equals(p) || p.length() == 0) return value;
+		if ($empty.equals(p) || p.length() == 0) return value;
 		Class<?> keyType = null;
 		Type keyParamType = null;
 		Class<?> valueType = null;
@@ -969,7 +969,7 @@ public class ConfigINIParser {
 	 * @return
 	 */
 	private static Object parseObject(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
-		if (p == null || ConfigINIParser.$null.equals(p)) return null;
+		if (p == null || $null.equals(p)) return null;
 		if (type == null) return new Object();
 		Object obj = null;
 		try {
@@ -977,12 +977,12 @@ public class ConfigINIParser {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		if (ConfigINIParser.$empty.equals(p) || p.length() == 0 || obj == null) return obj;
+		if ($empty.equals(p) || p.length() == 0 || obj == null) return obj;
 
 		String prefix = keyName + ".";
 		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
 		ConfigFieldFilter filter = configFilter != null ? configFilter.get(type) : null;
-		if (ConfigINIParser.$object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
+		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
@@ -1042,7 +1042,7 @@ public class ConfigINIParser {
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static Object recognizeAndParseObject(Properties prop, String keyName, String p, Class<?> type, Type paramType) {
-		if (p == null || ConfigINIParser.$null.equals(p)) return null;
+		if (p == null || $null.equals(p)) return null;
 		if (type == null || Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
 			Class<?> pType = recognizeObjectType(p);
 			if (type == Enum.class && pType == String.class) {
@@ -1111,15 +1111,15 @@ public class ConfigINIParser {
 
 	private static Class<?> recognizeObjectType(String p) {
 		int length = p.length();
-		if (length >= 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']' && !ConfigINIParser.$empty.equals(p)) {
+		if (length >= 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']' && !$empty.equals(p)) {
 			if (length == 2) return Object.class;
 			int idx = p.indexOf(':');
 			if (idx == -1) {
-				if (ConfigINIParser.$array.equals(p)) return Object[].class;
-				if (ConfigINIParser.$list.equals(p)) return List.class;
-				if (ConfigINIParser.$map.equals(p)) return Map.class;
-				if (ConfigINIParser.$set.equals(p)) return Set.class;
-				if (ConfigINIParser.$object.equals(p)) return Object.class;
+				if ($array.equals(p)) return Object[].class;
+				if ($list.equals(p)) return List.class;
+				if ($map.equals(p)) return Map.class;
+				if ($set.equals(p)) return Set.class;
+				if ($object.equals(p)) return Object.class;
 				String rawType = p.substring(1, length - 1);
 				return Config.loadConfigurationClass(rawType);
 			}
@@ -1137,7 +1137,7 @@ public class ConfigINIParser {
 			}
 			
 			String suffix = p.substring(idx + 1, length - 1);
-			if (ConfigINIParser.$array.startsWith(prefix)) {
+			if ($array.startsWith(prefix)) {
 				if (suffix.startsWith("[array")) {
 					Class<?> compType = recognizeObjectType(suffix);
 					return Array.newInstance(compType, 0).getClass();
@@ -1158,10 +1158,10 @@ public class ConfigINIParser {
 				}
 				return Object[].class;
 			}
-			if (ConfigINIParser.$list.startsWith(prefix)) return List.class;
-			if (ConfigINIParser.$map.startsWith(prefix)) return Map.class;
-			if (ConfigINIParser.$set.startsWith(prefix)) return Set.class;
-			if (ConfigINIParser.$object.startsWith(prefix)) {
+			if ($list.startsWith(prefix)) return List.class;
+			if ($map.startsWith(prefix)) return Map.class;
+			if ($set.startsWith(prefix)) return Set.class;
+			if ($object.startsWith(prefix)) {
 				Class<?> type = Config.loadConfigurationClass(suffix);
 				if (type == null) type = Object.class;
 				return type;
