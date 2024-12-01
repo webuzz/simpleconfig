@@ -45,8 +45,6 @@ import im.webuzz.config.codecs.Base64Codec;
 import im.webuzz.config.codecs.Bytes64Codec;
 import im.webuzz.config.codecs.BytesAESCodec;
 import im.webuzz.config.codecs.SecretCodec;
-import im.webuzz.config.security.SecurityConfig;
-import im.webuzz.config.security.SecurityKit;
 
 @ConfigClass
 @ConfigComment({

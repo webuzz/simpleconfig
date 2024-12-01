@@ -12,10 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.security;
-
-import im.webuzz.config.Base64;
-import im.webuzz.config.Config;
+package im.webuzz.config;
 
 import java.io.BufferedReader;
 import java.io.IOException;

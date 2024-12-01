@@ -507,6 +507,11 @@ public class ConfigINIParser {
 		return 0;
 	}
 
+	/**
+	 * [base64:###]: string encoded in Base64 format, see {@code im.webuzz.config.codecs.Base64Codec}
+	 * [secret:###]: string encoded by the encryption, see {@code im.webuzz.config.codecs.SecretCodec}
+	 * ...
+	 */
 	protected static Object decode(String p) {
 		if (p == null || $null.equals(p)) return null;
 		int length = p.length();
@@ -550,8 +555,6 @@ public class ConfigINIParser {
 	 * Known string pattern:
 	 * [null]: null string
 	 * [empty]: ""
-	 * [base64:###]: string encoded in Base64 format
-	 * [secret:###]: string encoded by the encryption, see {@code im.webuzz.config.security.SecurityKit}
 	 * @param p
 	 * @return the raw string object
 	 */

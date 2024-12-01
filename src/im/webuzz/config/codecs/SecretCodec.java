@@ -1,7 +1,7 @@
 package im.webuzz.config.codecs;
 
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.security.SecurityKit;
+import im.webuzz.config.SecurityKit;
 
 public class SecretCodec implements IConfigCodec<String> {
 	@Override

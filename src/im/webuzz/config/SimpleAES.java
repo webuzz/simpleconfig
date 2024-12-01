@@ -12,12 +12,10 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.security;
+package im.webuzz.config;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
-
-import im.webuzz.config.Base64;
 
 //import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
