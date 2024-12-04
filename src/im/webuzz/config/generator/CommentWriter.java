@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import im.webuzz.config.annotations.*;
+import im.webuzz.config.annotation.*;
 
 public class CommentWriter {
 

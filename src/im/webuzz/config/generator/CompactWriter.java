@@ -30,8 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.Utils;
-import im.webuzz.config.annotations.ConfigCodec;
-import im.webuzz.config.annotations.ConfigIgnore;
+import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigIgnore;
 
 public class CompactWriter {
 

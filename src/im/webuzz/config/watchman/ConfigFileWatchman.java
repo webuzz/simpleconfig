@@ -12,13 +12,18 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.watchman;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import im.webuzz.config.Config;
+import im.webuzz.config.DeepComparator;
+import im.webuzz.config.IConfigParser;
+import im.webuzz.config.IConfigWatchman;
 
 import java.nio.file.*;
 //import java.nio.file.attribute.FileTime;

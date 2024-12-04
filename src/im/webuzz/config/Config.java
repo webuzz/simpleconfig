@@ -31,22 +31,23 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.agent.ConfigAgent;
-import im.webuzz.config.annotations.ConfigClass;
-import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.annotations.ConfigKeyPrefix;
-import im.webuzz.config.annotations.ConfigLength;
-import im.webuzz.config.annotations.ConfigNotEmpty;
-import im.webuzz.config.annotations.ConfigNotNull;
-import im.webuzz.config.annotations.ConfigPattern;
-import im.webuzz.config.codecs.AESCodec;
-import im.webuzz.config.codecs.Base64Codec;
-import im.webuzz.config.codecs.Bytes64Codec;
-import im.webuzz.config.codecs.BytesAESCodec;
-import im.webuzz.config.codecs.SecretCodec;
+import im.webuzz.config.annotation.ConfigClass;
+import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
+import im.webuzz.config.annotation.ConfigLength;
+import im.webuzz.config.annotation.ConfigNotEmpty;
+import im.webuzz.config.annotation.ConfigNotNull;
+import im.webuzz.config.annotation.ConfigPattern;
+import im.webuzz.config.codec.AESCodec;
+import im.webuzz.config.codec.Base64Codec;
+import im.webuzz.config.codec.Bytes64Codec;
+import im.webuzz.config.codec.BytesAESCodec;
+import im.webuzz.config.codec.SecretCodec;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
 import im.webuzz.config.parser.ConfigJSParser;
 import im.webuzz.config.parser.ConfigXMLParser;
+import im.webuzz.config.watchman.ConfigFileWatchman;
 
 @ConfigClass
 @ConfigComment({
@@ -272,7 +273,7 @@ public class Config {
 	 * @param configExtension
 	 * @return whether file extension is changed or not.
 	 */
-	protected static boolean recordConfigExtension(Class<?> configClass, String configExtension) {
+	public static boolean recordConfigExtension(Class<?> configClass, String configExtension) {
 		String existedConfigExt = configExtensions.put(configClass, configExtension);
 		if (existedConfigExt != null && !existedConfigExt.equals(configExtension)) {
 			return true;
@@ -280,7 +281,7 @@ public class Config {
 		return false;
 	}
 	
-	protected static String getConfigExtension(Class<?> configClass) {
+	public static String getConfigExtension(Class<?> configClass) {
 		String ext = configExtensions.get(configClass);
 		if (ext == null) ext = configurationFileExtension;
 		return ext;
@@ -470,7 +471,7 @@ public class Config {
 		return true; // continue to parse other item
 	}
 	
-	protected static void loadWatchmen() {
+	public static void loadWatchmen() {
 		// Load watchman classes and start synchronizing task
 		Set<Class<?>> loadedWatchmen = new HashSet<Class<?>>();
 		int loopLoadings = 5;

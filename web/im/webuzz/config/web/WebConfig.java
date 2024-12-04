@@ -14,10 +14,10 @@
 
 package im.webuzz.config.web;
 
-import im.webuzz.config.annotations.ConfigClass;
-import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.annotations.ConfigRange;
-import im.webuzz.config.annotations.ConfigCodec;
+import im.webuzz.config.annotation.ConfigClass;
+import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigRange;
 
 @ConfigClass
 @ConfigComment({

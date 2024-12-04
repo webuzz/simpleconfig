@@ -25,7 +25,7 @@ import java.util.Set;
 
 import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.Utils;
-import im.webuzz.config.annotations.ConfigCodec;
+import im.webuzz.config.annotation.ConfigCodec;
 
 /**
  * Generate configuration default file in JavaScript format.

@@ -5,9 +5,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import im.webuzz.config.annotations.ConfigClass;
-import im.webuzz.config.annotations.ConfigLocalOnly;
-import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotation.ConfigClass;
+import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigLocalOnly;
 
 @ConfigClass
 @ConfigLocalOnly

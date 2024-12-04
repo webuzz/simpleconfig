@@ -1,4 +1,4 @@
-package im.webuzz.config.annotations;
+package im.webuzz.config.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

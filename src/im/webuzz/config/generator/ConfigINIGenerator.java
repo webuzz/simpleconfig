@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.Utils;
-import im.webuzz.config.annotations.*;
+import im.webuzz.config.annotation.ConfigCodec;
 
 import static im.webuzz.config.GeneratorConfig.*;
 

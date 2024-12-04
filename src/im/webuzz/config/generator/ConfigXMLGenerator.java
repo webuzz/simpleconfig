@@ -23,8 +23,8 @@ import java.util.Set;
 
 import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.Utils;
-import im.webuzz.config.annotations.ConfigCodec;
-import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigComment;
 
 import static im.webuzz.config.GeneratorConfig.*;
 

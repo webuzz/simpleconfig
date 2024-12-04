@@ -1,4 +1,4 @@
-package im.webuzz.config.annotations;
+package im.webuzz.config.annotation;
 
 import static java.lang.annotation.ElementType.FIELD;
 

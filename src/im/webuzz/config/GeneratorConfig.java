@@ -3,11 +3,11 @@ package im.webuzz.config;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.annotations.ConfigClass;
-import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.annotations.ConfigKeyPrefix;
-import im.webuzz.config.annotations.ConfigNotNull;
-import im.webuzz.config.annotations.ConfigPattern;
+import im.webuzz.config.annotation.ConfigClass;
+import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
+import im.webuzz.config.annotation.ConfigNotNull;
+import im.webuzz.config.annotation.ConfigPattern;
 import im.webuzz.config.generator.ConfigINIGenerator;
 import im.webuzz.config.generator.ConfigJSGenerator;
 import im.webuzz.config.generator.ConfigXMLGenerator;

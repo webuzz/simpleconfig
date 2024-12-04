@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.annotations;
+package im.webuzz.config.annotation;
 
 import static java.lang.annotation.ElementType.TYPE;
 

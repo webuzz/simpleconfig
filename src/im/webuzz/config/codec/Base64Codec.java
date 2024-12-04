@@ -1,4 +1,4 @@
-package im.webuzz.config.codecs;
+package im.webuzz.config.codec;
 
 import im.webuzz.config.Base64;
 import im.webuzz.config.Config;

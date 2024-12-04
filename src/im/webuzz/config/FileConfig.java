@@ -1,9 +1,9 @@
 package im.webuzz.config;
 
-import im.webuzz.config.annotations.ConfigClass;
-import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.annotations.ConfigKeyPrefix;
-import im.webuzz.config.annotations.ConfigLocalOnly;
+import im.webuzz.config.annotation.ConfigClass;
+import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
+import im.webuzz.config.annotation.ConfigLocalOnly;
 
 @ConfigClass
 @ConfigLocalOnly

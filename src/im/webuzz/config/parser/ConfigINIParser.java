@@ -31,8 +31,8 @@ import im.webuzz.config.DeepComparator;
 import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.IConfigParser;
 import im.webuzz.config.Utils;
-import im.webuzz.config.annotations.ConfigIgnore;
-import im.webuzz.config.annotations.ConfigRange;
+import im.webuzz.config.annotation.ConfigIgnore;
+import im.webuzz.config.annotation.ConfigRange;
 
 public class ConfigINIParser implements IConfigParser<File, Object> {
 

@@ -38,9 +38,9 @@ import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.IConfigGenerator;
 import im.webuzz.config.Utils;
-import im.webuzz.config.annotations.ConfigCodec;
-import im.webuzz.config.annotations.ConfigComment;
-import im.webuzz.config.annotations.ConfigIgnore;
+import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigIgnore;
 
 public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, IConfigGenerator<StringBuilder> {
 

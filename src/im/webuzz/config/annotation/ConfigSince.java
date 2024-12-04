@@ -1,4 +1,4 @@
-package im.webuzz.config.annotations;
+package im.webuzz.config.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,6 +7,6 @@ import java.lang.annotation.Target;
 
 @Target({ElementType.TYPE, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ConfigIgnore {
-
+public @interface ConfigSince {
+	String value();
 }

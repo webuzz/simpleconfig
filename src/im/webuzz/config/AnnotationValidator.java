@@ -9,7 +9,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import im.webuzz.config.annotations.*;
+import im.webuzz.config.annotation.*;
 import im.webuzz.config.generator.AnnotationWriter;
 
 public class AnnotationValidator {

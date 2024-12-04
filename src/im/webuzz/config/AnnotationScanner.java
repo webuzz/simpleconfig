@@ -9,7 +9,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.jar.JarFile;
 
-import im.webuzz.config.annotations.ConfigClass;
+import im.webuzz.config.annotation.ConfigClass;
 
 public class AnnotationScanner {
 

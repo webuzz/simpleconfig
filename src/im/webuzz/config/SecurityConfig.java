@@ -16,8 +16,8 @@ package im.webuzz.config;
 
 import java.util.Properties;
 
-import im.webuzz.config.annotations.ConfigClass;
-import im.webuzz.config.annotations.ConfigComment;
+import im.webuzz.config.annotation.ConfigClass;
+import im.webuzz.config.annotation.ConfigComment;
 
 @ConfigClass
 @ConfigComment({

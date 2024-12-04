@@ -3,7 +3,7 @@ package im.webuzz.config.generator;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 
-import im.webuzz.config.annotations.*;
+import im.webuzz.config.annotation.*;
 
 public class AnnotationWriter {
 	
