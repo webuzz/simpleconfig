@@ -12,12 +12,15 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.parser;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +28,11 @@ import java.util.Map;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 
-public class ConfigJSParser implements IConfigConverter {
+import im.webuzz.config.Config;
+import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.IConfigParser;
+
+public class ConfigJSParser implements IConfigParser<File, Object> {
 
 	private static String convertJS = null;
 
@@ -37,7 +44,7 @@ public class ConfigJSParser implements IConfigConverter {
 		if (initialized) {
 			return true;
 		}
-		InputStream jsStream = ConfigJSParser.class.getResourceAsStream("JS2Props.js");
+		InputStream jsStream = ConfigJSParser.class.getResourceAsStream("ConfigJSToProps.js");
 		if (jsStream == null) {
 			System.out.println("[FATAL] Failed to read JS2Props.js from resource stream.");
 			return false;
@@ -97,7 +104,6 @@ public class ConfigJSParser implements IConfigConverter {
 		return initialized;
 	}
 	
-	@Override
 	public InputStream convertToProperties(InputStream is) throws Exception {
 		byte[] buffer = new byte[8096];
 		int read = -1;
@@ -111,7 +117,7 @@ public class ConfigJSParser implements IConfigConverter {
 		}
 		StringBuilder builder = new StringBuilder();
 		builder.append("$configurationCodecs = ");
-		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs != null) {
 			String[] cs = codecs.keySet().toArray(new String[codecs.size()]);
 			builder.append('[');
@@ -150,6 +156,41 @@ public class ConfigJSParser implements IConfigConverter {
 			}
 		}
 		throw new RuntimeException("Unable to generate properties from the script!");
+	}
+
+	private ConfigINIParser iniParser;
+	
+	public ConfigJSParser() {
+		super();
+		iniParser = new ConfigINIParser();
+	}
+
+	
+	@Override
+	public Object loadResource(File source, boolean combinedConfigs) {
+		iniParser.combinedConfigs = combinedConfigs;
+		FileInputStream fis = null;
+		try {
+			fis = new FileInputStream(source);
+			InputStream is = convertToProperties(fis);
+			iniParser.props.load(new InputStreamReader(is, Config.configFileEncoding));
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			if (fis != null) {
+				try {
+					fis.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return null;
+	}
+
+	@Override
+	public int parseConfiguration(Class<?> clz, boolean updating) {
+		return iniParser.parseConfiguration(clz, updating);
 	}
 
 	public static void main(String[] args) throws Exception {

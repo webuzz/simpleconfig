@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import im.webuzz.config.GeneratorConfig;
+import im.webuzz.config.Utils;
 import im.webuzz.config.annotations.ConfigCodec;
 
 /**
@@ -33,42 +35,57 @@ import im.webuzz.config.annotations.ConfigCodec;
  */
 public class ConfigJSGenerator extends ConfigBaseGenerator {
 
-	@Override
-	protected void increaseIndent() {
-		indents += "\t";
-	}
+	class JSCompactWriter extends CompactWriter {
+		@Override
+		protected void increaseIndent() {
+			indents += "\t";
+		}
+	
+		@Override
+		protected void decreaseIndent() {
+			int length = indents.length();
+			if (length > 0) {
+				indents = indents.substring(0, length - 1);
+			}
+		}
 
-	@Override
-	protected void decreaseIndent() {
-		int length = indents.length();
-		if (length > 0) {
-			indents = indents.substring(0, length - 1);
+		@Override
+		protected void appendLinebreak(StringBuilder builder) {
+			int length = builder.length();
+			if (length < 2 || builder.charAt(length - 1) != '\n') {
+				builder.append(",\r\n");
+			}
 		}
 	}
-
-	@Override
-	protected void startLineComment(StringBuilder builder) {
-		appendIndents(builder).append("// ");
+	
+	public ConfigJSGenerator() {
+		super();
+		compactWriter = new JSCompactWriter();
 	}
 
 	@Override
-	protected void endLineComment(StringBuilder builder) {
+	public void startLineComment(StringBuilder builder) {
+		compactWriter.appendIndents(builder).append("// ");
+	}
+
+	@Override
+	public void endLineComment(StringBuilder builder) {
 		builder.append("\r\n");
 	}
 
 	@Override
-	protected void startBlockComment(StringBuilder builder) {
-		appendIndents(builder).append("/**\r\n");
+	public void startBlockComment(StringBuilder builder) {
+		compactWriter.appendIndents(builder).append("/**\r\n");
 	}
 
 	@Override
-	protected StringBuilder addMiddleComment(StringBuilder builder) {
-		return appendIndents(builder).append(" * ");
+	public StringBuilder addMiddleComment(StringBuilder builder) {
+		return compactWriter.appendIndents(builder).append(" * ");
 	}
 
 	@Override
-	protected void endBlockComment(StringBuilder builder) {
-		appendIndents(builder).append(" */\r\n");
+	public void endBlockComment(StringBuilder builder) {
+		compactWriter.appendIndents(builder).append(" */\r\n");
 	}
 
 	@Override
@@ -85,14 +102,6 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	protected String prefixedField(String prefix, String name) {
 		return Utils.wrapAsJSFieldName(name);
 	}
-
-	@Override
-	protected void appendLinebreak(StringBuilder builder) {
-		int length = builder.length();
-		if (length < 2 || builder.charAt(length - 1) != '\n') {
-			builder.append(",\r\n");
-		}
-	}
 	
 	@Override
 	protected void startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
@@ -102,22 +111,22 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		} else if (length > 4 && builder.substring(length - 3).equals("[\r\n")) {
 			builder.insert(length - 2, " {");
 		} else {
-			if (length > 1 && builder.charAt(length - 1) == '\n' && indents.length() > 0) {
-				builder.append(indents.substring(0, indents.length() - 1));
+			if (length > 1 && builder.charAt(length - 1) == '\n' && compactWriter.indents.length() > 0) {
+				builder.append(compactWriter.indents.substring(0, compactWriter.indents.length() - 1));
 			}
 			builder.append("{");
 		}
 		if (needsTypeInfo) {
 			//appendIndents(builder);
 			builder.append(" \"class\": \""); //object:");
-			Utils.appendFieldType(builder, type, null, false);
+			typeWriter.appendFieldType(builder, type, null);
 			builder.append("\",");
 		}
 	}
 
 	@Override
 	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
-		if (needsIndents) appendIndents(builder);
+		if (needsIndents) compactWriter.appendIndents(builder);
 		builder.append("}");
 	}
 
@@ -197,7 +206,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		if ("anyArr4".equals(name)) {
 			System.out.println("Debug");
 		} // */
-		checkIndents(builder);
+		compactWriter.checkIndents(builder);
 		Class<?> vsType = vs.getClass();
 		if (valueType == null) valueType = Object.class;
 		Object[] values = getObjectArray(vs, vsSize, vsType, valueType);
@@ -220,7 +229,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 						|| valueType.isInterface() || Utils.isAbstractClass(valueType)) {
 				} else {
 					builder.append(':');
-					Utils.appendFieldType(builder, valueType, null, false);
+					typeWriter.appendFieldType(builder, valueType, null);
 				}
 				builder.append("\", value: ");
 			}
@@ -260,7 +269,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		if (multipleLines) {
 			if (moreIndents) {
 				builder.append("\r\n");
-				increaseIndent();
+				compactWriter.increaseIndent();
 			} else {
 				builder.append(' ');
 			}
@@ -268,7 +277,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		
 		for (int k = 0; k < vsSize; k++) {
 			if (values == null) {
-				if (!singleLine) appendIndents(builder);
+				if (!singleLine) compactWriter.appendIndents(builder);
 				appendArrayPrimitive(builder, vs, k, valueType, compact);
 			} else {
 				Object v = values[k];
@@ -279,13 +288,13 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 						diffTypes, true, singleLine, false);
 			}
 			if (singleLine && size > 1 && k != size - 1) builder.append(", ");
-			if (multipleLines) appendLinebreak(builder);
+			if (multipleLines) compactWriter.appendLinebreak(builder);
 		}
 		if (singleLine) builder.append(' ');
 		if (multipleLines) {
 			if (moreIndents) {
-				decreaseIndent();
-				appendIndents(builder);
+				compactWriter.decreaseIndent();
+				compactWriter.appendIndents(builder);
 			}
 		}
 		int length = builder.length();
@@ -319,7 +328,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		if (needsTypeInfo || needsToAvoidCodecKeys(keys)) {
 			// For cases need to avoid codec keys, we will get { "class": "[map]", aes: "AES Algorithm" }
 			builder.append(" \"class\": \"");
-			Utils.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+			typeWriter.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 			builder.append("\",");
 		}
 		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {
@@ -328,7 +337,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 				builder.append(' ');
 			} else {
 				builder.append("\r\n");
-				increaseIndent();
+				compactWriter.increaseIndent();
 			}
 			for (int i = 0; i < size; i++) {
 				Object k = keys[i];
@@ -336,14 +345,14 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 						valueType, valueParamType,
 						depth, codecs, compact);
 				if (size > 1) {
-					if (!compact) appendLinebreak(builder);
+					if (!compact) compactWriter.appendLinebreak(builder);
 					else if (i != size - 1) builder.append(", ");
 				}
 			}
 			if (compact) {
 				builder.append(' ');
 			} else {
-				decreaseIndent();
+				compactWriter.decreaseIndent();
 			}
 			endObjectBlock(builder, !compact, needsWrapping); // #endObjectBlock will prepare indents
 			return;
@@ -353,20 +362,20 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		builder.append(' ');
 		StringBuilder valueBuilder = new StringBuilder();
 		valueBuilder.append("[ {\r\n");
-		increaseIndent();
+		compactWriter.increaseIndent();
 		for (int i = 0; i < keys.length; i++) {
 			Object k = keys[i];
 			appendMapEntry(valueBuilder, null, k, vs.get(k),
 					keyType, keyParamType, valueType, valueParamType,
 					depth, codecs);
 			if (i != keys.length - 1) {
-				decreaseIndent();
-				appendIndents(valueBuilder).append("}, {\r\n");
-				increaseIndent();
+				compactWriter.decreaseIndent();
+				compactWriter.appendIndents(valueBuilder).append("}, {\r\n");
+				compactWriter.increaseIndent();
 			}
 		}
-		decreaseIndent();
-		appendIndents(valueBuilder).append("} ]");
+		compactWriter.decreaseIndent();
+		compactWriter.appendIndents(valueBuilder).append("} ]");
 		assign(builder, "entries", valueBuilder, typeBuilder, true);
 		builder.append(' '); // ending white-space before closing bracket
 		endObjectBlock(builder, false, needsWrapping);
@@ -375,7 +384,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	@Override
 	protected StringBuilder assign(StringBuilder builder, String name, StringBuilder value, StringBuilder typeBuilder, boolean compact) {
 		if (name != null && name.length() > 0) {
-			if (!compact) appendIndents(builder);
+			if (!compact) compactWriter.appendIndents(builder);
 			return builder.append(name).append(": ").append(value);
 		}
 		
@@ -402,7 +411,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			int builderLength = builder.length();
 			if (builderLength > 0 && builder.charAt(builderLength - 1) != '\n') builder.append("\r\n");
 		} else {
-			appendIndents(builder);
+			compactWriter.appendIndents(builder);
 		}
 		return builder.append(value);
 	}

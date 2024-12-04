@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 import static im.webuzz.config.GeneratorConfig.addFieldComment;
 import static im.webuzz.config.GeneratorConfig.addTypeComment;
@@ -21,42 +21,52 @@ import static im.webuzz.config.GeneratorConfig.skipSimpleTypeComment;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 import im.webuzz.config.annotations.*;
 
-public abstract class ConfigCommentGenerator extends ConfigCompactGenerator {
+public class CommentWriter {
 
-	protected Set<Field> commentGeneratedFields;
+	public static interface CommentWrapper {
 
-	public ConfigCommentGenerator() {
-		commentGeneratedFields = new HashSet<Field>();
+		// To provide a line of comment, e.g. a field's type
+		public void startLineComment(StringBuilder builder);
+		public void endLineComment(StringBuilder builder);
+		
+		// To provide more information about a type or a field 
+		public void startBlockComment(StringBuilder builder);
+		public StringBuilder addMiddleComment(StringBuilder builder);
+		public void endBlockComment(StringBuilder builder);
+	}
+	
+	protected CommentWrapper commentWrapper;
+	public AnnotationWriter annWriter;
+	public CommentClassWriter commentClassWriter;
+	
+	public static Set<Field> commentGeneratedFields = Collections.synchronizedSet(new HashSet<Field>());
+
+	public CommentWriter(CommentWrapper wrapper) {
+		this.commentWrapper = wrapper;
+		this.annWriter = new AnnotationWriter();
+		this.commentClassWriter = new CommentClassWriter();
 	}
 
-	// To provide a line of comment, e.g. a field's type
-	protected abstract void startLineComment(StringBuilder builder);
-	protected abstract void endLineComment(StringBuilder builder);
-	
-	// To provide more information about a type or a field 
-	protected abstract void startBlockComment(StringBuilder builder);
-	protected abstract StringBuilder addMiddleComment(StringBuilder builder);
-	protected abstract void endBlockComment(StringBuilder builder);
-
-	protected boolean appendConfigComment(StringBuilder builder, ConfigComment configAnn) {
+	public boolean appendConfigComment(StringBuilder builder, ConfigComment configAnn) {
 		if (configAnn == null) return false;
 		String[] comments = configAnn.value();
 		if (comments == null || comments.length == 0) return false;
 		if (comments.length > 1) {
-			startBlockComment(builder);
+			commentWrapper.startBlockComment(builder);
 			for (int i = 0; i < comments.length; i++) {
-				addMiddleComment(builder).append(comments[i]).append("\r\n");
+				commentWrapper.addMiddleComment(builder).append(comments[i]).append("\r\n");
 			}
-			endBlockComment(builder); // If ended, line break should be appended.
+			commentWrapper.endBlockComment(builder); // If ended, line break should be appended.
 		} else {
-			startLineComment(builder);
+			commentWrapper.startLineComment(builder);
 			builder.append(comments[0]);
-			endLineComment(builder);
+			commentWrapper.endLineComment(builder);
 		}
 		return true;
 	}
@@ -64,14 +74,14 @@ public abstract class ConfigCommentGenerator extends ConfigCompactGenerator {
 
 	protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
 		for (Annotation ann : anns) {
-			startLineComment(builder);
-			ConfigValidator.appendAnnotation(builder, ann, anns.length > 1);
-			endLineComment(builder);
+			commentWrapper.startLineComment(builder);
+			annWriter.appendAnnotation(builder, ann, anns.length > 1);
+			commentWrapper.endLineComment(builder);
 		}
 		return anns.length;
 	}
 
-	protected int appendAllFieldAnnotations(StringBuilder annBuilder, Field f) {
+	public int appendAllFieldAnnotations(StringBuilder annBuilder, Field f) {
 		int annCount = 0;
 		// The followings are array/list/set/map/object related
 		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNotNull.class));
@@ -104,10 +114,10 @@ public abstract class ConfigCommentGenerator extends ConfigCompactGenerator {
 				return;
 			}
 			appendAllFieldAnnotations(builder, f);
-			startLineComment(builder);
+			commentWrapper.startLineComment(builder);
 			Type paramType = f.getGenericType();
-			Utils.appendFieldType(builder, type, paramType, true);
-			endLineComment(builder);
+			commentClassWriter.appendFieldType(builder, type, paramType);
+			commentWrapper.endLineComment(builder);
 		}
 	}
 

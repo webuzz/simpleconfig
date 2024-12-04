@@ -204,7 +204,7 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 			generated = true;
 		}
 		if (!generated) {
-			builder[builder.length] = prefix + "=[empty]";
+			builder[builder.length] = prefix + (oClass != null ? ("=[object:" + oClass + "]") : "=[empty]");
 		}
 	}
 };

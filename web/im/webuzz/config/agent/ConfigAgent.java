@@ -1,6 +1,9 @@
 package im.webuzz.config.agent;
 
+import java.util.List;
+
 import im.webuzz.config.Config;
+import im.webuzz.config.IConfigWatchman;
 
 public class ConfigAgent {
 
@@ -23,12 +26,11 @@ public class ConfigAgent {
 	}
 
 	public static void run(String[] args, int indexOffset) {
-		Class<?>[] watchmen = Config.configurationWatchmen;
-		if (watchmen == null || watchmen.length == 0) {
+		List<Class<? extends IConfigWatchman>> watchmen = Config.configurationWatchmen;
+		if (watchmen == null || watchmen.size() == 0) {
 			System.out.println("[WARN] No watchmen are running. Config agent may be a dummy process, doing nothing.");
 		}
-		for (int i = 0; i < watchmen.length; i++) {
-			Class<?> watchman = watchmen[i];
+		for (Class<? extends IConfigWatchman> watchman : watchmen) {
 			if (watchman == null) continue;
 			System.out.println("[INFO] " + watchman.getName() + " is running.");
 		}

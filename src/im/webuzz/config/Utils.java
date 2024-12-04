@@ -31,24 +31,30 @@ public class Utils {
 			/*"label", "java", "javax", "sun", */
 	}));
 
-	protected static String wrapAsJSFieldName(Object k) {
+	public static String wrapAsJSFieldName(Object k) {
 		return keywords.contains(k) ? "\"" + k + "\"" : String.valueOf(k);
 	}
 	
-	protected static boolean isObjectOrObjectArray(Class<?> clazz) {
+	public static boolean isObjectOrObjectArray(Class<?> clazz) {
 		if (clazz.isArray()) return isObjectOrObjectArray(clazz.getComponentType());
 		return clazz == Object.class;
 	}
 
-	protected static boolean isAbstractClass(Class<?> clazz) {
+	public static boolean isAbstractClass(Class<?> clazz) {
 		if (clazz == null) return true;
-		if (clazz.isPrimitive() || clazz.isArray() || clazz.isInterface()) {
+		if (clazz.isPrimitive() || clazz.isArray()) {
 			return false;
+		}
+		if (clazz.isInterface()) {
+			if (clazz == List.class || clazz == Set.class || clazz == Map.class) {
+				return false;
+			}
+			return true;
 		}
 		return Modifier.isAbstract(clazz.getModifiers());
 	}
 
-	protected static boolean isBasicDataType(Class<?> type) {
+	public static boolean isBasicDataType(Class<?> type) {
 		if (type == null) return false;
 		return Number.class.isAssignableFrom(type) || type == Boolean.class || type == Character.class
 				|| type == Class.class || type.isEnum() || type == Enum.class;
@@ -59,7 +65,7 @@ public class Utils {
 		//*/
 	}
 
-	protected static Class<?> getRawType(Type vType) {
+	public static Class<?> getRawType(Type vType) {
 		if (vType instanceof GenericArrayType) {
 			GenericArrayType aType = (GenericArrayType) vType;
 			Type valueType = aType.getGenericComponentType();
@@ -87,6 +93,34 @@ public class Utils {
 			return (Class<?>) vType;
 		}
 		throw new RuntimeException("Unknown raw type for " + vType);
+	}
+
+	public static Class<?> getInterfaceParamType(Class<?> sourceClass, Class<?> bindingClass) {
+		Class<?> rawType = null;
+		do {
+			Type[] genericInterfaces = sourceClass.getGenericInterfaces();
+			if (genericInterfaces == null || genericInterfaces.length == 0) {
+				sourceClass = sourceClass.getSuperclass();
+				continue;
+			}
+			for (Type type : genericInterfaces) {
+				if (type instanceof Class<?>) {
+					Class<?> paramClass = (Class<?>) type;
+					if (bindingClass.isAssignableFrom(paramClass)) {
+						sourceClass = paramClass;
+						break;
+					}
+				} else if (type instanceof ParameterizedType) {
+					ParameterizedType paramType = (ParameterizedType) type;
+					if (paramType.getRawType() == bindingClass) {
+						Type valueType = paramType.getActualTypeArguments()[0];
+						rawType = getRawType(valueType);
+						break;
+					}
+				}
+			}
+		} while (rawType == null);
+		return rawType;
 	}
 
 	public static Class<?> calculateCommonType(Object[] os, Set<Class<?>> conflictedClasses) {
@@ -194,78 +228,6 @@ public class Utils {
 		return type == String.class || isBasicDataType(type);
 	}
 
-	public static StringBuilder appendFieldType(StringBuilder builder, Class<?> type, Type paramType, boolean forComment) {
-		if (forComment) {
-			// For comments
-			if (type.isArray()) {
-				Class<?> compType = type.getComponentType();
-				Type compParamType = null;
-				if (paramType instanceof GenericArrayType) {
-					GenericArrayType gaType = (GenericArrayType) paramType;
-					compParamType = gaType.getGenericComponentType();
-				}
-				appendFieldType(builder, compType, compParamType, forComment).append("[]");
-			} else if (Map.class.isAssignableFrom(type)) {
-				builder.append(getTypeName(type));
-				StringBuilder typeBuilder = new StringBuilder();
-				appendParameterizedType(paramType, 0, forComment, typeBuilder).append(", ");
-				appendParameterizedType(paramType, 1, forComment, typeBuilder);
-				String innerType = typeBuilder.toString();
-				if (!"Object, Object".equals(innerType)) {
-					builder.append('<').append(innerType).append('>');
-				}
-			} else if (List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type) || Class.class.isAssignableFrom(type)) {
-				builder.append(getTypeName(type));
-				StringBuilder typeBuilder = new StringBuilder();
-				appendParameterizedType(paramType, 0, forComment, typeBuilder);
-				String innerType = typeBuilder.toString();
-				if (!"Object".equals(innerType)) {
-					builder.append('<').append(innerType).append('>');
-				}
-			} else {
-				builder.append(getTypeName(type));
-			}
-			return builder;
-		}
-		
-		// For configured value
-		if (type.isArray()) {
-			Class<?> compType = type.getComponentType();
-			Type compParamType = null;
-			if (paramType instanceof GenericArrayType) {
-				GenericArrayType gaType = (GenericArrayType) paramType;
-				compParamType = gaType.getGenericComponentType();
-			}
-			// TODO: To test recursive array type, like [array:[array]]
-			builder.append("[array:");
-			appendFieldType(builder, compType, compParamType, forComment);
-			builder.append(']');
-		} else if (Map.class.isAssignableFrom(type) || List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type)) {
-			builder.append('[').append(getCollectionTypeName(type)).append(']');
-		} else {
-			builder.append(getTypeName(type));
-		}
-		return builder;
-	}
-
-	private static StringBuilder appendParameterizedType(Type paramType, int argIndex, boolean forComment, StringBuilder builder) {
-		if (paramType instanceof ParameterizedType) {
-			Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[argIndex];
-			appendFieldType(builder, getRawType(valueType), valueType, forComment);
-		} else {
-			builder.append(forComment ? "Object" : "java.lang.Object");
-		}
-		return builder;
-	}
-
-	private static String getTypeName(Class<?> type) {
-		String typeName = type.getName();
-		if (typeName.startsWith("java.") || typeName.startsWith("javax.")) {
-			return type.getSimpleName();
-		}
-		return typeName;
-	}
-
 	public static String getCollectionTypeName(Class<?> vsType) {
 		String typeStr;
 		if (Map.class.isAssignableFrom(vsType)) {
@@ -278,18 +240,6 @@ public class Utils {
 			typeStr = "array"; //$array;
 		}
 		return typeStr;
-	}
-
-	public static void appendMapType(StringBuilder builder, Class<?> keyType, Class<?> valueType, boolean keyNeedsTypeInfo,
-			boolean valueNeedsTypeInfo) {
-		builder.append("map");
-		if ((keyNeedsTypeInfo && keyType != null && keyType != Object.class)
-				|| (valueNeedsTypeInfo && valueType != null && valueType != Object.class)){
-			builder.append(':');
-			appendFieldType(builder, keyType, null, false);
-			builder.append(',');
-			appendFieldType(builder, valueType, null, false);
-		}
 	}
 
 

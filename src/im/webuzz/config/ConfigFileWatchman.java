@@ -15,14 +15,9 @@
 package im.webuzz.config;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.nio.file.*;
@@ -36,22 +31,23 @@ import static java.nio.file.StandardWatchEventKinds.*;
  * @author zhourenjian
  *
  */
-public class ConfigFileWatchman {
+public class ConfigFileWatchman implements IConfigWatchman {
 
 	private static boolean running = false;
 	
-	private static Properties props;
-	private static long lastUpdated = 0;
+	//private static Properties props;
+	private static long mainFileLastUpdated = 0;
 
 	private static Map<String, Long> fileLastUpdateds = new ConcurrentHashMap<String, Long>();
 	private static Map<String, Class<?>> keyPrefixClassMap = new ConcurrentHashMap<String, Class<?>>();
 	
+	private static IConfigParser<File, Object> defaultParser = null;
 	/**
 	 * Will be invoked by {@link im.webuzz.config.Config#loadWatchmen}
 	 */
-	public static void startWatchman() {
-		lastUpdated = 0;
-		updateFromConfigurationFiles(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
+	public void startWatchman() {
+		mainFileLastUpdated = 0;
+		updateAllConfigurations(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
 		
 		if (running) {
 			return;
@@ -155,13 +151,13 @@ public class ConfigFileWatchman {
 									System.out.println("[INFO] Configuration extension changed: switching from " + newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
 								}
 								//Path fullPath = path.resolve(filePath);
-								parseConfigFileForClass(file, newFileName, extension, clz);
+								updateSingleConfiguration(file, newFileName, extension, clz);
 							} else if (newKeyPrefix.equals(mainKeyPrefix)) {
 								if (mainExtension != null && !mainExtension.equals(extension)) {
 									System.out.println("[INFO] Configuration extension changed: switching from " + newKeyPrefix + mainExtension + " to " + newKeyPrefix + extension);
 								}
 								mainExtension = extension;
-								updateFromConfigurationFiles(mainPathPrefix + mainKeyPrefix + extension, extension, mainFolder);
+								updateAllConfigurations(mainPathPrefix + mainKeyPrefix + extension, extension, mainFolder);
 							} // else unknown files
 						} // end of for key.pollEvents
 
@@ -200,16 +196,11 @@ public class ConfigFileWatchman {
 	
 	/**
 	 * This method will be invoked by {@link Config#registerUpdatingListener(Class)}
-	 * @param clazz
+	 * @param configClazz
 	 */
-	public static void loadConfigClass(Class<?> clazz) {
-		if (props != null) {
-			ConfigINIParser.parseConfiguration(props, clazz, true, true, true); //!Config.configurationMultipleFiles);
-		}
-		
-		//if (!Config.configurationMultipleFiles) return;
-		
-		String keyPrefix = Config.getKeyPrefix(clazz);
+	public void watchConfigClass(Class<?> configClazz) {
+		defaultParser.parseConfiguration(configClazz, true);
+		String keyPrefix = Config.getKeyPrefix(configClazz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
 		}
@@ -218,48 +209,32 @@ public class ConfigFileWatchman {
 		if (!file.exists()) return;
 		String fileName = file.getName();
 		String extension = fileName.substring(fileName.lastIndexOf('.'));
+		Map<String, Class<? extends IConfigParser<File, Object>>> parsers = Config.configurationParsers;
+		if (parsers == null) return;
+		Class<? extends IConfigParser<File, Object>> clazz = parsers.get(extension.substring(1));
+		if (clazz == null) return;
+		//Properties prop = new Properties();
 
 		long lastUpdated = 0;
-		Properties fileProps = new Properties();
+		//Properties fileProps = new Properties();
 		try {
-			loadConfig(fileProps, file, extension);
+			IConfigParser<File, Object> parser = clazz.newInstance();
+			parser.loadResource(file, false);
+			//loadConfig(fileProps, file, extension);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(fileName, lastUpdated);
-			Config.recordConfigExtension(clazz, extension); // always update the configuration class' file extension
-			ConfigINIParser.parseConfiguration(fileProps, clazz, false, true, true);
+			Config.recordConfigExtension(configClazz, extension); // always update the configuration class' file extension
+			parser.parseConfiguration(configClazz, true);
 			if (Config.configurationLogging) {
-				System.out.println("[Config] Configuration " + clazz.getName() + "/" + file.getAbsolutePath() + " loaded.");
+				System.out.println("[Config] Configuration " + configClazz.getName() + "/" + file.getAbsolutePath() + " loaded.");
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 	}
-
-	private static Properties readConfigurations(String configPath, String extension) {
-		if (configPath == null) {
-			return null;
-		}
-		File file = new File(configPath);
-		if (!file.exists() || file.lastModified() == lastUpdated) {
-			return null;
-		}
-		if (Config.configurationLogging && lastUpdated > 0) {
-			System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " updated.");
-		}
-		props = new Properties();
-		try {
-			loadConfig(props, file, extension);
-			lastUpdated = file.lastModified();
-			return props;
-		} catch (Throwable e) {
-			e.printStackTrace();
-		}
-		props = null;
-		return null;
-	}
 	
-	private static void updateFromConfigurationFiles(String configPath, String configExtension, String extraFolder) {
-		Class<?>[] oldWatchmen = Config.configurationWatchmen;
+	private void updateAllConfigurations(String configPath, String configExtension, String extraFolder) {
+		List<Class<? extends IConfigWatchman>> oldWatchmen = Config.configurationWatchmen;
 //		boolean configurationSwitched = false;
 //		int loopLoadings = 5;
 //		do {
@@ -271,23 +246,39 @@ public class ConfigFileWatchman {
 //			} else {
 //				extension = configPath.substring(idx);
 //			}
-			Properties mainProp = readConfigurations(configPath, configExtension);
-			if (mainProp != null) {
-				Class<?>[] configs = Config.getAllConfigurations();
-				for (int i = 0; i < configs.length; i++) {
-					boolean matched = false;
-					if (Config.skipUpdatingWithInvalidItems) {
-						if (ConfigINIParser.parseConfiguration(mainProp, configs[i], true, false, true) != -1) { // checking
-							matched = ConfigINIParser.parseConfiguration(mainProp, configs[i], true, true, true) == 1;
-						}
-					} else {
-						matched = ConfigINIParser.parseConfiguration(mainProp, configs[i], true, true, true) == 1;
-					}
-					if (matched) {
-						Config.recordConfigExtension(configs[i], configExtension);
-					}
+		if (configPath == null) return;
+		File file = new File(configPath);
+		if (!file.exists() || file.lastModified() == mainFileLastUpdated) return;
+		if (Config.configurationLogging && mainFileLastUpdated > 0) {
+			System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " updated.");
+		}
+		Map<String, Class<? extends IConfigParser<File, Object>>> parsers = Config.configurationParsers;
+		if (parsers == null) return;
+		Class<? extends IConfigParser<File, Object>> clazz = parsers.get(configExtension.substring(1));
+		if (clazz == null) return;
+		try {
+			defaultParser = clazz.newInstance();
+			defaultParser.loadResource(file, true);
+			mainFileLastUpdated = file.lastModified();
+		} catch (Throwable e) {
+			e.printStackTrace();
+			return;
+		}
+
+		Class<?>[] configs = Config.getAllConfigurations();
+		for (int i = 0; i < configs.length; i++) {
+			boolean matched = false;
+			if (Config.skipUpdatingWithInvalidItems) {
+				if (defaultParser.parseConfiguration(configs[i], false) != -1) { // checking
+					matched = defaultParser.parseConfiguration(configs[i], true) == 1;
 				}
+			} else {
+				matched = defaultParser.parseConfiguration(configs[i], true) == 1;
 			}
+			if (matched) {
+				Config.recordConfigExtension(configs[i], configExtension);
+			}
+		}
 			
 //			if (configPath != null && !configPath.equals(Config.configurationFile)) {
 //				if (Config.configurationLogging) {
@@ -303,7 +294,7 @@ public class ConfigFileWatchman {
 //			System.out.println("[Config] Configuration file is being redirected for too many times (5).");
 //		}
 		
-		if (!Arrays.equals(oldWatchmen, Config.configurationWatchmen)) {
+		if (!DeepComparator.listDeepEquals(oldWatchmen, Config.configurationWatchmen)) {
 			Config.loadWatchmen();
 		}
 		
@@ -320,27 +311,22 @@ public class ConfigFileWatchman {
 		if (folder == null || folder.length() == 0) {
 			folder = new File(configPath).getParent();
 		}
-		Class<?>[] configs = Config.getAllConfigurations();
+		configs = Config.getAllConfigurations(); // update local variable configs again, configuration classes may be updated already 
 		for (int i = 0; i < configs.length; i++) {
 			Class<?> clz = configs[i];
 			String keyPrefix = Config.getKeyPrefix(clz);
 			if (keyPrefix == null || keyPrefix.length() == 0) continue;
-			File file = Config.getConfigruationFile(keyPrefix);
+			file = Config.getConfigruationFile(keyPrefix);
 			if (!file.exists()) continue;
 			String fileName = file.getName();
 			int extIndex = fileName.lastIndexOf('.');
-			if (extIndex > 0) {
-				keyPrefixClassMap.put(fileName.substring(0, extIndex), clz);
-			} else {
-				keyPrefixClassMap.put(fileName, clz);
-			}
-			String extension = fileName.substring(fileName.indexOf('.') + 1);
-			
-			parseConfigFileForClass(file, fileName, extension, clz);
+			keyPrefixClassMap.put(fileName.substring(0, extIndex), clz);
+			String extension = fileName.substring(extIndex);
+			updateSingleConfiguration(file, fileName, extension, clz);
 		}
 	}
 
-	private static void parseConfigFileForClass(File file, String fileName, String extension, Class<?> clz) {
+	private void updateSingleConfiguration(File file, String fileName, String extension, Class<?> clz) {
 		long lastUpdated = 0;
 		Long v = fileLastUpdateds.get(fileName);
 		if (v != null) {
@@ -350,65 +336,31 @@ public class ConfigFileWatchman {
 		if (Config.configurationLogging && lastUpdated > 0) {
 			System.out.println("[Config] Configuration " + clz.getName() + " at " + file.getAbsolutePath() + " updated.");
 		}
-		Properties prop = new Properties();
+		Map<String, Class<? extends IConfigParser<File, Object>>> parsers = Config.configurationParsers;
+		if (parsers == null) return;
+		Class<? extends IConfigParser<File, Object>> clazz = parsers.get(extension);
+		if (clazz == null) return;
+		//Properties prop = new Properties();
 		try {
-			loadConfig(prop, file, extension);
+			IConfigParser<File, Object> parser = clazz.newInstance();
+			parser.loadResource(file, false);
+			//loadConfig(prop, file, extension);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(fileName, lastUpdated);
 			Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
 			if (Config.skipUpdatingWithInvalidItems) {
-				if (ConfigINIParser.parseConfiguration(prop, clz, false, false, true) != -1) { // checking first
-					ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
+				if (parser.parseConfiguration(clz, false) != -1) { // checking first
+					parser.parseConfiguration(clz, true);
 				}
 			} else {
-				ConfigINIParser.parseConfiguration(prop, clz, false, true, true);
+				parser.parseConfiguration(clz, true);
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 	}
-
-	private static void loadConfig(Properties prop, File file, String extension) throws Exception {
-		String ext = extension.substring(1);
-		IConfigConverter converter = Config.converters.get(ext);
-		if (converter == null) {
-			Class<?> clazz = Config.converterExtensions.get(ext);
-			if (clazz != null) {
-				Object instance = clazz.newInstance();
-				if (instance instanceof IConfigConverter) {
-					converter = (IConfigConverter) instance;
-					Config.converters.put(ext, converter);
-				}
-			}
-		}
-		InputStream is = null;
-		try {
-			is = new FileInputStream(file);
-			prop.load(new InputStreamReader(converter != null ? converter.convertToProperties(is) : is, Config.configFileEncoding));
-		} catch (Exception e) {
-			e.printStackTrace();
-			StringBuilder errMsg = new StringBuilder();
-			String message = e.getMessage();
-			if (message == null || message.length() == 0) {
-				Throwable cause = e.getCause();
-				if (cause != null) message = cause.getMessage();
-			}
-			errMsg.append("Error occurs in parsing file \"").append(file.getName())
-					.append("\": ").append(message);
-			Config.reportErrorToContinue(errMsg.toString());
-			throw e;
-		} finally {
-			if (is != null) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					//e.printStackTrace();
-				}
-			}
-		}
-	}
 	
-	public static void stopWatchman() {
+	public void stopWatchman() {
 		running = false;
 	}
 

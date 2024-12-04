@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -27,14 +27,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import im.webuzz.config.Config;
+import im.webuzz.config.ConfigFieldFilter;
+import im.webuzz.config.Utils;
 import im.webuzz.config.annotations.ConfigCodec;
 import im.webuzz.config.annotations.ConfigIgnore;
 
-public abstract class ConfigCompactGenerator {
+public class CompactWriter {
 
 	protected String indents;
 	
-	public ConfigCompactGenerator() {
+	public CompactWriter() {
 		super();
 		indents = "";
 	}
@@ -80,7 +83,7 @@ public abstract class ConfigCompactGenerator {
 		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
 	}
 
-	public static void appendChar(StringBuilder builder, char ch) {
+	private static void appendChar(StringBuilder builder, char ch) {
 		if (0x20 <= ch && ch <= 0x7e) {
 			builder.append('\'').append(ch).append('\'');
 		} else {
@@ -90,7 +93,7 @@ public abstract class ConfigCompactGenerator {
 
 	// For array, list and set
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	protected boolean checkCompactness(Object value, Class<?> definedType, Type paramType,
+	protected boolean checkCompactness(ConfigBaseGenerator generator, Object value, Class<?> definedType, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs, Field field) {
 		if (definedType.isPrimitive()) return true;
 		if (value == null) return true;
@@ -148,7 +151,7 @@ public abstract class ConfigCompactGenerator {
 			if (definedCompType.isArray()) return false;
 			int size = Array.getLength(value);
 			if (definedCompType.isPrimitive()) {
-				return checkPrimitiveArrayCompactness(value, size, definedCompType);
+				return checkPrimitiveArrayCompactness(generator, value, size, definedCompType);
 			}
 			if (size == 0) return true;
 			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
@@ -160,7 +163,7 @@ public abstract class ConfigCompactGenerator {
 				paramCompType = gaType.getGenericComponentType();
 			}
 			if (size == 1) {
-				return checkCompactness(Array.get(value, 0), definedCompType, paramCompType,
+				return checkCompactness(generator, Array.get(value, 0), definedCompType, paramCompType,
 						forKeys, forValues, depth + 1, codecs, null);
 			}
 			/*
@@ -171,7 +174,7 @@ public abstract class ConfigCompactGenerator {
 			}
 			//*/
 			Object[] arr = (Object[]) value;
-			return checkArrayCompactness(arr, definedCompType, paramCompType,
+			return checkArrayCompactness(generator, arr, definedCompType, paramCompType,
 					forKeys, forValues, depth, codecs);
 		}
 		if (List.class.isAssignableFrom(definedType) || Set.class.isAssignableFrom(definedType)) {
@@ -189,10 +192,10 @@ public abstract class ConfigCompactGenerator {
 				return false; // List or set object is wrapped in another object
 			}
 			if (size == 1) {
-				return checkCompactness(collection.iterator().next(), definedCompType, paramCompType,
+				return checkCompactness(generator, collection.iterator().next(), definedCompType, paramCompType,
 						forKeys, forValues, depth + 1, codecs, null);
 			}
-			return checkArrayCompactness(collection.toArray(new Object[size]), definedCompType, paramCompType,
+			return checkArrayCompactness(generator, collection.toArray(new Object[size]), definedCompType, paramCompType,
 					forKeys, forValues, depth, codecs);
 		}
 		if (Map.class.isAssignableFrom(definedType)) {
@@ -212,11 +215,11 @@ public abstract class ConfigCompactGenerator {
 				paramValueType = actualTypeArgs[1];
 				definedValueType = Utils.getRawType(paramValueType);
 			}
-			if (!checkArrayCompactness(map.keySet().toArray(new Object[size]),
+			if (!checkArrayCompactness(generator, map.keySet().toArray(new Object[size]),
 					definedKeyType, paramKeyType,
 					true, forValues, depth, codecs)) return false;
 
-			if (!checkArrayCompactness(map.values().toArray(new Object[size]),
+			if (!checkArrayCompactness(generator, map.values().toArray(new Object[size]),
 					definedValueType, paramValueType,
 					true, forValues, depth, codecs)) return false;
 			return true;
@@ -250,7 +253,7 @@ public abstract class ConfigCompactGenerator {
 			try {
 				Object v = f.get(value);
 				Type genericType = f.getGenericType();
-				if (!checkCompactness(v, type, genericType,
+				if (!checkCompactness(generator, v, type, genericType,
 						forKeys, forValues, depth, codecs, f)) return false;
 			} catch (Throwable e) {
 			}
@@ -258,7 +261,7 @@ public abstract class ConfigCompactGenerator {
 		return false;
 	}
 
-	public boolean checkPrimitiveArrayCompactness(Object arr, int size, Class<?> compType) {
+	private boolean checkPrimitiveArrayCompactness(ConfigBaseGenerator generator, Object arr, int size, Class<?> compType) {
 		StringBuilder cb = new StringBuilder();
 		for (int i = 0; i < size; i++) {
 			if (i != 0) cb.append("; ");
@@ -275,16 +278,17 @@ public abstract class ConfigCompactGenerator {
 		return true;
 	}
 
-	public boolean checkArrayCompactness(Object[] arr, Class<?> compType, Type paramCompType,
+	private boolean checkArrayCompactness(ConfigBaseGenerator generator,  Object[] arr, Class<?> compType, Type paramCompType,
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs) {
 		StringBuilder compactBuilder = new StringBuilder();
 		for (int i = 0; i < arr.length; i++) {
-			if (!checkCompactness(arr[i], compType, paramCompType,
+			if (!checkCompactness(generator, arr[i], compType, paramCompType,
 					forKeys, forValues, depth + 1, codecs, null)) return false;
 			if (compType.isPrimitive() || compType == String.class
 					|| Utils.isBasicDataType(compType)) {
 				if (i != 0) compactBuilder.append("; ");
-				generateFieldValue(compactBuilder, null, null, null,
+				// TODO: Make the following line independent from invoking #generateFieldValue
+				generator.generateFieldValue(compactBuilder, null, null, null,
 						arr[i], compType, paramCompType,
 						forKeys, forValues, depth + 1, codecs,
 						false, false, false, false);
@@ -294,10 +298,10 @@ public abstract class ConfigCompactGenerator {
 		return true;
 	}
 
-	protected abstract boolean generateFieldValue(StringBuilder builder, Field f, String name, Object o,
-			Object v, Class<?> definedType, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
-			boolean needsTypeInfo, boolean needsWrapping,
-			boolean compact, boolean topConfigClass);
+//	protected abstract boolean generateFieldValue(StringBuilder builder, Field f, String name, Object o,
+//			Object v, Class<?> definedType, Type paramType,
+//			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+//			boolean needsTypeInfo, boolean needsWrapping,
+//			boolean compact, boolean topConfigClass);
 	
 }

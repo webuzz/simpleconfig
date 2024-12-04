@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 import static im.webuzz.config.GeneratorConfig.*;
 
@@ -32,17 +32,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import im.webuzz.config.Config;
+import im.webuzz.config.ConfigFieldFilter;
+import im.webuzz.config.GeneratorConfig;
+import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.IConfigGenerator;
+import im.webuzz.config.Utils;
 import im.webuzz.config.annotations.ConfigCodec;
 import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigIgnore;
 
-public abstract class ConfigBaseGenerator extends ConfigCommentGenerator implements IConfigGenerator {
+public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, IConfigGenerator<StringBuilder> {
 
 	private Map<String, String> allFields;
+	protected CommentWriter commentWriter;
+	protected AnnotationWriter annotationWriter;
+	protected ClassWriter typeWriter;
+	protected CompactWriter compactWriter;
 	
 	public ConfigBaseGenerator() {
 		super();
 		allFields = new HashMap<String, String>();
+		typeWriter = new ClassWriter();
+		annotationWriter = new AnnotationWriter();
+		commentWriter = new CommentWriter(this);
+		compactWriter = new CompactWriter();
 	}
 
 	protected abstract void generateNull(StringBuilder builder);
@@ -63,8 +77,19 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 
 	protected abstract String prefixedField(String prefix, String name);
 
+	protected void appendChar(StringBuilder builder, char ch) {
+		if (0x20 <= ch && ch <= 0x7e) {
+			builder.append('\'').append(ch).append('\'');
+		} else {
+			builder.append("0x").append(Integer.toHexString(ch));
+		}
+	}
+	
+	public static String formatString(String str) {
+		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+	}
+
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Override
 	protected boolean generateFieldValue(StringBuilder builder, Field f, String name, Object o,
 			Object v, Class<?> definedType, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
@@ -73,7 +98,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
 		//*
-		if ("genders".equals(name)) {
+		if ("commandLineParser".equals(name)) {
 			System.out.println("object array");
 		}
 		//*/
@@ -127,7 +152,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 					if (arrayLength > 0) {
 						boolean finalCompactMode = compact;
 						if (!compact && !readableArrayFormat
-								&& checkCompactness(v, definedType, paramType,
+								&& compactWriter.checkCompactness(this, v, definedType, paramType,
 										forKeys, forValues, depth, codecs, f)) {
 							finalCompactMode = true;
 						}
@@ -161,7 +186,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 						boolean finalCompactMode = compact;
 						if (!compact && (!readableListFormat && List.class.isAssignableFrom(type)
 									|| !readableSetFormat && Set.class.isAssignableFrom(type))
-								&& checkCompactness(v, type, paramType,
+								&& compactWriter.checkCompactness(this, v, type, paramType,
 										forKeys, forValues, depth, codecs, f)) {
 							finalCompactMode = true;
 						}
@@ -198,7 +223,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 					Map os = (Map) v;
 					if (os.size() > 0) {
 						boolean finalCompactMode = compact;
-						if (!compact && !readableMapFormat && checkCompactness(v, definedType, paramType,
+						if (!compact && !readableMapFormat && compactWriter.checkCompactness(this, v, definedType, paramType,
 								forKeys, forValues, depth, codecs, f)) {
 							finalCompactMode = true;
 						}
@@ -212,7 +237,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 					}
 				} else {
 					boolean finalCompactMode = compact;
-					if (!compact && !readableObjectFormat && checkCompactness(v, definedType, paramType,
+					if (!compact && !readableObjectFormat && compactWriter.checkCompactness(this, v, definedType, paramType,
 							forKeys, forValues, depth, codecs, f)) {
 						finalCompactMode = true;
 					}
@@ -227,7 +252,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 				assign(builder, name, valueBuilder, typeBuilder, compact);
 			} else {
 				if (topConfigClass) builder.append("\r\n"); // Leave a blank for each field
-				if (f != null) generateFieldComment(builder, f, topConfigClass);
+				if (f != null) commentWriter.generateFieldComment(builder, f, topConfigClass);
 				assign(builder, name, valueBuilder, typeBuilder, compact);
 				//appendLinebreak(builder);
 			}
@@ -243,7 +268,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 	@SuppressWarnings("unchecked")
 	protected <T> boolean encode(StringBuilder builder, T v, boolean isKeys, boolean isValues, int depth, ConfigCodec[] configCodecs) {
 		if (v == null || configCodecs == null || configCodecs.length == 0) return false;
-		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs == null || codecs.size() == 0) return false;
 		String[] preferredCodecs = null;
 		if (configCodecs.length == 1) {
@@ -282,17 +307,17 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 		do {
 			for (String codecKey : preferredCodecs) {
 				if (codecKey == null || codecKey.length() == 0) continue;
-				Class<? extends IConfigCodec<?>> clazz = codecs.get(codecKey);
-				if (clazz == null) continue;
-				Type paramType = clazz.getGenericInterfaces()[0];
+				IConfigCodec<T> codec = (IConfigCodec<T>) codecs.get(codecKey);
+				if (codec == null) continue;
+				Type paramType = codec.getClass().getGenericInterfaces()[0];
 				Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
 				if (Utils.getRawType(valueType) != v.getClass()) continue;
-				IConfigCodec<T> codec = (IConfigCodec<T>) Config.codecs.get(codecKey);
+				//IConfigCodec<T> codec = (IConfigCodec<T>) Config.codecs.get(codecKey);
 				try {
-					if (codec == null) {
-						codec = (IConfigCodec<T>) clazz.newInstance();
-						Config.codecs.put(codecKey, codec);
-					}
+//					if (codec == null) {
+//						codec = (IConfigCodec<T>) clazz.newInstance();
+//						Config.codecs.put(codecKey, codec);
+//					}
 					String encoded = codec.encode(v);
 					if (encoded == null || encoded.length() == 0) continue;
 					appendEncodedString(builder, codecKey, encoded);
@@ -460,10 +485,10 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 		if (typeBuilder != null) {
 			if (needsTypeInfo) {
 				typeBuilder.append("object:");
-				if (type == null || type == Object.class) {
+				if (type == null || type == Object.class || type.isInterface()) {
 					type = o.getClass();
 				}
-				Utils.appendFieldType(typeBuilder, type, null, false);
+				typeWriter.appendFieldType(typeBuilder, type, null);
 			} else {
 				//typeBuilder.append("object");
 			}
@@ -471,7 +496,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 
 		//int oldLength = builder.length();
 		startObjectBlock(builder, type, needsTypeInfo, needsWrapping);
-		increaseIndent();
+		compactWriter.increaseIndent();
 		boolean multipleLines = !compact; //readableObjectFormat || needsTypeInfo;
 				//|| !checkCompactness(o, type, paramType, field, compact); // !isPlainObject(o);
 		//boolean generated = false;
@@ -504,7 +529,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 						false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
 						false, false, compact, false);
 				if (builder.length() > oldLength && !compact) {
-					appendLinebreak(builder);
+					compactWriter.appendLinebreak(builder);
 					//generated = true;
 				}
 			} else {
@@ -524,7 +549,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 			} // end of if multiple/single line configuration
 		} // end of for fields
 		//if (generated) {
-			decreaseIndent();
+		compactWriter.decreaseIndent();
 			endObjectBlock(builder, true, needsWrapping);
 			//appendLinebreak(builder);
 		//}
@@ -535,7 +560,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 		Object k = keys[0];
 		if (k instanceof Number || k.getClass().isArray()
 				|| k instanceof Collection<?> || k instanceof Map<?, ?>) return false;
-		Map<String, Class<? extends IConfigCodec<?>>> configCodecs = Config.configurationCodecs;
+		Map<String, IConfigCodec<?>> configCodecs = Config.configurationCodecs;
 		if (configCodecs == null) return false;
 		// e.g { aes: "AES algorithm" }
 		return configCodecs.containsKey(String.valueOf(k));
@@ -568,7 +593,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 		generateFieldValue(builder, null, prefix, null, k, keyType, keyParamType,
 				true, false, depth + 1, codecs,
 				diffKeyTypes, false, compact, false);
-		appendLinebreak(builder);
+		compactWriter.appendLinebreak(builder);
 		boolean diffValueTypes = false;
 		//Class<?> targetValueType = null;
 		if (v != null) {
@@ -580,7 +605,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 		generateFieldValue(builder, null, prefix, null, v, valueType, valueParamType,
 				false, true, depth + 1, codecs,
 				diffValueTypes, false, compact, false);
-		appendLinebreak(builder);
+		compactWriter.appendLinebreak(builder);
 	}
 
 	// Return given real type is different the defined type or not
@@ -631,18 +656,19 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 	public abstract void startClassBlock(StringBuilder builder);
 	public abstract void endClassBlock(StringBuilder builder);
 
-	public void startGenerate(StringBuilder builder, Class<?> clz, boolean combinedConfigs) {
-		if (builder.length() == 0) startClassBlock(builder);
-		increaseIndent();
+	public void startGenerate(StringBuilder builder, Class<?> clz) {
+		if (builder.length() == 0) {
+			startClassBlock(builder);
+		} else {
+			compactWriter.appendLinebreak(builder);
+		}
+		compactWriter.increaseIndent();
 		startLineComment(builder);
 		builder.append(clz.getSimpleName());
 		endLineComment(builder); //.append("\r\n");
 		//boolean skipUnchangedLines = false;
-		String keyPrefix = null;
-		if (combinedConfigs) { // generating combined configurations into one file
-			keyPrefix = Config.getKeyPrefix(clz);
-		}
-		appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
+		String keyPrefix = Config.getKeyPrefix(clz);
+		commentWriter.appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
 		Field[] fields = clz.getDeclaredFields();
 		String clzName = clz.getName();
 		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
@@ -660,9 +686,7 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 			if (filter != null && filter.filterName(name)) continue;
 			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
 
-			if (keyPrefix != null)  {
-				name = prefixedField(keyPrefix, name);
-			}
+			if (keyPrefix != null) name = prefixedField(keyPrefix, name);
 			// To check if there are duplicate fields over multiple configuration classes, especially for
 			// those classes without stand-alone configuration files.
 			if (allFields.containsKey(name)) {
@@ -680,15 +704,16 @@ public abstract class ConfigBaseGenerator extends ConfigCommentGenerator impleme
 					false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
 					false, false, false, true);
 			if (builder.length() > oldLength) {
-				appendLinebreak(builder);
+				compactWriter.appendLinebreak(builder);
 			}
 		} // end of for fields
-		decreaseIndent();
-		if (builder.length() != 0 && !combinedConfigs) endClassBlock(builder);
+		compactWriter.decreaseIndent();
 	}
 
-	public void endGenerate(StringBuilder builder, Class<?> clz, boolean combinedConfigs) {
-		endClassBlock(builder);
+	public void endGenerate(StringBuilder builder, Class<?> clz) {
+		String keyPrefix = clz == null ? null : Config.getKeyPrefix(clz);
+		boolean combinedConfigs = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
+		if (builder.length() != 0 && (clz == null || !combinedConfigs)) endClassBlock(builder);
 	}
 
 }

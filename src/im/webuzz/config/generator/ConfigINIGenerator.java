@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import im.webuzz.config.Utils;
 import im.webuzz.config.annotations.*;
 
 import static im.webuzz.config.GeneratorConfig.*;
@@ -28,24 +29,24 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 
 	// To provide a line of comment, e.g. a field's type
 	@Override
-	protected void startLineComment(StringBuilder builder) {
+	public void startLineComment(StringBuilder builder) {
 		builder.append("# ");
 	}
 	@Override
-	protected void endLineComment(StringBuilder builder) {
+	public void endLineComment(StringBuilder builder) {
 		builder.append("\r\n");
 	}
 	
 	// To provide more information about a type or a field 
 	@Override
-	protected void startBlockComment(StringBuilder builder) {
+	public void startBlockComment(StringBuilder builder) {
 	}
 	@Override
-	protected StringBuilder addMiddleComment(StringBuilder builder) {
+	public StringBuilder addMiddleComment(StringBuilder builder) {
 		return builder.append("# ");
 	}
 	@Override
-	protected void endBlockComment(StringBuilder builder) {
+	public void endBlockComment(StringBuilder builder) {
 	}
 
 	// To wrap or separate each configuration class
@@ -67,7 +68,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		builder.append("[object");
 		if (needsTypeInfo) {
 			builder.append(':');
-			Utils.appendFieldType(builder, type, null, false);
+			typeWriter.appendFieldType(builder, type, null);
 		}
 		builder.append(']');
 		builder.append("\r\n");
@@ -78,17 +79,17 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected void generateNull(StringBuilder builder) {
-		builder.append(ConfigINIParser.$null);
+		builder.append("[null]");
 	}
 	
 	@Override
 	protected void generateEmptyArray(StringBuilder builder) {
-		builder.append(ConfigINIParser.$empty);
+		builder.append("[empty]");
 	}
 
 	@Override
 	protected void generateEmptyObject(StringBuilder builder) {
-		builder.append(ConfigINIParser.$empty);
+		builder.append("[empty]");
 	}
 
 	@Override
@@ -188,7 +189,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		builder.append('[').append(typeStr);
 		if (needsTypeInfo && valueType != null && valueType != Object.class && valueType != String.class) {
 			builder.append(':');
-			Utils.appendFieldType(builder, valueType, null, false);
+			typeWriter.appendFieldType(builder, valueType, null);
 		}
 		builder.append("]");
 		if (typeBuilder != null) {
@@ -219,7 +220,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			generateFieldValue(builder, null, prefix, null, v, valueType, valueParamType,
 					forKeys, forValues, depth + 1, codecs,
 					diffTypes, true, compact, false);
-			appendLinebreak(builder);
+			compactWriter.appendLinebreak(builder);
 			index++;
 		}
 	}
@@ -251,7 +252,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			return;
 		}
 		builder.append('[');
-		Utils.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+		typeWriter.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 		builder.append("]\r\n");
 
 		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {
@@ -259,7 +260,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 				appendMapKeyValue(builder, name, k, vs.get(k),
 						valueType, valueParamType,
 						depth, codecs, compact);
-				appendLinebreak(builder);
+				compactWriter.appendLinebreak(builder);
 			}
 			return;
 		}

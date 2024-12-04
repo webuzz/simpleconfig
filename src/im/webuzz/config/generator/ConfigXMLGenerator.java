@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -21,6 +21,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import im.webuzz.config.GeneratorConfig;
+import im.webuzz.config.Utils;
 import im.webuzz.config.annotations.ConfigCodec;
 import im.webuzz.config.annotations.ConfigComment;
 
@@ -34,41 +36,113 @@ import static im.webuzz.config.GeneratorConfig.*;
  */
 public class ConfigXMLGenerator extends ConfigBaseGenerator {
 
-	@Override
-	protected void increaseIndent() {
-		indents += "\t";
-	}
+	class XMLCompactWriter extends CompactWriter {
 
-	@Override
-	protected void decreaseIndent() {
-		int length = indents.length();
-		if (length > 0) {
-			indents = indents.substring(0, length - 1);
+		@Override
+		protected void increaseIndent() {
+			indents += "\t";
 		}
+
+		@Override
+		protected void decreaseIndent() {
+			int length = indents.length();
+			if (length > 0) {
+				indents = indents.substring(0, length - 1);
+			}
+		}
+
+		@Override
+		protected void appendLinebreak(StringBuilder builder) {
+			int length = builder.length();
+			if (length < 2 || builder.charAt(length - 1) != '\n') {
+				builder.append("\r\n");
+			}
+		}
+
+	}
+	
+	class XMLCommentWriter extends CommentWriter {
+
+		public XMLCommentWriter(CommentWrapper wrapper) {
+			super(wrapper);
+		}
+		
+		@Override
+		protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
+			for (Annotation ann : anns) {
+				annWriter.appendAnnotation(builder, ann, anns.length > 1);
+				compactWriter.appendIndents(builder);
+			}
+			return anns.length;
+		}
+
+		@Override
+		protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
+			if (!commentGeneratedFields.add(f)) return; // already generated
+			boolean commentAdded = false;
+			if (addFieldComment) {
+				commentAdded = commentWriter.appendConfigComment(builder, f.getAnnotation(ConfigComment.class));
+			}
+			if (addTypeComment) {
+				Class<?> type = f.getType();
+				if (skipSimpleTypeComment
+						&& (type == int.class || type == String.class || type == boolean.class)) {
+					return;
+				}
+				StringBuilder annBuilder = new StringBuilder();
+				int annCount = commentWriter.appendAllFieldAnnotations(annBuilder, f);
+				Type paramType = f.getGenericType();
+				if (commentAdded) { 
+					StringBuilder typeBuilder = new StringBuilder();
+					if (annCount > 0) typeBuilder.append(annBuilder);
+					commentClassWriter.appendFieldType(typeBuilder, type, paramType);
+					typeBuilder.append("\r\n");
+					compactWriter.appendIndents(typeBuilder);
+					// Insert field type back into block comment
+					builder.insert(builder.length() - 5, typeBuilder);
+				} else if (annCount > 0) {
+					startBlockComment(builder);
+					compactWriter.appendIndents(builder);
+					builder.append(annBuilder);
+					commentClassWriter.appendFieldType(builder, type, paramType);
+					endBlockComment(builder);
+				} else {
+					startLineComment(builder);
+					commentClassWriter.appendFieldType(builder, type, paramType);
+					endLineComment(builder);
+				}
+			}
+		}
+		
+	}
+	public ConfigXMLGenerator() {
+		super();
+		commentWriter = new XMLCommentWriter(this);
+		compactWriter = new XMLCompactWriter();
 	}
 
 	// To provide a line of comment, e.g. a field's type
 	@Override
-	protected void startLineComment(StringBuilder builder) {
-		appendIndents(builder).append("<!-- ");
+	public void startLineComment(StringBuilder builder) {
+		compactWriter.appendIndents(builder).append("<!-- ");
 	}
 	@Override
-	protected void endLineComment(StringBuilder builder) {
+	public void endLineComment(StringBuilder builder) {
 		builder.append(" -->\r\n");
 	}
 	
 	// To provide more information about a type or a field 
 	@Override
-	protected void startBlockComment(StringBuilder builder) {
-		appendIndents(builder).append("<!--\r\n");
+	public void startBlockComment(StringBuilder builder) {
+		compactWriter.appendIndents(builder).append("<!--\r\n");
 	}
 	@Override
-	protected StringBuilder addMiddleComment(StringBuilder builder) {
-		return appendIndents(builder); //.append("\t");
+	public StringBuilder addMiddleComment(StringBuilder builder) {
+		return compactWriter.appendIndents(builder); //.append("\t");
 	}
 	@Override
-	protected void endBlockComment(StringBuilder builder) {
-		appendIndents(builder).append("-->\r\n");
+	public void endBlockComment(StringBuilder builder) {
+		compactWriter.appendIndents(builder).append("-->\r\n");
 	}
 
 	// To wrap or separate each configuration class
@@ -85,22 +159,15 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	protected String prefixedField(String prefix, String name) {
 		return name;
 	}
-	@Override
-	protected void appendLinebreak(StringBuilder builder) {
-		int length = builder.length();
-		if (length < 2 || builder.charAt(length - 1) != '\n') {
-			builder.append("\r\n");
-		}
-	}
 	
 	// To wrap or separate an object with fields
 	@Override
 	protected void startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
 		if (!needsWrapping) return;
-		appendIndents(builder);
+		compactWriter.appendIndents(builder);
 		if (needsTypeInfo) {
 			builder.append("<object class=\"");
-			Utils.appendFieldType(builder, type, null, false);
+			typeWriter.appendFieldType(builder, type, null);
 			builder.append("\"");
 		} else {
 			builder.append("<object");
@@ -110,56 +177,10 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	@Override
 	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
 		if (!needsWrapping) return;
-		if (needsIndents) appendIndents(builder);
+		if (needsIndents) compactWriter.appendIndents(builder);
 		builder.append("</object>\r\n");
 	}
 
-	@Override
-	protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
-		for (Annotation ann : anns) {
-			ConfigValidator.appendAnnotation(builder, ann, anns.length > 1);
-			appendIndents(builder);
-		}
-		return anns.length;
-	}
-
-	@Override
-	protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
-		if (!commentGeneratedFields.add(f)) return; // already generated
-		boolean commentAdded = false;
-		if (addFieldComment) {
-			commentAdded = appendConfigComment(builder, f.getAnnotation(ConfigComment.class));
-		}
-		if (addTypeComment) {
-			Class<?> type = f.getType();
-			if (skipSimpleTypeComment
-					&& (type == int.class || type == String.class || type == boolean.class)) {
-				return;
-			}
-			StringBuilder annBuilder = new StringBuilder();
-			int annCount = appendAllFieldAnnotations(annBuilder, f);
-			Type paramType = f.getGenericType();
-			if (commentAdded) { 
-				StringBuilder typeBuilder = new StringBuilder();
-				if (annCount > 0) typeBuilder.append(annBuilder);
-				Utils.appendFieldType(typeBuilder, type, paramType, true);
-				typeBuilder.append("\r\n");
-				appendIndents(typeBuilder);
-				// Insert field type back into block comment
-				builder.insert(builder.length() - 5, typeBuilder);
-			} else if (annCount > 0) {
-				startBlockComment(builder);
-				appendIndents(builder);
-				builder.append(annBuilder);
-				Utils.appendFieldType(builder, type, paramType, true);
-				endBlockComment(builder);
-			} else {
-				startLineComment(builder);
-				Utils.appendFieldType(builder, type, paramType, true);
-				endLineComment(builder);
-			}
-		}
-	}
 
 	@Override
 	protected void generateNull(StringBuilder builder) {
@@ -247,7 +268,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		Class<?> vsType = vs.getClass();
 		String typeStr = Utils.getCollectionTypeName(vsType);
 		Object[] values = getObjectArray(vs, vsSize, vsType, valueType);
-		if (needsWrapping) appendIndents(builder).append('<').append(typeStr);
+		if (needsWrapping) compactWriter.appendIndents(builder).append('<').append(typeStr);
 		if (compact) {
 			if (needsTypeInfo) {
 				//checkIndents(builder).append('<').append(typeStr).append('>');
@@ -295,11 +316,11 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 				if (needsWrapping) {
 					// TODO:
 					builder.append(" class=\"").append(typeStr).append(':');
-					Utils.appendFieldType(typeBuilder, valueType, null, false);
+					typeWriter.appendFieldType(typeBuilder, valueType, null);
 					builder.append('\"');
 				} else if (typeBuilder != null) {
 					typeBuilder.append(typeStr).append(':');
-					Utils.appendFieldType(typeBuilder, valueType, null, false);
+					typeWriter.appendFieldType(typeBuilder, valueType, null);
 				}
 			}
 			//builder.append("\", value: ");
@@ -309,7 +330,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		if (valueType == null) valueType = Object.class;
 		boolean basicType = Utils.isBasicType(valueType);
 		boolean multipleLines = vsSize >= 1 || !basicType;
-		if (multipleLines) increaseIndent();
+		if (multipleLines) compactWriter.increaseIndent();
 		boolean first = true;
 		for (int k = 0; k < vsSize; k++) {
 			if (values == null) {
@@ -339,14 +360,14 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 								diffTypes, wrapping, false, false);
 			}
 		}
-		if (multipleLines) decreaseIndent();
-		if (needsWrapping) appendIndents(builder).append("</").append(typeStr).append('>');
+		if (multipleLines) compactWriter.decreaseIndent();
+		if (needsWrapping) compactWriter.appendIndents(builder).append("</").append(typeStr).append('>');
 	}	
 
 
 	@Override
 	protected StringBuilder appendArrayPrimitive(StringBuilder builder, Object vs, int k, Class<?> compType, boolean compact) {
-		if (!compact) appendIndents(builder).append("<").append(compType.getName()).append('>');
+		if (!compact) compactWriter.appendIndents(builder).append("<").append(compType.getName()).append('>');
 		super.appendArrayPrimitive(builder, vs, k, compType, compact);
 		if (!compact) builder.append("</").append(compType.getName()).append('>');
 		return builder;
@@ -370,42 +391,42 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			// TODO:
 			compact = false; // Compact mode for map is not supported yet.
 		}
-		if (needsWrapping) appendIndents(builder).append("<map");
+		if (needsWrapping) compactWriter.appendIndents(builder).append("<map");
 		if (needsTypeInfo || (keyNeedsTypeInfo || valueNeedsTypeInfo) || needsToAvoidCodecKeys(keys)) {
 			if (needsWrapping) {
 				builder.append(" class=\"");
-				Utils.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+				typeWriter.appendMapType(builder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 				builder.append('\"');
 			} else if (typeBuilder != null) {
-				Utils.appendMapType(typeBuilder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
+				typeWriter.appendMapType(typeBuilder, keyType, valueType, keyNeedsTypeInfo, valueNeedsTypeInfo);
 			}
 		}
 		if (needsWrapping) builder.append('>');
 		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {
-			increaseIndent();
+			compactWriter.increaseIndent();
 			for (Object k : keys) {
 				appendMapKeyValue(builder, null, k, vs.get(k),
 						valueType, valueParamType,
 						depth, codecs, compact);
-				appendLinebreak(builder);
+				compactWriter.appendLinebreak(builder);
 			}
-			decreaseIndent();
-			if (needsWrapping) appendIndents(builder).append("</map>");
+			compactWriter.decreaseIndent();
+			if (needsWrapping) compactWriter.appendIndents(builder).append("</map>");
 			return;
 		}
 		// Start entries mode
-		increaseIndent();
+		compactWriter.increaseIndent();
 		for (Object k : keys) {
 			StringBuilder valueBuilder = new StringBuilder();
-			increaseIndent();
+			compactWriter.increaseIndent();
 			appendMapEntry(valueBuilder, null, k, vs.get(k),
 					keyType, keyParamType, valueType, valueParamType,
 					depth, codecs);
-			decreaseIndent();
+			compactWriter.decreaseIndent();
 			assign(builder, "entry", valueBuilder, null, false);
 		}
-		decreaseIndent();
-		if (needsWrapping) appendIndents(builder).append("</map>");
+		compactWriter.decreaseIndent();
+		if (needsWrapping) compactWriter.appendIndents(builder).append("</map>");
 	}
 	
 	@Override
@@ -423,11 +444,11 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 				int builderLength = builder.length();
 				if (builderLength > 0 && builder.charAt(builderLength - 1) != '\n') builder.append("\r\n");
 			} else {
-				appendIndents(builder);
+				compactWriter.appendIndents(builder);
 			}
 			return builder.append(value);
 		}
-		appendIndents(builder);
+		compactWriter.appendIndents(builder);
 		builder.append('<').append(name);
 		if (typeBuilder != null && typeBuilder.length() > 0) {
 			builder.append(" class=\"").append(typeBuilder).append('\"');
@@ -436,7 +457,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		boolean wrapping = length > 0 && (value.charAt(0) == '\t' || value.charAt(length - 1) == '\n');
 		if (wrapping) builder.append("\r\n");
 		builder.append(value);
-		if (wrapping) appendIndents(builder);
+		if (wrapping) compactWriter.appendIndents(builder);
 		builder.append("</").append(name).append('>');
 		return builder;
 	}

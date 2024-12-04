@@ -8,6 +8,9 @@ import im.webuzz.config.annotations.ConfigComment;
 import im.webuzz.config.annotations.ConfigKeyPrefix;
 import im.webuzz.config.annotations.ConfigNotNull;
 import im.webuzz.config.annotations.ConfigPattern;
+import im.webuzz.config.generator.ConfigINIGenerator;
+import im.webuzz.config.generator.ConfigJSGenerator;
+import im.webuzz.config.generator.ConfigXMLGenerator;
 
 @ConfigClass
 @ConfigKeyPrefix("generator")

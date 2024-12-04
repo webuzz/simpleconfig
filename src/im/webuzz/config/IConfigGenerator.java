@@ -1,8 +1,10 @@
 package im.webuzz.config;
 
-public interface IConfigGenerator {
+// T will be StringBuilder, StringBuffer or ByteArrayOutputStream
+// T should be a class which can be initialized by new T()
+public interface IConfigGenerator<T> {
 
-	public void startGenerate(StringBuilder builder, Class<?> clz, boolean combinedConfigs);
-	public void endGenerate(StringBuilder builder, Class<?> clz, boolean combinedConfigs);
+	public void startGenerate(T builder, Class<?> clz);
+	public void endGenerate(T builder, Class<?> clz);
 
 }

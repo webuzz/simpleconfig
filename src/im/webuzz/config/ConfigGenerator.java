@@ -19,13 +19,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-//import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import im.webuzz.config.generator.ConfigINIGenerator;
 
 
 /**
@@ -36,9 +37,89 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ConfigGenerator {
 
-	protected static Map<String, IConfigGenerator> generators = new ConcurrentHashMap<>();
+	protected static Map<String, IConfigGenerator<?>> generators = new ConcurrentHashMap<>();
 
-	static String readFile(File file) {
+	protected static IConfigGenerator<?> getConfigurationGenerator(String extension) {
+		String ext = extension.substring(1);
+		IConfigGenerator<?> generator = generators.get(ext);
+		if (generator != null) return generator;
+		try {
+			Class<?> clazz = GeneratorConfig.generatorExtensions.get(ext);
+			if (clazz != null) {
+				Object instance = clazz.newInstance();
+				if (instance instanceof IConfigGenerator) {
+					generator = (IConfigGenerator<?>) instance;
+					generators.put(ext, generator);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		if (generator == null) generator = new ConfigINIGenerator();
+		return generator;
+	}
+
+	/**
+	 * Generate configuration files to the specific file.
+	 * 
+	 * @param file
+	 * @param classes
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	static void generateConfigurationFiles(String folder, String fileName,
+			Map<Class<?>, String> classWithExtensions, Class<?>[] orderedClasses) {
+		File ff = new File(folder);
+		if (!ff.exists()) {
+			ff.mkdirs();
+		}
+
+		Object globalBuilder = null;
+		IConfigGenerator globaleGenerator = null;
+		for (Class<?> clz : orderedClasses) {
+			String keyPrefix = Config.getKeyPrefix(clz);
+			boolean globalConfig = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
+			String fileExt = classWithExtensions.get(clz);
+			IConfigGenerator generator = getConfigurationGenerator(fileExt);
+			Class<?> rawType = Utils.getInterfaceParamType(generator.getClass(), IConfigGenerator.class);
+			Object builder = null;
+			if (globalConfig) {
+				if (globalBuilder == null) {
+					globalBuilder = createABuilder(rawType);
+				} else {
+					Class<? extends Object> globalBuilderType = globalBuilder.getClass();
+					if (globalBuilderType != rawType) {
+						System.out.println("[ERROR] Global generator " + globaleGenerator.getClass().getName()
+								+ " can only process " + globalBuilderType.getName() + " builder. "
+								+ "But now the generator for " + clz.getName() + " is designed to process " + rawType.getName() + " builder.");
+						System.out.println("[ERROR] Configuration file " + keyPrefix + fileExt + " is not generated because of the above buidler confliction!");
+						return;
+					}
+				}
+				builder = globalBuilder;
+				globaleGenerator = generator;
+			} else {
+				builder = createABuilder(rawType);
+			}
+			generator.startGenerate(builder, clz);
+			if (!globalConfig) { // multiple configurations
+				generator.endGenerate(builder, clz);
+				writeObjectToFile(builder, new File(folder, Config.parseFilePath(keyPrefix + fileExt)));
+			}
+		} // end of for classes
+		globaleGenerator.endGenerate(globalBuilder, null);
+		writeObjectToFile(globalBuilder, new File(folder, fileName));
+	}
+	
+	private static Object createABuilder(Class<?> rawType) {
+		try {
+			return rawType.newInstance();
+		} catch (Throwable e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	private static byte[] readFileBytes(File file) {
 		FileInputStream fis = null;
 		byte[] buffer = new byte[8096];
 		int read = -1;
@@ -50,6 +131,7 @@ public class ConfigGenerator {
 			}
 		} catch (IOException e1) {
 			//e1.printStackTrace();
+			return null;
 		} finally {
 			if (fis != null) {
 				try {
@@ -59,143 +141,45 @@ public class ConfigGenerator {
 				}
 			}
 		}
-		return new String(baos.toByteArray(), Config.configFileEncoding);
+		return baos.toByteArray();
 	}
-	
-	/**
-	 * Generate configuration files to the specific file.
-	 * 
-	 * @param file
-	 * @param classes
-	 */
-	static void generateUpdatedConfiguration(String folder, String fileName,
-			Map<Class<?>, String> classWithExtensions, Class<?>[] orderedClasses) {
-		//List<String> allNames = new ArrayList<String>();
-//		String[] oldConfigClasses = Config.configurationClasses;
-//		if (oldConfigClasses != null) {
-//			for (String clazz : oldConfigClasses) {
-//				allNames.add(clazz);
-//			}
-//		}
-//		List<Class<?>> allConfigs = new ArrayList<Class<?>>();
-//		classWithExtensions.keySet();
-//		for (Iterator<Class<?>> iterator = classWithExtensions.keySet().iterator(); iterator.hasNext();) {
-//			Class<?> clz = (Class<?>) iterator.next();
-//			if (clz != null) {
-//				allConfigs.add(clz);
-//				//allNames.add(clz.getName());
-//			}
-//		}
-//		for (int i = 0; i < classes.length; i++) {
-//			Class<?> clz = classes[i];
-//		}
 
-//		String fileExt = Config.configurationFileExtension;
-//		String oldFileExt = fileExt;
-//		int idx = file.lastIndexOf('.');
-//		if (idx != -1) {
-//			String ext = file.substring(idx + 1);
-//			if (ext.length() > 0) {
-//				fileExt = file.substring(idx);
-//				Config.configurationFileExtension = fileExt;
-//			}
-//		}
-		
-//		File f = new File(folder, fileName);
-		//String fileName = f.getName();
-		//String fileExt = fileName.substring(fileName.indexOf('.') + 1);
-		//String folder = file;
-//		if (f.isFile() || !f.exists()) { // || folder.endsWith(fileExt)) {
-//			folder = f.getParent();
-//		}
-		File ff = new File(folder);
-		if (!ff.exists()) {
-			ff.mkdirs();
+	private static void writeObjectToFile(Object obj, File file) {
+		byte[] newBytes = null;
+		if (obj instanceof StringBuilder) {
+			StringBuilder builder = (StringBuilder) obj;
+			if (builder.length() == 0) return;
+			newBytes = builder.toString().getBytes(Config.configFileEncoding);
+		} else if (obj instanceof StringBuffer) {
+			StringBuffer buffer = (StringBuffer) obj;
+			if (buffer.length() == 0) return;
+			newBytes = buffer.toString().getBytes(Config.configFileEncoding);
+		} else if (obj instanceof ByteArrayOutputStream) {
+			ByteArrayOutputStream baos = (ByteArrayOutputStream) obj;
+			if (baos.size() == 0) return;
+			newBytes = baos.toByteArray();
+		} else {
+			System.out.println("[ERROR] Failed to write object to file " + file.getName() + ": unsupported object type: " + obj.getClass().getName());
+			return;
 		}
-
-		StringBuilder defaultBuilder = new StringBuilder();
-		IConfigGenerator defaultCG = null;
-//		for (Iterator<Class<?>> itr = classWithExtensions.keySet().iterator(); itr.hasNext();) {
-//			Class<?> clz = (Class<?>) itr.next();
-		for (Class<?> clz : orderedClasses) {
-			String keyPrefix = Config.getKeyPrefix(clz);
-			StringBuilder builder = null;
-			boolean globalConfig = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
-			String fileExt = classWithExtensions.get(clz);
-			IConfigGenerator cg = getConfigurationGenerator(fileExt);
-			if (globalConfig) {
-				builder = defaultBuilder;
-				if (builder.length() > 0) {
-					builder.append("\r\n");
-				} else {
-					defaultCG = cg;
-				}
-			} else {
-				builder = new StringBuilder();
-			}
-			cg.startGenerate(builder, clz, globalConfig); //, warnChecking));
-			if (!globalConfig) { // multiple configurations
-				//cg.endClassBlock(builder);
-				String source = builder.toString();
-				File oldConfigFile = new File(folder, Config.parseFilePath(keyPrefix + fileExt));
-				String oldSource = readFile(oldConfigFile);
-				if (!source.equals(oldSource)) {
-					boolean newFile = oldSource == null || oldSource.length() == 0;
-					System.out.println((newFile ? "Write " : "Update ") + keyPrefix + fileExt);
-					FileOutputStream fos = null;
-					try {
-						fos = new FileOutputStream(oldConfigFile);
-						fos.write(source.getBytes(Config.configFileEncoding));
-					} catch (IOException e) {
-						e.printStackTrace();
-					} finally {
-						if (fos != null) {
-							try {
-								fos.close();
-							} catch (IOException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-				} // end if
-				builder.delete(0, builder.length());
-			}
-		} // end of for classes
-		defaultCG.endGenerate(defaultBuilder, null, true);
-		String source = defaultBuilder.toString();
-		File cfgFile = new File(folder, fileName);
-		String oldSource = readFile(cfgFile);
-		if (!source.equals(oldSource)) {
-			System.out.println(((oldSource == null || oldSource.length() == 0) ? "Write " : "Update ") + cfgFile.getAbsolutePath());
-			FileOutputStream fos = null;
-//			File folderFile = cfgFile.getParentFile();
-//			if (!folderFile.exists()) {
-//				folderFile.mkdirs();
-//			}
-			try {
-				fos = new FileOutputStream(cfgFile);
-				fos.write(source.getBytes(Config.configFileEncoding));
-			} catch (IOException e) {
-				e.printStackTrace();
-			} finally {
-				if (fos != null) {
-					try {
-						fos.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+		byte[] oldBytes = readFileBytes(file);
+		if (Arrays.equals(newBytes, oldBytes)) return; // unchanged
+		System.out.println(((oldBytes == null || oldBytes.length == 0) ? "Write " : "Update ") + file.getAbsolutePath());
+		FileOutputStream fos = null;
+		try {
+			fos = new FileOutputStream(file);
+			fos.write(newBytes);
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if (fos != null) {
+				try {
+					fos.close();
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
 			}
-		} // end if
-	}
-	
-	public static void printUsage() {
-		System.out.println("Usage:");
-		System.out.println("\t... " + ConfigGenerator.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
-				+ " <target configuration folder> [main configuration file name or file extension, e.g. config.ini or .ini]"
-				+ " <<configuration class> [file extension, e.g. .ini or .js or .xml]>"
-				+ " [<configuration class> [file extension, e.g. .ini or .js or .xml] ...]"
-				+ " [checking class]");
+		}
 	}
 	
 	private static void updatedConfigExtension(Map<Class<?>, String> classExtensions, Class<?> lastClass,
@@ -209,37 +193,6 @@ public class ConfigGenerator {
 			}
 		}
 		classExtensions.put(lastClass, extension);
-	}
-
-	protected static IConfigGenerator getConfigurationGenerator(String extension) {
-		String ext = extension.substring(1);
-		IConfigGenerator generator = generators.get(ext);
-		if (generator != null) return generator;
-		try {
-			Class<?> clazz = GeneratorConfig.generatorExtensions.get(ext);
-			if (clazz != null) {
-				Object instance = clazz.newInstance();
-				if (instance instanceof IConfigGenerator) {
-					generator = (IConfigGenerator) instance;
-					generators.put(ext, generator);
-				}
-			}
-		} catch (InstantiationException e) {
-			e.printStackTrace();
-		} catch (IllegalAccessException e) {
-			e.printStackTrace();
-		}
-		if (generator == null) generator = new ConfigINIGenerator();
-		return generator;
-	}
-
-	public static void main(String[] args) {
- 		args = Config.initialize(args);
-		if (args == null || args.length < 2) {
-			printUsage();
-			return;
-		}
-		run(args, 0);
 	}
 
 	public static void run(String[] args, int indexOffset) {
@@ -301,12 +254,25 @@ public class ConfigGenerator {
 		Class<?>[] classes = orderedClasses.toArray(new Class<?>[orderedClasses.size()]);
 
 		Config.registerUpdatingListener(GeneratorConfig.class);
-		generateUpdatedConfiguration(targetFolder, mainTargetFileName, classExtensions, classes);
+		generateConfigurationFiles(targetFolder, mainTargetFileName, classExtensions, classes);
 	}
 
-	public static boolean isAbstractClass(Class<?> clazz) {
-		int modifiers = clazz.getModifiers();
-		return Modifier.isAbstract(modifiers);
+	public static void printUsage() {
+		System.out.println("Usage:");
+		System.out.println("\t... " + ConfigGenerator.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
+				+ " <target configuration folder> [main configuration file name or file extension, e.g. config.ini or .ini]"
+				+ " <<configuration class> [file extension, e.g. .ini or .js or .xml]>"
+				+ " [<configuration class> [file extension, e.g. .ini or .js or .xml] ...]"
+				+ " [checking class]");
+	}
+	
+	public static void main(String[] args) {
+ 		args = Config.initialize(args);
+		if (args == null || args.length < 2) {
+			printUsage();
+			return;
+		}
+		run(args, 0);
 	}
 
 }

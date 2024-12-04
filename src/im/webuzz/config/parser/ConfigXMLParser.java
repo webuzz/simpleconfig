@@ -12,10 +12,14 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.parser;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +35,13 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Text;
 
-public class ConfigXMLParser implements IConfigConverter {
+import im.webuzz.config.Config;
+import im.webuzz.config.GeneratorConfig;
+import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.IConfigParser;
+import im.webuzz.config.generator.ConfigINIGenerator;
+
+public class ConfigXMLParser implements IConfigParser<File, Object> {
 
 	// To add comments to the *.ini format while converting .xml format to .ini format.
 	// This is to help comparing parsed .ini format with the original .ini format.
@@ -103,6 +113,41 @@ public class ConfigXMLParser implements IConfigConverter {
 		object,
 	};
 
+	private ConfigINIParser iniParser;
+	
+	public ConfigXMLParser() {
+		super();
+		iniParser = new ConfigINIParser();
+	}
+
+	
+	@Override
+	public Object loadResource(File source, boolean combinedConfigs) {
+		iniParser.combinedConfigs = combinedConfigs;
+		FileInputStream fis = null;
+		try {
+			fis = new FileInputStream(source);
+			InputStream is = convertToProperties(fis);
+			iniParser.props.load(new InputStreamReader(is, Config.configFileEncoding));
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			if (fis != null) {
+				try {
+					fis.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return null;
+	}
+
+	@Override
+	public int parseConfiguration(Class<?> clz, boolean updating) {
+		return iniParser.parseConfiguration(clz, updating);
+	}
+
 	private NodeType parseType(Element o, NodeType containerType) {
 		if (o == null) return NodeType.unknown;
 		NamedNodeMap attributes = o.getAttributes();
@@ -133,7 +178,7 @@ public class ConfigXMLParser implements IConfigConverter {
 		if ("list".equals(typeName)) return NodeType.listDirect;
 		if ("set".equals(typeName)) return NodeType.setDirect;
 		if ("array".equals(typeName)) return NodeType.arrayDirect;
-		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
+		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs != null && codecs.containsKey(typeName)) {
 			if (containerType != NodeType.mapDirect && containerType != NodeType.mapGeneric
 					&& containerType != NodeType.mapKnown && containerType != NodeType.object) {
@@ -581,7 +626,6 @@ public class ConfigXMLParser implements IConfigConverter {
 		builder.append("]\r\n");
 	}
 
-	@Override
 	public InputStream convertToProperties(InputStream fis) throws Exception {
 		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 		dbf.setNamespaceAware(true);

@@ -10,191 +10,31 @@ import java.util.List;
 import java.util.Map;
 
 import im.webuzz.config.annotations.*;
+import im.webuzz.config.generator.AnnotationWriter;
 
-public class ConfigValidator {
+public class AnnotationValidator {
 
-	private static StringBuilder trimEndingDot0(StringBuilder builder) {
-		int length = builder.length();
-		if (builder.substring(length - 2, length).equals(".0")) {
-			builder.delete(length - 2, length);
-		}
-		return builder;
+	private AnnotationWriter annWriter;
+	
+	public AnnotationValidator() {
+		super();
+		this.annWriter = new AnnotationWriter();
 	}
 
-	private static void appendObject(StringBuilder builder, Object obj) {
-		if (obj == null) {
-			builder.append("null");
-			return;
-		}
-		if (obj instanceof String) {
-			String s = (String) obj;
-			builder.append('\"').append(s).append('\"');
-			return;
-		}
-		Class<? extends Object> type = obj.getClass();
-		if (obj instanceof Number) {
-			builder.append('[').append(type.getSimpleName()).append(':').append(((Number) obj).doubleValue());
-			trimEndingDot0(builder).append(']');
-			return;
-		}
-		builder.append('[');
-		Utils.appendFieldType(builder, type, null, true);
-		builder.append(":...]");
-	}
-
-	private static void formatExpectsAnnotation(StringBuilder expectBuilder, Annotation ann) {
+	private void formatExpectsAnnotation(StringBuilder expectBuilder, Annotation ann) {
 		expectBuilder.append("expecting ");
-		appendAnnotation(expectBuilder, ann, false);
+		annWriter.appendAnnotation(expectBuilder, ann, false);
 	}
 
-	protected static void appendAnnotation(StringBuilder builder, Annotation ann) {
-		appendAnnotation(builder, ann, false);
-	}
-	protected static void appendAnnotation(StringBuilder builder, Annotation ann, boolean multiple) {
-		builder.append('@').append(ann.annotationType().getSimpleName());
-		if (ann instanceof ConfigNotNull || ann instanceof ConfigNotEmpty || ann instanceof ConfigLength
-				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern || ann instanceof ConfigCodec
-				|| ann instanceof ConfigRange || ann instanceof ConfigNumberEnum
-				|| ann instanceof ConfigSince) {
-			builder.append('(');
-			if (ann instanceof ConfigNotNull) {
-				ConfigNotNull a = (ConfigNotNull) ann;
-				if (a.depth() > 0 || multiple) {
-					builder.append("depth = ").append(a.depth());
-				}
-			} else if (ann instanceof ConfigNotEmpty) {
-				ConfigNotEmpty a = (ConfigNotEmpty) ann;
-				if (a.depth() > 0 || multiple) {
-					builder.append("depth = ").append(a.depth());
-				}
-			} else if (ann instanceof ConfigLength) {
-				ConfigLength a = (ConfigLength) ann;
-				if (a.min() > 0) {
-					builder.append("min = ").append(a.min());
-				}
-				if (a.max() != Integer.MAX_VALUE) {
-					if (builder.charAt(builder.length() - 1) != '(') {
-						builder.append(", ");
-					}
-					builder.append("max = ").append(a.max());
-				}
-				if (a.depth() > 0 || multiple) {
-					if (builder.charAt(builder.length() - 1) != '(') {
-						builder.append(", ");
-					}
-					builder.append("depth = ").append(a.depth());
-				}
-			} else if (ann instanceof ConfigEnum) {
-				ConfigEnum a = (ConfigEnum) ann;
-				String[] values = a.value();
-				if (values != null) {
-					if (values.length > 1) builder.append('{');
-					boolean first = true;
-					for (String value : values) {
-						if (!first) builder.append(", ");
-						if (value == null) {
-							builder.append("null");
-						} else if (value.length() == 0) {
-							builder.append("\"\"");
-						} else {
-							builder.append('\"').append(formatString(value)).append('\"');
-						}
-						first = false;
-					}
-					if (values.length > 1) builder.append('}');
-				}
-			} else if (ann instanceof ConfigPattern) {
-				ConfigPattern a = (ConfigPattern) ann;
-				String value = a.value();
-				if (value != null && value.length() > 0) {
-					builder.append('\"').append(formatString(value)).append('\"');
-				}
-			} else if (ann instanceof ConfigCodec) {
-				ConfigCodec a = (ConfigCodec) ann;
-				String[] values = a.preferences();
-				if (values != null && values.length > 0) {
-					builder.append("preferences = ");
-					if (values.length > 1) builder.append('{');
-					boolean first = true;
-					for (String value : values) {
-						if (!first) builder.append(", ");
-						if (value == null) {
-							builder.append("null");
-						} else if (value.length() == 0) {
-							builder.append("\"\"");
-						} else {
-							builder.append('\"').append(formatString(value)).append('\"');
-						}
-						first = false;
-					}
-					if (values.length > 1) builder.append('}');
-				}
-				if (a.key()) {
-					if (builder.charAt(builder.length() - 1) != '(') {
-						builder.append(", ");
-					}
-					builder.append("key = true");
-				}
-				if (a.value()) {
-					if (builder.charAt(builder.length() - 1) != '(') {
-						builder.append(", ");
-					}
-					builder.append("value = true");
-				}
-				if (a.depth() >= 0 || multiple) {
-					if (builder.charAt(builder.length() - 1) != '(') {
-						builder.append(", ");
-					}
-					builder.append("depth = ").append(a.depth());
-				}
-			} else if (ann instanceof ConfigRange) {
-				ConfigRange a = (ConfigRange) ann;
-				if (a.min() > 0) {
-					builder.append("min = ").append(a.min());
-					trimEndingDot0(builder);
-				}
-				if (a.max() != Integer.MAX_VALUE) {
-					if (builder.charAt(builder.length() - 1) != '(') {
-						builder.append(", ");
-					}
-					builder.append("max = ").append(a.max());
-					trimEndingDot0(builder);
-				}
-			} else if (ann instanceof ConfigNumberEnum) {
-				ConfigNumberEnum a = (ConfigNumberEnum) ann;
-				double[] values = a.value();
-				if (values != null) {
-					if (values.length > 1) builder.append('{');
-					boolean first = true;
-					for (double value : values) {
-						if (!first) builder.append(", ");
-						builder.append(value);
-						trimEndingDot0(builder);
-						first = false;
-					}
-					if (values.length > 1) builder.append('}');
-				}
-			} else if (ann instanceof ConfigSince) {
-				ConfigSince a = (ConfigSince) ann;
-				String value = a.value();
-				if (value != null && value.length() > 0) {
-					builder.append('\"').append(formatString(value)).append('\"');
-				}
-			}			
-			int length = builder.length();
-			if (builder.charAt(length - 1) == '(') {
-				builder.delete(length - 1, length);
-			} else {
-				builder.append(')');
-			}
-		}
-	}
+//	protected static void appendAnnotation(StringBuilder builder, Annotation ann) {
+//		appendAnnotation(builder, ann, false);
+//	}
 
-	public static String formatString(String str) {
-		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
-	}
+//	public static String formatString(String str) {
+//		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+//	}
 
-	private static void getFieldAnnotations(Field f,
+	private void getFieldAnnotations(Field f,
 			List<Annotation> numberAnnotations,
 			List<Annotation> stringAnnotations,
 			List<Annotation> collectionAnnotations,
@@ -241,7 +81,7 @@ public class ConfigValidator {
 		}
 	}
 	
-	static int validatePrimitive(Field f, double num, int depth, String keyName) {
+	public int validatePrimitive(Field f, double num, int depth, String keyName) {
 		List<Annotation> numberAnnotations = new ArrayList<Annotation>();
 		List<Annotation> stringAnnotations = new ArrayList<Annotation>();
 		List<Annotation> collectionAnnotations = new ArrayList<Annotation>();
@@ -256,9 +96,7 @@ public class ConfigValidator {
 		boolean result = validateNumber(num, numberAnnotations, expectBuilder);
 		if (!result) { // invalid
 			StringBuilder errMsg = new StringBuilder();
-			errMsg.append('[').append(f.getType().getName()).append(':').append(num);
-			trimEndingDot0(errMsg);
-			errMsg.append(']');
+			annWriter.appendFieldNumber(errMsg, f, num);
 			errMsg.append(": Invalid value for field \"").append(keyName)
 					.append("\", ").append(expectBuilder);
 			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
@@ -266,7 +104,7 @@ public class ConfigValidator {
 		return result ? 1 : 0;
 	}
 	
-	static int validateObject(Field f, Object obj, int depth, String keyName) {
+	public int validateObject(Field f, Object obj, int depth, String keyName) {
 		List<Annotation> numberAnnotations = new ArrayList<Annotation>();
 		List<Annotation> stringAnnotations = new ArrayList<Annotation>();
 		List<Annotation> collectionAnnotations = new ArrayList<Annotation>();
@@ -283,7 +121,7 @@ public class ConfigValidator {
 				nullAnnotations, expectBuilder);
 		if (!result) { // invalid
 			StringBuilder errMsg = new StringBuilder();
-			appendObject(errMsg, obj);
+			annWriter.appendFieldObject(errMsg, f, obj);
 			errMsg.append(": Invalid value for field \"").append(keyName)
 					.append("\", ").append(expectBuilder);
 			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
@@ -291,7 +129,7 @@ public class ConfigValidator {
 		return result ? 1 : 0;
 	}
 	
-	static boolean validateNumber(double num, List<Annotation> numberAnnotations, StringBuilder expectBuilder) {
+	protected boolean validateNumber(double num, List<Annotation> numberAnnotations, StringBuilder expectBuilder) {
 		if (numberAnnotations.size() == 0) return true;
 		for (Annotation annotation : numberAnnotations) {
 			if (annotation instanceof ConfigNonNegative) {
@@ -340,7 +178,7 @@ public class ConfigValidator {
 	}
 	//*/
 	
-	static boolean validateSize(int size, int depth, Class<?> type, List<Annotation> annotations, StringBuilder expectBuilder) {
+	protected boolean validateSize(int size, int depth, Class<?> type, List<Annotation> annotations, StringBuilder expectBuilder) {
 		boolean result = true;
 		for (Annotation ann : annotations) {
 			Class<? extends Annotation> annotationType = ann.annotationType();
@@ -366,7 +204,7 @@ public class ConfigValidator {
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	static boolean validateField(Object obj, int depth,
+	protected boolean validateField(Object obj, int depth,
 			List<Annotation> numberAnnotations, List<Annotation> stringAnnotations,
 			List<Annotation> collectionAnnotations, List<Annotation> mapAnnotations,
 			List<Annotation> nullAnnotations, StringBuilder expectBuilder) {
