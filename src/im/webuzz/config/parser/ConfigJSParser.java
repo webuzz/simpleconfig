@@ -16,8 +16,8 @@ package im.webuzz.config.parser;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
+//import java.io.File;
+//import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -32,7 +32,7 @@ import im.webuzz.config.Config;
 import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.IConfigParser;
 
-public class ConfigJSParser implements IConfigParser<File, Object> {
+public class ConfigJSParser implements IConfigParser<InputStream, Object> {
 
 	private static String convertJS = null;
 
@@ -167,19 +167,21 @@ public class ConfigJSParser implements IConfigParser<File, Object> {
 
 	
 	@Override
-	public Object loadResource(File source, boolean combinedConfigs) {
+	public Object loadResource(InputStream fis, boolean combinedConfigs) {
+		if (fis == null) return null;
 		iniParser.combinedConfigs = combinedConfigs;
-		FileInputStream fis = null;
+		InputStreamReader reader = null;
 		try {
-			fis = new FileInputStream(source);
+			//fis = new FileInputStream(source);
 			InputStream is = convertToProperties(fis);
-			iniParser.props.load(new InputStreamReader(is, Config.configFileEncoding));
+			reader = new InputStreamReader(is, Config.configFileEncoding);
+			iniParser.props.load(reader);
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
-			if (fis != null) {
+			if (reader != null) {
 				try {
-					fis.close();
+					reader.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}

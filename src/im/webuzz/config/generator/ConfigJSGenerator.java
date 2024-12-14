@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
 
@@ -104,7 +103,12 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	}
 	
 	@Override
-	protected void startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
+	protected void appendSeparator(StringBuilder builder, boolean compact) {
+		builder.append(compact ? ", " : ",\r\n");
+	}
+
+	@Override
+	protected boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
 		int length = builder.length();
 		if (length > 4 && builder.substring(length - 4).equals("},\r\n")) {
 			builder.insert(length - 2, " {");
@@ -120,14 +124,21 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			//appendIndents(builder);
 			builder.append(" \"class\": \""); //object:");
 			typeWriter.appendFieldType(builder, type, null);
-			builder.append("\",");
+			builder.append('\"');
+			//builder.append(",");
+			return true; // need to append separator
 		}
+		return false;
 	}
 
 	@Override
 	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
-		if (needsIndents) compactWriter.appendIndents(builder);
-		builder.append("}");
+		if (needsIndents) {
+			compactWriter.appendIndents(builder);
+		} else {
+			builder.append(' ');
+		}
+		builder.append('}');
 	}
 
 	protected void generateNull(StringBuilder builder) {
@@ -319,12 +330,12 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
-		//*
+		/*
 		if ("mapArrs".equals(name)) {
 			System.out.println("xxx mapAas");
 		} //*/
 		// treating map as an object, starting with "{" and ending with "}"
-		startObjectBlock(builder, valueType, false, needsWrapping);
+		startObjectBlock(builder, valueType, false, needsWrapping); // needsTypeInfo = false, in this invocation, always return false
 		if (needsTypeInfo || needsToAvoidCodecKeys(keys)) {
 			// For cases need to avoid codec keys, we will get { "class": "[map]", aes: "AES Algorithm" }
 			builder.append(" \"class\": \"");
@@ -332,28 +343,18 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			builder.append("\",");
 		}
 		if (supportsDirectKeyValueMode(keys, keyType, depth, codecs)) {
-			int size = keys.length;
-			if (compact) {
-				builder.append(' ');
-			} else {
-				builder.append("\r\n");
-				compactWriter.increaseIndent();
-			}
+			builder.append(compact ? " " : "\r\n");
+			if (!compact) compactWriter.increaseIndent();
+			int size = keys.length; // size > 0,  this method is invoked only if the map is not empty
 			for (int i = 0; i < size; i++) {
 				Object k = keys[i];
 				appendMapKeyValue(builder, null, k, vs.get(k),
 						valueType, valueParamType,
 						depth, codecs, compact);
-				if (size > 1) {
-					if (!compact) compactWriter.appendLinebreak(builder);
-					else if (i != size - 1) builder.append(", ");
-				}
+				// For non-compact mode, always adding "," at the end, so more key-value can be added easily later
+				if (!compact || i != size - 1) appendSeparator(builder, compact);
 			}
-			if (compact) {
-				builder.append(' ');
-			} else {
-				compactWriter.decreaseIndent();
-			}
+			if (!compact) compactWriter.decreaseIndent();
 			endObjectBlock(builder, !compact, needsWrapping); // #endObjectBlock will prepare indents
 			return;
 		}
@@ -377,7 +378,6 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		compactWriter.decreaseIndent();
 		compactWriter.appendIndents(valueBuilder).append("} ]");
 		assign(builder, "entries", valueBuilder, typeBuilder, true);
-		builder.append(' '); // ending white-space before closing bracket
 		endObjectBlock(builder, false, needsWrapping);
 	}
 	

@@ -14,9 +14,9 @@
 
 package im.webuzz.config.generator;
 
-import static im.webuzz.config.GeneratorConfig.addFieldComment;
-import static im.webuzz.config.GeneratorConfig.addTypeComment;
-import static im.webuzz.config.GeneratorConfig.skipSimpleTypeComment;
+import static im.webuzz.config.generator.GeneratorConfig.addFieldComment;
+import static im.webuzz.config.generator.GeneratorConfig.addTypeComment;
+import static im.webuzz.config.generator.GeneratorConfig.skipSimpleTypeComment;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;

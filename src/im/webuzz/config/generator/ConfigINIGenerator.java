@@ -14,6 +14,8 @@
 
 package im.webuzz.config.generator;
 
+import static im.webuzz.config.generator.GeneratorConfig.*;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.HashSet;
@@ -22,8 +24,6 @@ import java.util.Set;
 
 import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
-
-import static im.webuzz.config.GeneratorConfig.*;
 
 public class ConfigINIGenerator extends ConfigBaseGenerator {
 
@@ -62,9 +62,14 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		return prefix + "." + name;
 	}
 	
+	@Override
+	protected void appendSeparator(StringBuilder builder, boolean compact) {
+		builder.append(compact ? ";" : "\r\n");
+	}
+
 	// To wrap or separate an object with fields
 	@Override
-	protected void startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
+	protected boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
 		builder.append("[object");
 		if (needsTypeInfo) {
 			builder.append(':');
@@ -72,6 +77,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		}
 		builder.append(']');
 		builder.append("\r\n");
+		return false; // No needs of appending new separators or line breaks
 	}
 	@Override
 	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {

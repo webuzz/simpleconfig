@@ -1,5 +1,9 @@
 package im.webuzz.config;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
@@ -240,6 +244,31 @@ public class Utils {
 			typeStr = "array"; //$array;
 		}
 		return typeStr;
+	}
+
+	public static byte[] readFileBytes(File file) {
+		FileInputStream fis = null;
+		byte[] buffer = new byte[8096];
+		int read = -1;
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		try {
+			fis = new FileInputStream(file);
+			while ((read = fis.read(buffer)) != -1) {
+				baos.write(buffer, 0, read);
+			}
+		} catch (IOException e1) {
+			//e1.printStackTrace();
+			return null;
+		} finally {
+			if (fis != null) {
+				try {
+					fis.close();
+				} catch (IOException e) {
+					//e.printStackTrace();
+				}
+			}
+		}
+		return baos.toByteArray();
 	}
 
 

@@ -15,15 +15,20 @@
 package im.webuzz.config.watchman;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.DeepComparator;
 import im.webuzz.config.IConfigParser;
 import im.webuzz.config.IConfigWatchman;
+import im.webuzz.config.Utils;
 
 import java.nio.file.*;
 //import java.nio.file.attribute.FileTime;
@@ -46,7 +51,7 @@ public class ConfigFileWatchman implements IConfigWatchman {
 	private static Map<String, Long> fileLastUpdateds = new ConcurrentHashMap<String, Long>();
 	private static Map<String, Class<?>> keyPrefixClassMap = new ConcurrentHashMap<String, Class<?>>();
 	
-	private static IConfigParser<File, Object> defaultParser = null;
+	private static IConfigParser<?, ?> defaultParser = null;
 	/**
 	 * Will be invoked by {@link im.webuzz.config.Config#loadWatchmen}
 	 */
@@ -214,18 +219,13 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		if (!file.exists()) return;
 		String fileName = file.getName();
 		String extension = fileName.substring(fileName.lastIndexOf('.'));
-		Map<String, Class<? extends IConfigParser<File, Object>>> parsers = Config.configurationParsers;
+		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
 		if (parsers == null) return;
-		Class<? extends IConfigParser<File, Object>> clazz = parsers.get(extension.substring(1));
+		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(extension.substring(1));
 		if (clazz == null) return;
-		//Properties prop = new Properties();
-
 		long lastUpdated = 0;
-		//Properties fileProps = new Properties();
 		try {
-			IConfigParser<File, Object> parser = clazz.newInstance();
-			parser.loadResource(file, false);
-			//loadConfig(fileProps, file, extension);
+			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(fileName, lastUpdated);
 			Config.recordConfigExtension(configClazz, extension); // always update the configuration class' file extension
@@ -236,6 +236,61 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	private IConfigParser<?, ?> prepareParserWithFile(Class<? extends IConfigParser<?, ?>> clazz, File file) throws Exception {
+		IConfigParser<?, ?> parser = clazz.newInstance();
+		Class<?> rawType = Utils.getInterfaceParamType(clazz, IConfigParser.class);
+		if (rawType == InputStream.class) {
+			FileInputStream fis = null;
+			try {
+				fis = new FileInputStream(file);
+				((IConfigParser<InputStream, ?>) parser).loadResource(fis, false);
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				if (fis != null) {
+					try {
+						fis.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+		} else if (rawType == byte[].class) {
+			((IConfigParser<byte[], ?>) parser).loadResource(Utils.readFileBytes(file), false);
+		} else if (rawType == File.class) {
+			((IConfigParser<File, ?>) parser).loadResource(file, false);
+		} else if (rawType == Properties.class) {
+			Properties props = new Properties();
+			FileInputStream fis = null;
+			InputStreamReader reader = null;
+			try {
+				fis = new FileInputStream(file);
+				reader = new InputStreamReader(fis, Config.configFileEncoding);
+				props.load(reader);
+				((IConfigParser<Properties, ?>) parser).loadResource(props, false);
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				if (reader != null) {
+					try {
+						reader.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+				if (fis != null) {
+					try {
+						fis.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+		return parser;
 	}
 	
 	private void updateAllConfigurations(String configPath, String configExtension, String extraFolder) {
@@ -257,13 +312,12 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		if (Config.configurationLogging && mainFileLastUpdated > 0) {
 			System.out.println("[Config] Configuration file " + file.getAbsolutePath() + " updated.");
 		}
-		Map<String, Class<? extends IConfigParser<File, Object>>> parsers = Config.configurationParsers;
+		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
 		if (parsers == null) return;
-		Class<? extends IConfigParser<File, Object>> clazz = parsers.get(configExtension.substring(1));
+		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(configExtension.substring(1));
 		if (clazz == null) return;
 		try {
-			defaultParser = clazz.newInstance();
-			defaultParser.loadResource(file, true);
+			defaultParser = prepareParserWithFile(clazz, file);
 			mainFileLastUpdated = file.lastModified();
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -341,15 +395,12 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		if (Config.configurationLogging && lastUpdated > 0) {
 			System.out.println("[Config] Configuration " + clz.getName() + " at " + file.getAbsolutePath() + " updated.");
 		}
-		Map<String, Class<? extends IConfigParser<File, Object>>> parsers = Config.configurationParsers;
+		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
 		if (parsers == null) return;
-		Class<? extends IConfigParser<File, Object>> clazz = parsers.get(extension);
+		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(extension);
 		if (clazz == null) return;
-		//Properties prop = new Properties();
 		try {
-			IConfigParser<File, Object> parser = clazz.newInstance();
-			parser.loadResource(file, false);
-			//loadConfig(prop, file, extension);
+			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(fileName, lastUpdated);
 			Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension

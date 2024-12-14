@@ -14,6 +14,8 @@
 
 package im.webuzz.config.generator;
 
+import static im.webuzz.config.generator.GeneratorConfig.*;
+
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
@@ -21,12 +23,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.annotation.ConfigComment;
-
-import static im.webuzz.config.GeneratorConfig.*;
 
 /**
  * Generate configuration default file in XML format.
@@ -159,11 +158,16 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	protected String prefixedField(String prefix, String name) {
 		return name;
 	}
-	
+
+	@Override
+	protected void appendSeparator(StringBuilder builder, boolean compact) {
+		if (!compact) builder.append("\r\n");
+	}
+
 	// To wrap or separate an object with fields
 	@Override
-	protected void startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
-		if (!needsWrapping) return;
+	protected boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
+		if (!needsWrapping) return false;
 		compactWriter.appendIndents(builder);
 		if (needsTypeInfo) {
 			builder.append("<object class=\"");
@@ -173,6 +177,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			builder.append("<object");
 		}
 		builder.append(">\r\n");
+		return false; // No needs of new line breaks
 	}
 	@Override
 	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {

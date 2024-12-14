@@ -14,7 +14,7 @@
 
 package im.webuzz.config.generator;
 
-import static im.webuzz.config.GeneratorConfig.*;
+import static im.webuzz.config.generator.GeneratorConfig.*;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -34,7 +34,6 @@ import java.util.Set;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.IConfigGenerator;
 import im.webuzz.config.Utils;
@@ -77,6 +76,8 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 
 	protected abstract String prefixedField(String prefix, String name);
 
+	protected abstract void appendSeparator(StringBuilder builder, boolean compact);
+	
 	protected void appendChar(StringBuilder builder, char ch) {
 		if (0x20 <= ch && ch <= 0x7e) {
 			builder.append('\'').append(ch).append('\'');
@@ -97,7 +98,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			boolean compact, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
-		//*
+		/*
 		if ("commandLineParser".equals(name)) {
 			System.out.println("object array");
 		}
@@ -251,7 +252,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			if (compact) {
 				assign(builder, name, valueBuilder, typeBuilder, compact);
 			} else {
-				if (topConfigClass) builder.append("\r\n"); // Leave a blank for each field
+				if (topConfigClass && GeneratorConfig.separateFieldsByBlankLines) builder.append("\r\n"); // Leave a blank for each field
 				if (f != null) commentWriter.generateFieldComment(builder, f, topConfigClass);
 				assign(builder, name, valueBuilder, typeBuilder, compact);
 				//appendLinebreak(builder);
@@ -301,17 +302,26 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 		boolean all = false;
 		if (preferredCodecs.length == 0) { // default empty, try to get one
-			preferredCodecs = codecs.keySet().toArray(new String[codecs.size()]);
-			all = true;
+			String[] order = GeneratorConfig.preferredCodecOrders;
+			if (order != null && order.length > 0) {
+				preferredCodecs = order;
+			} else {
+				preferredCodecs = codecs.keySet().toArray(new String[codecs.size()]);
+				all = true;
+			}
 		}
 		do {
 			for (String codecKey : preferredCodecs) {
 				if (codecKey == null || codecKey.length() == 0) continue;
 				IConfigCodec<T> codec = (IConfigCodec<T>) codecs.get(codecKey);
 				if (codec == null) continue;
+				Class<?> rawType = Utils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+				if (rawType != v.getClass()) continue;
+				/*
 				Type paramType = codec.getClass().getGenericInterfaces()[0];
 				Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
 				if (Utils.getRawType(valueType) != v.getClass()) continue;
+				//*/
 				//IConfigCodec<T> codec = (IConfigCodec<T>) Config.codecs.get(codecKey);
 				try {
 //					if (codec == null) {
@@ -460,7 +470,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	}
 	
 	// To wrap or separate an object with fields
-	protected abstract void startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping);
+	protected abstract boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping);
 	protected abstract void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping);
 
 	// type is not basic data type or collection type
@@ -468,20 +478,6 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
-//		if (o instanceof Object[]) {
-//			StringBuilder valueBuilder = new StringBuilder();
-//			Object[] os = (Object[]) o;
-//			if (os.length > 0) {
-//				generateCollection(valueBuilder, field, keyPrefix, Arrays.asList(os), os.length,
-//						typeBuilder, type, paramType,
-//						forKeys, forValues, depth, codecs,
-//						needsTypeInfo, needsWrapping, compact);
-//			} else {
-//				valueBuilder.append($emptyArray);
-//			}
-//			assign(builder, keyPrefix, valueBuilder, null, false);
-//			return;
-//		}
 		if (typeBuilder != null) {
 			if (needsTypeInfo) {
 				typeBuilder.append("object:");
@@ -495,13 +491,10 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 
 		//int oldLength = builder.length();
-		startObjectBlock(builder, type, needsTypeInfo, needsWrapping);
+		boolean needsSeparator = startObjectBlock(builder, type, needsTypeInfo, needsWrapping);
 		compactWriter.increaseIndent();
-		boolean multipleLines = !compact; //readableObjectFormat || needsTypeInfo;
-				//|| !checkCompactness(o, type, paramType, field, compact); // !isPlainObject(o);
-		//boolean generated = false;
-		boolean separatorGenerated = true; //false;
-//		boolean fieldGenerated = false;
+		boolean generated = false;
+		boolean separatorGenerated = !needsSeparator; //false;
 		Field[] fields = o.getClass().getDeclaredFields();
 		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
 		ConfigFieldFilter filter = configFilter != null ? configFilter.get(o.getClass()) : null;
@@ -514,45 +507,24 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			String name = f.getName();
 			if (filter != null && filter.filterName(name)) continue;
 			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
-			if (multipleLines) {
-//				if (!generated) {
-//					increaseIndent();
-//					startObjectBlock(builder, type, needsTypeInfo, false);
-//					//if (fields.length > 0) builder.append("\r\n");
-//					generated = true;
-//				}
-				if (keyPrefix != null)  {
-					name = prefixedField(keyPrefix, name);
-				}
-				int oldLength = builder.length();
-				generateFieldValue(builder, f, name, o, null, null, null,
-						false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
-						false, false, compact, false);
-				if (builder.length() > oldLength && !compact) {
-					compactWriter.appendLinebreak(builder);
-					//generated = true;
-				}
-			} else {
-				if (!separatorGenerated) {
-					builder.append(", "); // separatorGenerated was false by default
-					separatorGenerated = true;
-				}
-
-				int oldLength = builder.length();
-				generateFieldValue(builder, f, name, o, null, null, null,
-						false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
-						false, false, true, false);
-				if (builder.length() > oldLength) {
-					separatorGenerated = false;
-					//generated = true;
-				}
-			} // end of if multiple/single line configuration
+			if (!separatorGenerated) {
+				appendSeparator(builder, compact);
+				separatorGenerated = true;
+			}
+			if (keyPrefix != null)  {
+				name = prefixedField(keyPrefix, name);
+			}
+			int oldLength = builder.length();
+			generateFieldValue(builder, f, name, o, null, null, null,
+					false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
+					false, false, compact, false);
+			if (builder.length() > oldLength) {
+				separatorGenerated = false;
+				generated = true;
+			}
 		} // end of for fields
-		//if (generated) {
 		compactWriter.decreaseIndent();
-			endObjectBlock(builder, true, needsWrapping);
-			//appendLinebreak(builder);
-		//}
+		endObjectBlock(builder, generated, needsWrapping);
 	}
 
 	protected boolean needsToAvoidCodecKeys(Object[] keys) {
@@ -663,9 +635,11 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			compactWriter.appendLinebreak(builder);
 		}
 		compactWriter.increaseIndent();
-		startLineComment(builder);
-		builder.append(clz.getSimpleName());
-		endLineComment(builder); //.append("\r\n");
+		if (GeneratorConfig.addTypeComment) {
+			startLineComment(builder);
+			builder.append(clz.getSimpleName());
+			endLineComment(builder); //.append("\r\n");
+		}
 		//boolean skipUnchangedLines = false;
 		String keyPrefix = Config.getKeyPrefix(clz);
 		commentWriter.appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
@@ -676,9 +650,11 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
 			if (f == null) continue;
+			/*
 			if ("heights".equals(f.getName())) {
 				System.out.println("Debug");
 			}
+			//*/
 			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
@@ -689,12 +665,13 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			if (keyPrefix != null) name = prefixedField(keyPrefix, name);
 			// To check if there are duplicate fields over multiple configuration classes, especially for
 			// those classes without stand-alone configuration files.
-			if (allFields.containsKey(name)) {
-				System.out.println("[WARN] " + clzName + "." + name + " is duplicated with " + (allFields.get(name)));
+			String fullFieldName = clzName + "." + name;
+			if (allFields.containsKey(name) && !fullFieldName.equals(allFields.get(name))) {
+				System.out.println("[WARN] " + fullFieldName + " is duplicated with " + (allFields.get(name)));
 			}
-			allFields.put(name, clzName + "." + name);
+			allFields.put(name, fullFieldName);
 
-			//*
+			/*
 			if ("town".equals(name)) {
 				System.out.println("Debug");
 			}

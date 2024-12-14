@@ -1,8 +1,7 @@
 package im.webuzz.config.parser;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -34,7 +33,7 @@ import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.annotation.ConfigRange;
 
-public class ConfigINIParser implements IConfigParser<File, Object> {
+public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 
 	@ConfigRange(min = 1, max = 20)
 	public static int configurationMapSearchingDots = 10;	
@@ -61,18 +60,19 @@ public class ConfigINIParser implements IConfigParser<File, Object> {
 	}
 	
 	@Override
-	public Object loadResource(File source, boolean combinedConfigs) {
+	public Object loadResource(InputStream fis, boolean combinedConfigs) {
+		if (fis == null) return null;
 		this.combinedConfigs = combinedConfigs;
-		FileInputStream fis = null;
+		InputStreamReader reader = null;
 		try {
-			fis = new FileInputStream(source);
-			props.load(new InputStreamReader(fis, Config.configFileEncoding));
+			reader = new InputStreamReader(fis, Config.configFileEncoding);
+			props.load(reader);
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
-			if (fis != null) {
+			if (reader != null) {
 				try {
-					fis.close();
+					reader.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -115,7 +115,7 @@ public class ConfigINIParser implements IConfigParser<File, Object> {
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
 			String name = f.getName();
-			//*
+			/*
 			if ("genders".equals(name)) {
 				System.out.println("X city");
 			} // */
@@ -194,7 +194,7 @@ public class ConfigINIParser implements IConfigParser<File, Object> {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private int parseAndUpdateField(String keyName, String p,
 			Object obj, Field f, boolean updatingField) {
-		//*
+		/*
 		if ("configurationClasses".equals(keyName)) {
 			System.out.println("X parse");
 		} // */

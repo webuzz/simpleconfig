@@ -43,6 +43,7 @@ import im.webuzz.config.codec.Base64Codec;
 import im.webuzz.config.codec.Bytes64Codec;
 import im.webuzz.config.codec.BytesAESCodec;
 import im.webuzz.config.codec.SecretCodec;
+import im.webuzz.config.codec.SecurityConfig;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
 import im.webuzz.config.parser.ConfigJSParser;
@@ -84,7 +85,7 @@ public class Config {
 	
 	// 
 	public static List<Class<? extends IConfigWatchman>> configurationWatchmen = new ArrayList<>();
-	// Once watchman is running, keep the instance in the map. By this, adding new watchman into
+	// Once watchman is running, keep the instance in the map. In this way, adding new watchman into
 	// configurationWatchmen will not affect the running watchman.
 	private static Map<String, IConfigWatchman> watchmen = new ConcurrentHashMap<>();
 
@@ -103,12 +104,16 @@ public class Config {
 	@ConfigPattern("[a-zA-Z]([a-zA-Z0-9_\\$]+\\.)*\\*$")
 	public static String[] configurationPackages = null;
 	
+	@ConfigComment({
+		"Parsers for different configuration file extensions. Each configuration file will have a parser",
+		"instance for itself."
+	})
 	@ConfigNotNull
 	@ConfigNotEmpty
 	@ConfigPattern("([a-zA-Z0-9]+)")
 	// Each configuration class will have a parser for itself. Parser's class is configured here
 	// so we can instantiate many parser instances.
-	public static Map<String, Class<? extends IConfigParser<File, Object>>> configurationParsers = new ConcurrentHashMap<>();
+	public static Map<String, Class<? extends IConfigParser<?, ?>>> configurationParsers = new ConcurrentHashMap<>();
 	
 	@ConfigComment({
 		"Singleton for parsing command line arguments into configuration clases.",
@@ -125,6 +130,10 @@ public class Config {
 	})
 	public static Map<Class<?>, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<>();
 	
+	@ConfigComment({
+		"Codec for some known data. Codec can be used for encrypting some sensitive value in configuration file.",
+		"As codec instance will be re-used over and over, codec implementation should be state-less."
+	})
 	@ConfigNotNull
 	@ConfigLength(min = 3, max = 32, depth = 1)
 	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
@@ -407,14 +416,16 @@ public class Config {
 				actionStr = actionStr.substring(6);
 				if ("generator".equals(actionStr)) {
 					ConfigGenerator.run(retArgs, 1);
+				} else if ("encoder".equals(actionStr)) {
+					Codec.run(retArgs, 1, false);
+				} else if ("decoder".equals(actionStr)) {
+					Codec.run(retArgs, 1, true);
+				} else if ("usage".equals(actionStr)) {
+					printUsage();
 				} else if ("checker".equals(actionStr)) {
 					
 				} else if ("synchronizer".equals(actionStr)) {
 					ConfigAgent.run(retArgs, 1);
-				} else if ("secretkit".equals(actionStr)) {
-					SecurityKit.run(retArgs, 1);
-				} else if ("usage".equals(actionStr)) {
-					printUsage();
 				} else {
 					System.out.println("[ERROR] Unknown action \"" + actionStr + "\"!");
 				}
@@ -442,10 +453,11 @@ public class Config {
 		System.out.println();
 		System.out.println("For argument --run:xxx, the following actions are supported:");
 		System.out.println("\t--run:generator\tTo generate configuration files");
+		System.out.println("\t--run:encoder\tTo encode a password or a sensitive string");
+		System.out.println("\t--run:decoder\tTo decode an encoded string back to original value");
+		System.out.println("\t--run:usage\tPrint this usage");
 		System.out.println("\t--run:checker\tTo verify configuration files");
 		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
-		System.out.println("\t--run:secretkit\tTo encrypt or decrypt a password or a sensitive string");
-		System.out.println("\t--run:usage\tPrint this usage");
 	}
 
 	public static boolean reportErrorToContinue(String msg) {
@@ -690,4 +702,7 @@ public class Config {
 		return null;
 	}
 
+	public static void main(String[] args) {
+		initialize(args);
+	}
 }

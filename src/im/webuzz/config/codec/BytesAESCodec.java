@@ -1,7 +1,6 @@
 package im.webuzz.config.codec;
 
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.SimpleAES;
 
 public class BytesAESCodec implements IConfigCodec<byte[]> {
 	@Override

@@ -12,10 +12,12 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config;
+package im.webuzz.config.codec;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
+
+import im.webuzz.config.Base64;
 
 //import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
@@ -164,7 +166,7 @@ public class SimpleAES {
 	}
 	
 	private static byte[] decryptBytes(byte[] sBytes) {
-		if (sBytes == null) {
+		if (sBytes == null || sBytes.length % 16 != 0) {
 			return null;
 		}
 		try {

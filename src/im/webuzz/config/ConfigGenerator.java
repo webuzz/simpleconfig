@@ -16,7 +16,6 @@ package im.webuzz.config;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.generator.ConfigINIGenerator;
+import im.webuzz.config.generator.GeneratorConfig;
 
 
 /**
@@ -39,17 +39,17 @@ public class ConfigGenerator {
 
 	protected static Map<String, IConfigGenerator<?>> generators = new ConcurrentHashMap<>();
 
-	protected static IConfigGenerator<?> getConfigurationGenerator(String extension) {
-		String ext = extension.substring(1);
-		IConfigGenerator<?> generator = generators.get(ext);
+	public static IConfigGenerator<?> getConfigurationGenerator(String extension) {
+		//String ext = extension.substring(1);
+		IConfigGenerator<?> generator = generators.get(extension);
 		if (generator != null) return generator;
 		try {
-			Class<?> clazz = GeneratorConfig.generatorExtensions.get(ext);
+			Class<?> clazz = GeneratorConfig.generatorExtensions.get(extension);
 			if (clazz != null) {
 				Object instance = clazz.newInstance();
 				if (instance instanceof IConfigGenerator) {
 					generator = (IConfigGenerator<?>) instance;
-					generators.put(ext, generator);
+					generators.put(extension, generator);
 				}
 			}
 		} catch (Exception e) {
@@ -79,7 +79,7 @@ public class ConfigGenerator {
 			String keyPrefix = Config.getKeyPrefix(clz);
 			boolean globalConfig = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
 			String fileExt = classWithExtensions.get(clz);
-			IConfigGenerator generator = getConfigurationGenerator(fileExt);
+			IConfigGenerator generator = getConfigurationGenerator(fileExt.substring(1));
 			Class<?> rawType = Utils.getInterfaceParamType(generator.getClass(), IConfigGenerator.class);
 			Object builder = null;
 			if (globalConfig) {
@@ -119,31 +119,6 @@ public class ConfigGenerator {
 		}
 	}
 
-	private static byte[] readFileBytes(File file) {
-		FileInputStream fis = null;
-		byte[] buffer = new byte[8096];
-		int read = -1;
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		try {
-			fis = new FileInputStream(file);
-			while ((read = fis.read(buffer)) != -1) {
-				baos.write(buffer, 0, read);
-			}
-		} catch (IOException e1) {
-			//e1.printStackTrace();
-			return null;
-		} finally {
-			if (fis != null) {
-				try {
-					fis.close();
-				} catch (IOException e) {
-					//e.printStackTrace();
-				}
-			}
-		}
-		return baos.toByteArray();
-	}
-
 	private static void writeObjectToFile(Object obj, File file) {
 		byte[] newBytes = null;
 		if (obj instanceof StringBuilder) {
@@ -162,7 +137,7 @@ public class ConfigGenerator {
 			System.out.println("[ERROR] Failed to write object to file " + file.getName() + ": unsupported object type: " + obj.getClass().getName());
 			return;
 		}
-		byte[] oldBytes = readFileBytes(file);
+		byte[] oldBytes = Utils.readFileBytes(file);
 		if (Arrays.equals(newBytes, oldBytes)) return; // unchanged
 		System.out.println(((oldBytes == null || oldBytes.length == 0) ? "Write " : "Update ") + file.getAbsolutePath());
 		FileOutputStream fos = null;
@@ -196,9 +171,18 @@ public class ConfigGenerator {
 	}
 
 	public static void run(String[] args, int indexOffset) {
+		if (args.length - indexOffset < 2) {
+			printUsage();
+			return;
+		}
 		String targetFolder = args[indexOffset];
 		if (targetFolder == null || targetFolder.length() <= 0) {
-			System.out.println("Target configuration folder path can not be empty.");
+			System.out.println("[ERROR] Target configuration folder path can not be empty.");
+			printUsage();
+			return;
+		}
+		if ("-h".equals(targetFolder) || "--help".equals(targetFolder)) {
+			printUsage();
 			return;
 		}
 		indexOffset++;
@@ -257,22 +241,13 @@ public class ConfigGenerator {
 		generateConfigurationFiles(targetFolder, mainTargetFileName, classExtensions, classes);
 	}
 
-	public static void printUsage() {
+	private static void printUsage() {
 		System.out.println("Usage:");
-		System.out.println("\t... " + ConfigGenerator.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
+		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini> --run:generator"
 				+ " <target configuration folder> [main configuration file name or file extension, e.g. config.ini or .ini]"
 				+ " <<configuration class> [file extension, e.g. .ini or .js or .xml]>"
 				+ " [<configuration class> [file extension, e.g. .ini or .js or .xml] ...]"
 				+ " [checking class]");
-	}
-	
-	public static void main(String[] args) {
- 		args = Config.initialize(args);
-		if (args == null || args.length < 2) {
-			printUsage();
-			return;
-		}
-		run(args, 0);
 	}
 
 }

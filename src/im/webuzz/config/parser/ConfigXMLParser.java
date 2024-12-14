@@ -15,8 +15,6 @@
 package im.webuzz.config.parser;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -36,12 +34,12 @@ import org.w3c.dom.NodeList;
 import org.w3c.dom.Text;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.GeneratorConfig;
 import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.IConfigParser;
 import im.webuzz.config.generator.ConfigINIGenerator;
+import im.webuzz.config.generator.GeneratorConfig;
 
-public class ConfigXMLParser implements IConfigParser<File, Object> {
+public class ConfigXMLParser implements IConfigParser<InputStream, Object> {
 
 	// To add comments to the *.ini format while converting .xml format to .ini format.
 	// This is to help comparing parsed .ini format with the original .ini format.
@@ -122,19 +120,21 @@ public class ConfigXMLParser implements IConfigParser<File, Object> {
 
 	
 	@Override
-	public Object loadResource(File source, boolean combinedConfigs) {
+	public Object loadResource(InputStream fis, boolean combinedConfigs) {
+		if (fis == null) return null;
 		iniParser.combinedConfigs = combinedConfigs;
-		FileInputStream fis = null;
+		InputStreamReader reader = null;
 		try {
-			fis = new FileInputStream(source);
+			//fis = new FileInputStream(source);
 			InputStream is = convertToProperties(fis);
-			iniParser.props.load(new InputStreamReader(is, Config.configFileEncoding));
+			reader = new InputStreamReader(is, Config.configFileEncoding);
+			iniParser.props.load(reader);
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
-			if (fis != null) {
+			if (reader != null) {
 				try {
-					fis.close();
+					reader.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -341,7 +341,7 @@ public class ConfigXMLParser implements IConfigParser<File, Object> {
 		return true;
 	}
 	public void visit(StringBuilder builder, String prefix, Element o, NodeType containerType) {
-		NodeType type = parseType(o, containerType);
+		NodeType type = prefix == null ? NodeType.none : parseType(o, containerType);
 		if (type == NodeType.plain) {
 			assign(builder, prefix, null).append(getTextValue(o).trim()).append("\r\n");
 			return;
@@ -632,7 +632,7 @@ public class ConfigXMLParser implements IConfigParser<File, Object> {
 		dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
 		StringBuilder builder = new StringBuilder();
 		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement(), NodeType.none);
-//		System.out.println(builder.toString());
+		//System.out.println(builder.toString());
 		// System.out.println("==============");
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));
 	}
