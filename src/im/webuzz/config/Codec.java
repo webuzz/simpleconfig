@@ -14,9 +14,9 @@ import java.util.Properties;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.generator.GeneratorConfig;
 
-public class Codec {
+class Codec {
 
-	static class CodecItemConfig {
+	public static class CodecItemConfig {
 		// Need to configure GeneratorConfig#preferredCodecOrder for the final codec 
 		@ConfigCodec
 		public static Object encoded;
