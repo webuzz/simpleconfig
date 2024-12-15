@@ -24,6 +24,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
@@ -191,12 +192,18 @@ public class ConfigJSParser implements IConfigParser<InputStream, Object> {
 	}
 
 	@Override
-	public int parseConfiguration(Class<?> clz, boolean updating) {
-		return iniParser.parseConfiguration(clz, updating);
+	public int parseConfiguration(Class<?> clz, int flag) {
+		return iniParser.parseConfiguration(clz, flag);
 	}
 
-	public static void main(String[] args) throws Exception {
-		checkInitialize();
-		System.out.println(convertJS);
+	@Override
+	public Set<String> unusedConfigurationItems() {
+		return iniParser.unusedConfigurationItems();
 	}
+
+//	public static void main(String[] args) throws Exception {
+//		checkInitialize();
+//		System.out.println(convertJS);
+//	}
+
 }

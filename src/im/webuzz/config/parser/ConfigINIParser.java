@@ -53,6 +53,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	private AnnotationValidator validator;
 	protected Properties props;
 	protected boolean combinedConfigs;
+	private Set<String> parsedKeys;
 	public ConfigINIParser() {
 		super();
 		this.validator = new AnnotationValidator();
@@ -97,8 +98,24 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 * @return Whether the given properties map contains matching configuration items or not
 	 */
 	@Override
-	public int parseConfiguration(Class<?> clz, boolean updating) {
-		if (clz == null || props.size() == 0) return 0;
+	public int parseConfiguration(Class<?> clz, int flag) {
+		if (clz == null || props.size() == 0) {
+			if ((flag & FLAG_VALIDATE) != 0) {
+				if (combinedConfigs) {
+					System.out.println("[WARN] No combined configuration items!");
+				} else {
+					System.out.println("[WARN] No configuration items for class \"" + clz.getName() + "\"");
+				}
+			}
+			return 0;
+		}
+		if ((flag & FLAG_VALIDATE) != 0 && parsedKeys == null) {
+			synchronized (this) {
+				if (parsedKeys == null) {
+					parsedKeys = Collections.synchronizedSet(new HashSet<String>());
+				}
+			}
+		}
 		String keyPrefix = null;
 		if (combinedConfigs) { // arguments or main file
 			// all configuration items are in one file, use key prefix to distinguish fields
@@ -122,19 +139,25 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 			if (filter != null && filter.filterName(name)) continue;
 			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
 			String p = props.getProperty(keyName);
-			if (p == null) continue; // given key does not exist
+			if (p == null) {
+				if ((flag & FLAG_VALIDATE) != 0 && (!combinedConfigs || keyPrefix == null)) {
+					System.out.println("[WARN] Missing \"" + keyName + "\" configuration for class \"" + clz.getName() + "\"");
+				}
+				continue; // given key does not exist
+			}
+			if (parsedKeys != null) parsedKeys.add(keyName);
 			itemMatched = true;
 			p = p.trim();
 			// Should NOT skip empty string, as it may mean empty string or default value
 			//if (p.length() == 0) continue;
 			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
-			int result = parseAndUpdateField(keyName, p, clz, f, updating);
+			int result = parseAndUpdateField(keyName, p, clz, f, flag);
 			if (result == -1) return -1;
-			if (result == 1 && updating && Config.configurationLogging && Config.isInitializationFinished()) {
+			if (result == 1 && (flag & FLAG_UPDATE) != 0 && Config.configurationLogging && Config.isInitializationFinished()) {
 				System.out.println("[Config] Configuration " + clz.getName() + "#" + name + " updated.");
 			}
 		}
-		if (itemMatched && updating) {
+		if (itemMatched && (flag & FLAG_UPDATE) != 0) {
 			try {
 				Method method = clz.getMethod("update", Properties.class);
 				if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) {
@@ -193,7 +216,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private int parseAndUpdateField(String keyName, String p,
-			Object obj, Field f, boolean updatingField) {
+			Object obj, Field f, int flag) {
 		/*
 		if ("configurationClasses".equals(keyName)) {
 			System.out.println("X parse");
@@ -210,6 +233,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		}
 		Object newVal = null;
 		boolean changed = false;
+		boolean updatingField = (flag & FLAG_UPDATE) != 0;
 		try {
 			Object decoded = decode(p);
 			if (type == String.class) {
@@ -232,6 +256,9 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 				if (result == 1 && updatingField) f.setLong(obj, nv);
 				return result;
 			} else if (type == boolean.class) {
+				if (!"false".equals(p) && !"true".equals(p)) {
+					throw new RuntimeException("\"" + p + "\" is an invalid boolean value");
+				}
 				boolean nv = Boolean.parseBoolean(p);
 				if (nv == f.getBoolean(obj)) return unchanged;
 				// Just true or false, no validating
@@ -269,14 +296,14 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 				if (result == 1 && updatingField) f.setChar(obj, nv);
 				return result;
 			} else if (type != null && type.isArray()) {
-				Object nv = decoded != null ? decoded : parseCollection(keyName, p, type, f.getGenericType());
+				Object nv = decoded != null ? decoded : parseCollection(keyName, p, type, f.getGenericType(), flag);
 				if (nv == error) return -1;
 				if (!DeepComparator.arrayDeepEquals(type.getComponentType().isPrimitive(), nv, f.get(obj))) {
 					newVal = nv;
 					changed = true;
 				}
 			} else if (List.class.isAssignableFrom(type)) {
-				Object ret = decoded != null ? decoded : parseCollection(keyName, p, type, f.getGenericType());
+				Object ret = decoded != null ? decoded : parseCollection(keyName, p, type, f.getGenericType(), flag);
 				if (ret == error) return -1;
 				List nv = (List) ret;
 				List ov = (List) f.get(obj);
@@ -285,7 +312,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 					changed = true;
 				}
 			} else if (Set.class.isAssignableFrom(type)) {
-				Object ret = decoded != null ? decoded :  parseCollection(keyName, p, type, f.getGenericType());
+				Object ret = decoded != null ? decoded :  parseCollection(keyName, p, type, f.getGenericType(), flag);
 				if (ret == error) return -1;
 				Set nv = (Set) ret;
 				Set ov = (Set) f.get(obj);
@@ -294,7 +321,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 					changed = true;
 				}
 			} else if (Map.class.isAssignableFrom(type)) {
-				Object ret = decoded != null ? decoded : parseMap(keyName, p, type, f.getGenericType());
+				Object ret = decoded != null ? decoded : parseMap(keyName, p, type, f.getGenericType(), flag);
 				if (ret == error) return -1;
 				Map nv = (Map) ret;
 				Map ov = (Map) f.get(obj);
@@ -328,8 +355,12 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 					else if (type == Double.class) nv = Double.valueOf(p);
 					else if (type == BigDecimal.class) nv = new BigDecimal(p);
 					else if (type == BigInteger.class) nv = new BigInteger(p);
-					else if (type == Boolean.class) nv = Boolean.valueOf(p);
-					else nv = Character.valueOf(parseChar(p)); // Character.class
+					else if (type == Boolean.class) {
+						if (!"false".equals(p) && !"true".equals(p)) {
+							throw new RuntimeException("\"" + p + "\" is an invalid boolean value");
+						}
+						nv = Boolean.valueOf(p);
+					}else nv = Character.valueOf(parseChar(p)); // Character.class
 					changed = ov == null ? true : !nv.equals(ov);
 				} else {
 					changed = ov != null;
@@ -409,7 +440,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 					changed = true;
 				}
 			} else {
-				Object nv = decoded != null ? decoded : parseObject(keyName, p, type, f.getGenericType());
+				Object nv = decoded != null ? decoded : parseObject(keyName, p, type, f.getGenericType(), flag);
 				if (nv == error) return -1;
 				Object ov = f.get(obj);
 				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
@@ -425,7 +456,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		} catch (Throwable e) {
 			e.printStackTrace();
 			StringBuilder errMsg = new StringBuilder();
-			errMsg.append("Invalid value for field \"").append(keyName)
+			errMsg.append("Error occurs on parsing value for field \"").append(keyName)
 					.append("\": ").append(e.getMessage());
 			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
 			return unchanged;
@@ -532,7 +563,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 * @param paramType, Field's generic type, if existed
 	 * @return The parsed collection object. 
 	 */
-	private Object parseCollection(String keyName, String p, Class<?> type, Type paramType) {
+	private Object parseCollection(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		/*
 		if ("strBytes".equals(keyName)) {
 			System.out.println("Tow");
@@ -597,6 +628,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 					}
 				}
 				arrayLength = filteredNames.size();
+				if (arrayLength > 0 && parsedKeys != null) parsedKeys.addAll(filteredNames);
 				keyNames = filteredNames.toArray(new String[arrayLength]);
 				if (isArray || List.class.isAssignableFrom(type)) Arrays.sort(keyNames); // keep array's order
 			} else {
@@ -628,6 +660,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 			if (!singleLine) {
 				newPropName = prefix + keyNames[j];
 				v = (String) props.getProperty(newPropName);
+				if (parsedKeys != null) parsedKeys.add(newPropName);
 			} else {
 				v = ss[j];
 			}
@@ -641,7 +674,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 						v = "0";
 					}
 				}
-				try {
+//				try {
 					if (type == int[].class) {
 						Array.setInt(value, j, Integer.decode(v).intValue());
 					} else if (type == long[].class) {
@@ -655,15 +688,18 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 					} else if (type == double[].class) {
 						Array.setDouble(value, j, Double.parseDouble(v));
 					} else if (type == boolean[].class) {
+						if (!"true".equals(v) && !"false".equals(v)) {
+							throw new RuntimeException("\"" + v + "\" is an invalid boolean value");
+						}
 						Array.setBoolean(value, j, Boolean.parseBoolean(v));
 					} else if (type == char[].class) {
 						Array.setChar(value, j, parseChar(v));
 					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+//				} catch (Exception e) {
+//					e.printStackTrace();
+//				}
 			} else {
-				o = recognizeAndParseObject(newPropName, v, valueType, valueParamType);
+				o = recognizeAndParseObject(newPropName, v, valueType, valueParamType, flag);
 				if (o == error) return error;
 				if (isArray) {
 					Array.set(value, j, o);
@@ -699,7 +735,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 * @param paramType
 	 * @return
 	 */
-	private Object parseMap(String keyName, String p, Class<?> type, Type paramType) {
+	private Object parseMap(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if ($null.equals(p) || p == null) return null;
 		Map<Object, Object> value = new ConcurrentHashMap<Object, Object>();
 		if ($empty.equals(p) || p.length() == 0) return value;
@@ -783,29 +819,35 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 							String keyStr = kv[0].trim();
 							String objStr = kv[1].trim();
 							if ("key".equals(keyStr)) {
-								key = recognizeAndParseObject(newPropName, objStr, keyType, keyParamType);
+								key = recognizeAndParseObject(newPropName, objStr, keyType, keyParamType, flag);
 								if (key == error) return error;
 								if (val != null) break;
 							} else if ("value".equals(keyStr)) {
-								val = recognizeAndParseObject(newPropName, objStr, valueType, valueParamType);
+								val = recognizeAndParseObject(newPropName, objStr, valueType, valueParamType, flag);
 								if (val == error) return error;
 								if (key != null) break;
 							}
 						}
 						if (key == null) continue;
+						if (parsedKeys != null) parsedKeys.add(newPropName);
 						value.put(key, val);
 					} else {
 						String keyPrefix = newPropName + ".key";
 						String kStr = (String) props.getProperty(keyPrefix);
 						if (kStr == null) continue;
-						Object key = recognizeAndParseObject(keyPrefix, kStr, keyType, keyParamType);
+						Object key = recognizeAndParseObject(keyPrefix, kStr, keyType, keyParamType, flag);
 						if (key == error) return error;
 						if (key == null) continue;
 						String valuePrefix = newPropName + ".value";
 						String vStr = (String) props.getProperty(valuePrefix);
 						if (vStr == null) continue;
-						Object val = recognizeAndParseObject(valuePrefix, vStr, valueType, valueParamType);
+						Object val = recognizeAndParseObject(valuePrefix, vStr, valueType, valueParamType, flag);
 						if (val == error) return error;
+						if (parsedKeys != null) {
+							parsedKeys.add(newPropName);
+							parsedKeys.add(keyPrefix);
+							parsedKeys.add(valuePrefix);
+						}
 						value.put(key, val);
 					}
 				}
@@ -844,12 +886,13 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 						continue;
 					}
 					String newPropName = prefix + k;
-					Object key = recognizeAndParseObject(keyName, k, keyType, keyParamType);
+					Object key = recognizeAndParseObject(keyName, k, keyType, keyParamType, flag);
 					if (key == error) return error;
 					if (key == null) continue;
 					String v = (String) props.getProperty(newPropName);
-					Object val = recognizeAndParseObject(newPropName, v, valueType, valueParamType);
+					Object val = recognizeAndParseObject(newPropName, v, valueType, valueParamType, flag);
 					if (val == error) return error;
+					if (this.parsedKeys != null) this.parsedKeys.add(newPropName);
 					value.put(key, val);
 					if (v == null || v.length() <= 0 || (v.startsWith("[") && v.endsWith("]"))) {
 						parsedKeys.add(k + ".");
@@ -876,11 +919,11 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 				kv = new String[] { kv[0], "" };
 			}
 			String k = kv[0].trim();
-			Object key = recognizeAndParseObject(keyName, k, keyType, keyParamType);
+			Object key = recognizeAndParseObject(keyName, k, keyType, keyParamType, flag);
 			if (key == error) return error;
 			if (key == null) continue;
 			String v = kv[1].trim();
-			Object val = recognizeAndParseObject(keyName, v, valueType, valueParamType);
+			Object val = recognizeAndParseObject(keyName, v, valueType, valueParamType, flag);
 			if (val == error) return error;
 			value.put(key, val);
 		}
@@ -896,7 +939,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 * @param paramType
 	 * @return
 	 */
-	private Object parseObject(String keyName, String p, Class<?> type, Type paramType) {
+	private Object parseObject(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if (p == null || $null.equals(p)) return null;
 		if (type == null) return new Object();
 		Object obj = null;
@@ -922,13 +965,19 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 				if (filter != null && filter.filterName(name)) continue;
 				String fieldKeyName = prefix + name;
 				String pp = props.getProperty(fieldKeyName);
-				if (pp == null) continue;
+				if (pp == null) {
+					if ((flag & FLAG_VALIDATE) != 0) {
+						System.out.println("[WARN] Missing \"" + fieldKeyName + "\" configuration for \"" + type.getName() + "\" object");
+					}
+					continue;
+				}
+				if (parsedKeys != null) parsedKeys.add(fieldKeyName);
 				pp = pp.trim();
 				if (pp.length() == 0) continue;
 				if ((modifiers & Modifier.PUBLIC) == 0) {
 					f.setAccessible(true);
 				}
-				if (parseAndUpdateField(fieldKeyName, pp, obj, f, true) == -1) return error;
+				if (parseAndUpdateField(fieldKeyName, pp, obj, f, FLAG_UPDATE) == -1) return error;
 			}
 			return obj;
 		}
@@ -947,14 +996,17 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 			} catch (Exception e1) {
 				//e1.printStackTrace();
 			}
-			if (f == null) continue;
+			if (f == null) {
+				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
+				continue;
+			}
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
 			if ((modifiers & Modifier.PUBLIC) == 0) {
 				f.setAccessible(true);
 			}
 			String pp = kv[1].trim();
-			if (parseAndUpdateField(prefix + k, pp, obj, f, true) == -1) return error;
+			if (parseAndUpdateField(prefix + k, pp, obj, f, FLAG_UPDATE) == -1) return error;
 		}
 		return obj;
 	}
@@ -969,7 +1021,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 * @return
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private Object recognizeAndParseObject(String keyName, String p, Class<?> type, Type paramType) {
+	private Object recognizeAndParseObject(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if (p == null || $null.equals(p)) return null;
 		if (type == null || Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
 			Class<?> pType = recognizeObjectType(p);
@@ -1004,7 +1056,12 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		if (type == Long.class) return Long.decode(p);
 		if (type == Short.class) return Short.decode(p);
 		if (type == Byte.class) return Byte.decode(p);
-		if (type == Boolean.class) return Boolean.valueOf(p);
+		if (type == Boolean.class) {
+			if (!"true".equals(p) && !"false".equals(p)) {
+				throw new RuntimeException("\"" + p + "\" is an invalid boolean value");
+			}
+			return Boolean.valueOf(p);
+		}
 		if (type == Double.class) return Double.valueOf(p);
 		if (type == Float.class) return Float.valueOf(p);
 		if (type == Character.class) return parseChar(p);
@@ -1029,12 +1086,12 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		if (type == BigInteger.class) return new BigInteger(p);
 		if (type.isArray() || List.class.isAssignableFrom(type)
 				|| Set.class.isAssignableFrom(type)) {
-			return parseCollection(keyName, p, type, paramType);
+			return parseCollection(keyName, p, type, paramType, flag);
 		}
 		if (Map.class.isAssignableFrom(type)) { // Map<String, Object>
-			return parseMap(keyName, p, type, paramType);
+			return parseMap(keyName, p, type, paramType, flag);
 		}
-		return parseObject(keyName, p, type, paramType);
+		return parseObject(keyName, p, type, paramType, flag);
 	}
 
 	private Class<?> recognizeObjectType(String p) {
@@ -1131,6 +1188,15 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		Class<?> c = knownTypes.get(rawType);
 		if (c != null) return c;
 		return Config.loadConfigurationClass(rawType);
+	}
+
+	public Set<String> unusedConfigurationItems() {
+		if (parsedKeys == null) return null;
+		Set<String> unused = new HashSet<String>();
+		for (String key : props.stringPropertyNames()) {
+			if (!parsedKeys.contains(key)) unused.add(key);
+		}
+		return unused;
 	}
 
 }

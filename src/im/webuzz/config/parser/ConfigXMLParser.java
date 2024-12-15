@@ -144,8 +144,8 @@ public class ConfigXMLParser implements IConfigParser<InputStream, Object> {
 	}
 
 	@Override
-	public int parseConfiguration(Class<?> clz, boolean updating) {
-		return iniParser.parseConfiguration(clz, updating);
+	public int parseConfiguration(Class<?> clz, int flag) {
+		return iniParser.parseConfiguration(clz, flag);
 	}
 
 	private NodeType parseType(Element o, NodeType containerType) {
@@ -635,6 +635,11 @@ public class ConfigXMLParser implements IConfigParser<InputStream, Object> {
 		//System.out.println(builder.toString());
 		// System.out.println("==============");
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));
+	}
+
+	@Override
+	public Set<String> unusedConfigurationItems() {
+		return iniParser.unusedConfigurationItems();
 	}
 
 }

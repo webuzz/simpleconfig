@@ -252,7 +252,7 @@ public class Config {
 		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
 		if (!updating) return;
 		initializedTime = System.currentTimeMillis();
-		commandLineParser.parseConfiguration(clazz, true);
+		commandLineParser.parseConfiguration(clazz, IConfigParser.FLAG_UPDATE);
 		// Load watchman classes and start loadConfigClass task
 		List<Class<? extends IConfigWatchman>> syncClasses = configurationWatchmen;
 		if (syncClasses != null && syncClasses.size() > 0) {
@@ -352,10 +352,10 @@ public class Config {
 		do {
 			argumentsParser = commandLineParser;
 			retArgs = argumentsParser.loadResource(retArgs, true);
-			argumentsParser.parseConfiguration(Config.class, true);
+			argumentsParser.parseConfiguration(Config.class, IConfigParser.FLAG_UPDATE);
 			Class<?>[] configs = Config.getAllConfigurations();
 			for (int i = 0; i < configs.length; i++) {
-				argumentsParser.parseConfiguration(configs[i], true);
+				argumentsParser.parseConfiguration(configs[i], IConfigParser.FLAG_UPDATE);
 			}
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
 		
@@ -422,8 +422,12 @@ public class Config {
 					Codec.run(retArgs, 1, true);
 				} else if ("usage".equals(actionStr)) {
 					printUsage();
-				} else if ("checker".equals(actionStr)) {
-					
+				} else if ("validator".equals(actionStr)) {
+					if (ConfigFileWatchman.validateAllConfigurations()) {
+						System.out.println("[INFO] Configuration files are OK.");
+					} else {
+						System.out.println("[ERROR] Configuration validation failed!");
+					}
 				} else if ("synchronizer".equals(actionStr)) {
 					ConfigAgent.run(retArgs, 1);
 				} else {

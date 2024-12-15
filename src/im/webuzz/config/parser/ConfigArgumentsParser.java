@@ -2,6 +2,7 @@ package im.webuzz.config.parser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import im.webuzz.config.IConfigParser;
 
@@ -99,8 +100,13 @@ public class ConfigArgumentsParser implements IConfigParser<String[], String[]> 
 	}
 
 	@Override
-	public int parseConfiguration(Class<?> clz, boolean updating) {
-		return iniParser.parseConfiguration(clz, updating);
+	public int parseConfiguration(Class<?> clz, int flag) {
+		return iniParser.parseConfiguration(clz, flag);
 	}
 
+	@Override
+	public Set<String> unusedConfigurationItems() {
+		return iniParser.unusedConfigurationItems();
+	}
+	
 }

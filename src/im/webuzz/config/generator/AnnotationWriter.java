@@ -181,10 +181,9 @@ public class AnnotationWriter {
 	}
 
 	public void appendFieldNumber(StringBuilder builder, Field f, double num) {
-		StringBuilder errMsg = new StringBuilder();
-		errMsg.append('[').append(f.getType().getName()).append(':').append(num);
-		trimEndingDot0(errMsg);
-		errMsg.append(']');
+		builder.append('[').append(f.getType().getName()).append(':').append(num);
+		trimEndingDot0(builder);
+		builder.append(']');
 	}
 
 }

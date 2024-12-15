@@ -19,9 +19,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
@@ -209,7 +211,7 @@ public class ConfigFileWatchman implements IConfigWatchman {
 	 * @param configClazz
 	 */
 	public void watchConfigClass(Class<?> configClazz) {
-		defaultParser.parseConfiguration(configClazz, true);
+		defaultParser.parseConfiguration(configClazz, IConfigParser.FLAG_UPDATE);
 		String keyPrefix = Config.getKeyPrefix(configClazz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
@@ -225,11 +227,11 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		if (clazz == null) return;
 		long lastUpdated = 0;
 		try {
-			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file);
+			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file, false);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(fileName, lastUpdated);
 			Config.recordConfigExtension(configClazz, extension); // always update the configuration class' file extension
-			parser.parseConfiguration(configClazz, true);
+			parser.parseConfiguration(configClazz, IConfigParser.FLAG_UPDATE);
 			if (Config.configurationLogging) {
 				System.out.println("[Config] Configuration " + configClazz.getName() + "/" + file.getAbsolutePath() + " loaded.");
 			}
@@ -239,14 +241,15 @@ public class ConfigFileWatchman implements IConfigWatchman {
 	}
 	
 	@SuppressWarnings("unchecked")
-	private IConfigParser<?, ?> prepareParserWithFile(Class<? extends IConfigParser<?, ?>> clazz, File file) throws Exception {
+	private static IConfigParser<?, ?> prepareParserWithFile(Class<? extends IConfigParser<?, ?>> clazz, File file,
+			boolean combinedConfigs) throws Exception {
 		IConfigParser<?, ?> parser = clazz.newInstance();
 		Class<?> rawType = Utils.getInterfaceParamType(clazz, IConfigParser.class);
 		if (rawType == InputStream.class) {
 			FileInputStream fis = null;
 			try {
 				fis = new FileInputStream(file);
-				((IConfigParser<InputStream, ?>) parser).loadResource(fis, false);
+				((IConfigParser<InputStream, ?>) parser).loadResource(fis, combinedConfigs);
 			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {
@@ -259,9 +262,9 @@ public class ConfigFileWatchman implements IConfigWatchman {
 				}
 			}
 		} else if (rawType == byte[].class) {
-			((IConfigParser<byte[], ?>) parser).loadResource(Utils.readFileBytes(file), false);
+			((IConfigParser<byte[], ?>) parser).loadResource(Utils.readFileBytes(file), combinedConfigs);
 		} else if (rawType == File.class) {
-			((IConfigParser<File, ?>) parser).loadResource(file, false);
+			((IConfigParser<File, ?>) parser).loadResource(file, combinedConfigs);
 		} else if (rawType == Properties.class) {
 			Properties props = new Properties();
 			FileInputStream fis = null;
@@ -270,7 +273,7 @@ public class ConfigFileWatchman implements IConfigWatchman {
 				fis = new FileInputStream(file);
 				reader = new InputStreamReader(fis, Config.configFileEncoding);
 				props.load(reader);
-				((IConfigParser<Properties, ?>) parser).loadResource(props, false);
+				((IConfigParser<Properties, ?>) parser).loadResource(props, combinedConfigs);
 			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {
@@ -317,7 +320,7 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(configExtension.substring(1));
 		if (clazz == null) return;
 		try {
-			defaultParser = prepareParserWithFile(clazz, file);
+			defaultParser = prepareParserWithFile(clazz, file, true);
 			mainFileLastUpdated = file.lastModified();
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -328,11 +331,11 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		for (int i = 0; i < configs.length; i++) {
 			boolean matched = false;
 			if (Config.skipUpdatingWithInvalidItems) {
-				if (defaultParser.parseConfiguration(configs[i], false) != -1) { // checking
-					matched = defaultParser.parseConfiguration(configs[i], true) == 1;
+				if (defaultParser.parseConfiguration(configs[i], IConfigParser.FLAG_CHECK) != -1) { // checking
+					matched = defaultParser.parseConfiguration(configs[i], IConfigParser.FLAG_UPDATE) == 1;
 				}
 			} else {
-				matched = defaultParser.parseConfiguration(configs[i], true) == 1;
+				matched = defaultParser.parseConfiguration(configs[i], IConfigParser.FLAG_UPDATE) == 1;
 			}
 			if (matched) {
 				Config.recordConfigExtension(configs[i], configExtension);
@@ -397,19 +400,19 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		}
 		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
 		if (parsers == null) return;
-		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(extension);
+		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(extension.substring(1));
 		if (clazz == null) return;
 		try {
-			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file);
+			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file, false);
 			lastUpdated = file.lastModified();
 			fileLastUpdateds.put(fileName, lastUpdated);
 			Config.recordConfigExtension(clz, extension); // always update the configuration class' file extension
 			if (Config.skipUpdatingWithInvalidItems) {
-				if (parser.parseConfiguration(clz, false) != -1) { // checking first
-					parser.parseConfiguration(clz, true);
+				if (parser.parseConfiguration(clz, IConfigParser.FLAG_CHECK) != -1) { // checking first
+					parser.parseConfiguration(clz, IConfigParser.FLAG_UPDATE);
 				}
 			} else {
-				parser.parseConfiguration(clz, true);
+				parser.parseConfiguration(clz, IConfigParser.FLAG_UPDATE);
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -420,4 +423,89 @@ public class ConfigFileWatchman implements IConfigWatchman {
 		running = false;
 	}
 
+	public static boolean validateAllConfigurations() {
+		String configPath = Config.getConfigurationMainFile();
+		String configExtension = Config.getConfigurationMainExtension();
+		String extraFolder = Config.getConfigurationFolder();
+		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
+		if (parsers == null) {
+			System.out.println("[ERROR] No parsers are configured.");
+			return false;
+		}
+		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(configExtension.substring(1));
+		if (clazz == null) {
+			System.out.println("[ERROR] No parser for configuration extension " + configExtension);
+			return false;
+		}
+		if (configPath == null) {
+			System.out.println("[ERROR] Main configuration file path is missing.");
+			return false;
+		}
+		File file = new File(configPath);
+		if (!file.exists()) {
+			System.out.println("[ERROR] " + configPath + " does not exist!");
+			return false;
+		}
+		try {
+			defaultParser = prepareParserWithFile(clazz, file, true);
+			mainFileLastUpdated = file.lastModified();
+		} catch (Throwable e) {
+			e.printStackTrace();
+			return false;
+		}
+
+		Class<?>[] configs = Config.getAllConfigurations();
+		for (int i = 0; i < configs.length; i++) {
+			if (defaultParser.parseConfiguration(configs[i], IConfigParser.FLAG_VALIDATE) == -1) return false;
+		}
+		Set<String> unused = defaultParser.unusedConfigurationItems();
+		if (unused != null) {
+			String[] unusedKeys = unused.toArray(new String[unused.size()]);
+			Arrays.sort(unusedKeys);
+			for (String key : unusedKeys) {
+				System.out.println("[WARN] Unused configuration item \"" + key + "\"");
+			}
+		}
+		String folder = extraFolder;
+		if (folder == null || folder.length() == 0) {
+			folder = new File(configPath).getParent();
+		}
+		configs = Config.getAllConfigurations(); // update local variable configs again, configuration classes may be updated already 
+		for (int i = 0; i < configs.length; i++) {
+			Class<?> clz = configs[i];
+			String keyPrefix = Config.getKeyPrefix(clz);
+			if (keyPrefix == null || keyPrefix.length() == 0) continue;
+			file = Config.getConfigruationFile(keyPrefix);
+			if (!file.exists()) {
+				System.out.println("[WARN] " + file.getAbsolutePath() + " does not exist! The configuration file is expected for class " + clz.getName());
+				continue;
+			}
+			String fileName = file.getName();
+			int extIndex = fileName.lastIndexOf('.');
+			keyPrefixClassMap.put(fileName.substring(0, extIndex), clz);
+			String extension = fileName.substring(extIndex);
+			clazz = parsers.get(extension.substring(1));
+			if (clazz == null) {
+				System.out.println("[ERROR] No parser for configuration extension " + configExtension);
+				return false;
+			}
+			try {
+				IConfigParser<?, ?> parser = prepareParserWithFile(clazz, file, false);
+				if (parser.parseConfiguration(clz, IConfigParser.FLAG_VALIDATE) == -1) return false;
+				unused = parser.unusedConfigurationItems();
+				if (unused != null) {
+					String[] unusedKeys = unused.toArray(new String[unused.size()]);
+					Arrays.sort(unusedKeys);
+					for (String key : unusedKeys) {
+						System.out.println("[WARN] Unused configuration item \"" + key + "\"");
+					}
+				}
+			} catch (Throwable e) {
+				e.printStackTrace();
+				return false;
+			}
+		}
+
+		return true;
+	}
 }

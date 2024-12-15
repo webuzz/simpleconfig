@@ -186,7 +186,7 @@ class Codec {
 		if (clazz == null) return false;
 		try {
 			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, value);
-			parser.parseConfiguration(CodecItemConfig.class, true);
+			parser.parseConfiguration(CodecItemConfig.class, IConfigParser.FLAG_UPDATE);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
@@ -211,7 +211,7 @@ class Codec {
 		if (clazz == null) return false;
 		try {
 			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, value);
-			parser.parseConfiguration(CodecItemConfig.class, true);
+			parser.parseConfiguration(CodecItemConfig.class, IConfigParser.FLAG_UPDATE);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
