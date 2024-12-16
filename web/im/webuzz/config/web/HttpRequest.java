@@ -487,8 +487,10 @@ public class HttpRequest {
 				is = connection.getInputStream();
 			} catch (IOException e) {
 				if (checkAbort()) return; // exception caused by abort action
-				e.printStackTrace();
 				status = connection.getResponseCode();
+				if (status != 404) {
+					e.printStackTrace();
+				}
 				readyState = 4;
 				if (onreadystatechange != null) {
 					onreadystatechange.onLoaded();

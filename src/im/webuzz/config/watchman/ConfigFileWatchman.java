@@ -378,11 +378,11 @@ public class ConfigFileWatchman implements IConfigWatchman {
 			Class<?> clz = configs[i];
 			String keyPrefix = Config.getKeyPrefix(clz);
 			if (keyPrefix == null || keyPrefix.length() == 0) continue;
+			keyPrefixClassMap.put(keyPrefix, clz);
 			file = Config.getConfigruationFile(keyPrefix);
 			if (!file.exists()) continue;
 			String fileName = file.getName();
 			int extIndex = fileName.lastIndexOf('.');
-			keyPrefixClassMap.put(fileName.substring(0, extIndex), clz);
 			String extension = fileName.substring(extIndex);
 			updateSingleConfiguration(file, fileName, extension, clz);
 		}
@@ -475,6 +475,7 @@ public class ConfigFileWatchman implements IConfigWatchman {
 			Class<?> clz = configs[i];
 			String keyPrefix = Config.getKeyPrefix(clz);
 			if (keyPrefix == null || keyPrefix.length() == 0) continue;
+			keyPrefixClassMap.put(keyPrefix, clz);
 			file = Config.getConfigruationFile(keyPrefix);
 			if (!file.exists()) {
 				System.out.println("[WARN] " + file.getAbsolutePath() + " does not exist! The configuration file is expected for class " + clz.getName());
@@ -482,7 +483,6 @@ public class ConfigFileWatchman implements IConfigWatchman {
 			}
 			String fileName = file.getName();
 			int extIndex = fileName.lastIndexOf('.');
-			keyPrefixClassMap.put(fileName.substring(0, extIndex), clz);
 			String extension = fileName.substring(extIndex);
 			clazz = parsers.get(extension.substring(1));
 			if (clazz == null) {

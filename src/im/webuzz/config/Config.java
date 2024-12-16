@@ -225,7 +225,13 @@ public class Config {
 		}
 		System.out.println("[ERROR] Unknown configuration item " + cfg);
 	}
-	
+	// For reflection only
+	public static void register(Object... cfgs) {
+		for (Object c : cfgs) {
+			register(c);
+		}
+	}
+
 	protected static void registerPackage(String starredPkgName) {
 		String pkgName = starredPkgName.substring(0, starredPkgName.length() - 2);
 		try {
@@ -456,11 +462,11 @@ public class Config {
 		System.out.println("\t--config-port=6173");
 		System.out.println();
 		System.out.println("For argument --run:xxx, the following actions are supported:");
+		System.out.println("\t--run:usage\tPrint this usage");
 		System.out.println("\t--run:generator\tTo generate configuration files");
 		System.out.println("\t--run:encoder\tTo encode a password or a sensitive string");
 		System.out.println("\t--run:decoder\tTo decode an encoded string back to original value");
-		System.out.println("\t--run:usage\tPrint this usage");
-		System.out.println("\t--run:checker\tTo verify configuration files");
+		System.out.println("\t--run:validator\tTo verify configuration files");
 		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
 	}
 

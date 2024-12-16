@@ -37,11 +37,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.IConfigWatchman;
 
 /**
  * Synchronize configuration files from given server to local file system.
  */
-public class ConfigWebWatchman implements Runnable {
+public class ConfigWebWatchman implements Runnable, IConfigWatchman {
 
 	protected static boolean running = false;
 	
@@ -178,7 +179,7 @@ public class ConfigWebWatchman implements Runnable {
 			if (cfgPath != null) {
 				File cfgFile = new File(cfgPath);
 				String cfgName = cfgFile.getName();
-				String fileExt = null;
+//				String fileExt = null;
 //				String fileExt = Config.configurationFileExtension;
 //				if (cfgName.endsWith(fileExt)) {
 //					cfgName = cfgName.substring(0, cfgName.length() - fileExt.length());
@@ -186,11 +187,11 @@ public class ConfigWebWatchman implements Runnable {
 					int idx = cfgName.lastIndexOf('.');
 					if (idx != -1) {
 						cfgName = cfgName.substring(0, idx);
-						fileExt = cfgName.substring(idx);
+						//fileExt = cfgName.substring(idx);
 					}
 //				}
 				latestModified = Math.max(latestModified, cfgFile.lastModified());
-				synchronizeFile(cfgName, fileExt, cfgFile, true, null, timeout);
+				synchronizeFile(cfgName, Config.getConfigurationMainExtension(), cfgFile, true, null, timeout);
 			}
 			
 			Class<?>[] configs = Config.getAllConfigurations();
@@ -268,7 +269,7 @@ public class ConfigWebWatchman implements Runnable {
 		File file = Config.getConfigruationFile(keyPrefix);
 		if (!file.exists()) return;
 		String fileName = file.getName();
-		String extension = fileName.substring(fileName.indexOf('.') + 1);
+		String extension = fileName.substring(fileName.indexOf('.')); // + 1);
 
 		/*
 		String folder = Config.getConfigurationFolder();
@@ -376,7 +377,7 @@ public class ConfigWebWatchman implements Runnable {
 									synchronizeFile(keyPrefix, fileExtension, file, globalConfig, extraPath, timeout);
 								}
 								
-							}, "SOMA Web Watchman Worker");
+							}, "Web Watchman Worker");
 							thread.setDaemon(true);
 							thread.start();
 						} else {
@@ -467,7 +468,7 @@ public class ConfigWebWatchman implements Runnable {
 	/**
 	 * Will be invoked by {@link im.webuzz.config.Config#loadWatchmen}
 	 */
-	public static void startWatchman() {
+	public void startWatchman() {
 		if (running) {
 			return;
 		}
@@ -485,8 +486,17 @@ public class ConfigWebWatchman implements Runnable {
 			});
 		}
 		
-		ConfigWebWatchman watchman = new ConfigWebWatchman();
-		defaultWatchman = watchman;
+		ConfigWebWatchman watchman = null;
+		if (defaultWatchman == null) {
+			synchronized(ConfigWebWatchman.class) {
+				if (defaultWatchman == null) {
+					watchman = new ConfigWebWatchman();
+					defaultWatchman = watchman;
+				}
+			}
+		} else {
+			watchman = defaultWatchman;
+		}
 		if (WebConfig.blockingBeforeSynchronized) {
 			boolean blocking = true; // blocking until all configurations or resources synchronized from remote servers
 			String cfgPath = Config.getConfigurationMainFile();
@@ -531,13 +541,19 @@ public class ConfigWebWatchman implements Runnable {
 		webThread.start();
 	}
 	
-	public static void stopWatchman() {
+	public void stopWatchman() {
 		running = false;
 		if (executor != null) {
 			executor.shutdown();
 		}
 	}
 	
+	@Override
+	public void watchConfigClass(Class<?> clazz) {
+		// TODO Auto-generated method stub
+		
+	}
+
 	public static long getLatestModified() {
 		if (defaultWatchman != null) {
 			return defaultWatchman.latestModified;
@@ -597,10 +613,10 @@ public class ConfigWebWatchman implements Runnable {
 	 * Default HTTP client to request remote configuration file.
 	 */
 	public static void asyncWebRequest(String url, String user, String password, long lastModified, String eTag, final Object callback) {
-		HttpRequest.DEFAULT_USER_AGENT = "SimpleConfig/2.1";
+		HttpRequest.DEFAULT_USER_AGENT = "SimpleConfig/2.2";
 		//final NioHttpRequest req = new NioHttpRequest();
 		final HttpRequest req = new HttpRequest();
-		req.setRequestHeader("User-Agent", "SimpleConfig/2.1");
+		req.setRequestHeader("User-Agent", "SimpleConfig/2.2");
 		req.open("GET", url, true, user, password);
 		req.registerOnReadyStateChange(new IXHRCallback() {
 
