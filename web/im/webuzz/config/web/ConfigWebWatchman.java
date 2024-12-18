@@ -185,14 +185,10 @@ public class ConfigWebWatchman implements Runnable, IConfigWatchman {
 	}
 	
 	protected void synchronizeClass(Class<?> clz, long timeout) {
-//		Set<String> skippingClasses = WebConfigLocal.skippingConfigurationClasses;
-//		if (skippingClasses != null && skippingClasses.contains(clz.getName())) return;
 		String keyPrefix = Config.getKeyPrefix(clz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
 		}
-//		Set<String> skippingFiles = WebConfigLocal.skippingConfigurationFiles;
-//		if (skippingFiles != null && skippingFiles.contains(keyPrefix)) return;
 		
 		File file = Config.getConfigruationFile(keyPrefix);
 		if (!file.exists()) return;

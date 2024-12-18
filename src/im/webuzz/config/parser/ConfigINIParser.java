@@ -120,8 +120,8 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			// all configuration items are in one file, use key prefix to distinguish fields
 			keyPrefix = Config.getKeyPrefix(clz);
 		} // else // single file, no keyPrefix
-		System.out.println(remoteIgnoringFields);
-		if (remoteIgnoringFields != null) System.out.println(remoteIgnoringFields.size());
+		//System.out.println(remoteIgnoringFields);
+		//if (remoteIgnoringFields != null) System.out.println(remoteIgnoringFields.size());
 		Field[] fields = clz.getDeclaredFields();
 		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
 		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
