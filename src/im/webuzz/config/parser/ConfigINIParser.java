@@ -25,15 +25,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.AnnotationValidator;
-import im.webuzz.config.DeepComparator;
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.IConfigParser;
-import im.webuzz.config.Utils;
+import im.webuzz.config.annotation.AnnotationValidator;
 import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.annotation.ConfigRange;
+import im.webuzz.config.util.DeepComparator;
+import im.webuzz.config.util.TypeUtils;
 
-public class ConfigINIParser implements IConfigParser<InputStream, Object> {
+public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 
 	@ConfigRange(min = 1, max = 20)
 	public static int configurationMapSearchingDots = 10;	
@@ -98,7 +97,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	 * @return Whether the given properties map contains matching configuration items or not
 	 */
 	@Override
-	public int parseConfiguration(Class<?> clz, int flag) {
+	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields) {
 		if (clz == null || props.size() == 0) {
 			if ((flag & FLAG_VALIDATE) != 0) {
 				if (combinedConfigs) {
@@ -121,6 +120,8 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 			// all configuration items are in one file, use key prefix to distinguish fields
 			keyPrefix = Config.getKeyPrefix(clz);
 		} // else // single file, no keyPrefix
+		System.out.println(remoteIgnoringFields);
+		if (remoteIgnoringFields != null) System.out.println(remoteIgnoringFields.size());
 		Field[] fields = clz.getDeclaredFields();
 		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
 		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
@@ -137,6 +138,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 				System.out.println("X city");
 			} // */
 			if (filter != null && filter.filterName(name)) continue;
+			if (remoteIgnoringFields!= null && remoteIgnoringFields.contains(name)) continue;
 			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
 			String p = props.getProperty(keyName);
 			if (p == null) {
@@ -222,7 +224,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 			System.out.println("X parse");
 		} // */
 		Class<?> type = f.getType();
-		if (Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
+		if (TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
 			Class<?> pType = recognizeObjectType(p);
 			if (type == Enum.class && pType == String.class) {
 				Object ret = parseEnumType(p, keyName);
@@ -582,7 +584,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		Type valueParamType = null;
 		if (paramType instanceof ParameterizedType) {
 			valueParamType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
-			valueType = Utils.getRawType(valueParamType);
+			valueType = TypeUtils.getRawType(valueParamType);
 		} else if (paramType instanceof GenericArrayType) {
 			GenericArrayType gaType = (GenericArrayType) paramType;
 			valueParamType = gaType.getGenericComponentType();
@@ -746,9 +748,9 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 		if (paramType instanceof ParameterizedType) {
 			Type[] actualTypeArgs = ((ParameterizedType) paramType).getActualTypeArguments();
 			keyParamType = actualTypeArgs[0];
-			keyType = Utils.getRawType(keyParamType);
+			keyType = TypeUtils.getRawType(keyParamType);
 			valueParamType = actualTypeArgs[1]; // For map, second generic type
-			valueType = Utils.getRawType(valueParamType);
+			valueType = TypeUtils.getRawType(valueParamType);
 		}
 		/*
 		if ("mms".equals(keyName)) {
@@ -1023,7 +1025,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private Object recognizeAndParseObject(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if (p == null || $null.equals(p)) return null;
-		if (type == null || Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
+		if (type == null || TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
 			Class<?> pType = recognizeObjectType(p);
 			if (type == Enum.class && pType == String.class) {
 				Object ret = parseEnumType(p, keyName);
@@ -1112,7 +1114,7 @@ public class ConfigINIParser implements IConfigParser<InputStream, Object> {
 			
 			IConfigCodec<?> codec = Config.configurationCodecs.get(prefix.substring(1).trim());
 			if (codec != null) {
-				Class<?> rawType = Utils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+				Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
 				if (rawType != null) return rawType;
 			}
 			

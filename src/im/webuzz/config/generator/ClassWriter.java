@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.Utils;
+import im.webuzz.config.util.TypeUtils;
 
 public class ClassWriter {
 	
@@ -23,7 +23,7 @@ public class ClassWriter {
 			appendFieldType(builder, compType, compParamType);
 			builder.append(']');
 		} else if (Map.class.isAssignableFrom(type) || List.class.isAssignableFrom(type) || Set.class.isAssignableFrom(type)) {
-			builder.append('[').append(Utils.getCollectionTypeName(type)).append(']');
+			builder.append('[').append(TypeUtils.getCollectionTypeName(type)).append(']');
 		} else {
 			builder.append(getTypeName(type));
 		}

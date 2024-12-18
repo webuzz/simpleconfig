@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2007 java2script.org and others.
+ * Copyright (c) 2010 - 2024 webuzz.im and others
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -9,35 +9,32 @@
  * https://github.com/webuzz/simpleconfig
  * 
  * Contributors:
- *     Zhou Renjian - initial API and implementation
+ *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.web;
+package im.webuzz.config.util;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.Charset;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
-import org.w3c.dom.Document;
-
-import im.webuzz.config.Base64;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is a Java implementation of browser's XMLHttpRequest object.
@@ -50,28 +47,10 @@ import im.webuzz.config.Base64;
  */
 public class HttpRequest {
 	
-	/**
-	 * This class is used to monitoring data-receiving process.
-	 * 
-	 * Attention: Only be visible in Java.
-	 */
-	public static interface IXHRReceiving {
-		/**
-		 * Monitoring the received data along with the given output stream.
-		 * 
-		 * @param baos an output stream
-		 * @param b buffer
-		 * @param off offset
-		 * @param len length
-		 * @return whether the data is dealt into the given output stream or not
-		 */
-		public boolean receiving(ByteArrayOutputStream baos, byte b[], int off, int len);
-	}
 	
-	public static String DEFAULT_USER_AGENT = "Java2Script/2.0.2";
+	public static String DEFAULT_USER_AGENT = "SimpleConfig/3.0";
 	
-	protected static Charset UTF_8 = Charset.forName("UTF-8");
-	protected static Charset ISO_8859_1 = Charset.forName("ISO-8859-1");
+	public static ThreadPoolExecutor executor = null;
 
 	protected int status;
 	protected String statusText;
@@ -79,12 +58,9 @@ public class HttpRequest {
 	
 	protected String responseType;
 	protected ByteArrayOutputStream responseBAOS;
-	protected String responseText;
 	protected byte[] responseBytes;
-	protected Document responseXML;
-	protected IXHRCallback onreadystatechange;
 	//private boolean overrideMimeType;
-	protected IXHRReceiving receiving;
+	protected Callable<Object> loadedCB;
 	
 	protected boolean asynchronous;
 	private HttpURLConnection connection;
@@ -102,6 +78,10 @@ public class HttpRequest {
 	private InputStream activeIS;
 	
 	protected boolean isCometConnection = false;
+
+	private final static String[] WEEK_DAYS_ABBREV = new String[] {
+		"Sun", "Mon", "Tue", "Wed", "Thu",  "Fri", "Sat"
+	};
 	
 	/**
 	 * Return read state of XMLHttpRequest.
@@ -109,73 +89,6 @@ public class HttpRequest {
 	 */
 	public int getReadyState() {
 		return readyState;
-	}
-	/**
-	 * Return response raw text of XMLHttpRequest 
-	 * @return String response text. May be null if the request is not sent
-	 * or an error happens. 
-	 */
-	public String getResponseText() {
-		if (responseText != null) {
-			return responseText;
-		}
-		ByteArrayOutputStream baos = responseBAOS;
-		if (baos == null) {
-			return null;
-		}
-		String type = responseType;
-		if (type != null) {
-			String charset = null;
-			String lowerType = type.toLowerCase();
-			int idx = lowerType.indexOf("charset=");
-			if (idx != -1) {
-				charset = type.substring(idx + 8);
-			} else {
-				idx = lowerType.indexOf("/xml"); // more xml Content-Type?
-				if (idx != -1) {
-					String tmp = baos.toString();
-					Matcher matcher = Pattern.compile(
-							"<\\?.*encoding\\s*=\\s*[\'\"]([^'\"]*)[\'\"].*\\?>", 
-							Pattern.MULTILINE).matcher(tmp);
-					if (matcher.find()) {
-						charset = matcher.group(1);
-					} else {
-						// default charset of xml is UTF-8?
-						responseText = tmp;
-					}
-				} else {
-					idx = lowerType.indexOf("html");
-					if (idx != -1) {
-						String tmp = baos.toString();
-						Matcher matcher = Pattern.compile(
-								"<meta.*content\\s*=\\s*[\'\"][^'\"]*charset\\s*=\\s*([^'\"]*)\\s*[\'\"].*>", 
-								Pattern.MULTILINE | Pattern.CASE_INSENSITIVE).matcher(tmp);
-						if (matcher.find()) {
-							charset = matcher.group(1);
-						} else {
-							responseText = tmp;
-						}
-					}
-				}
-			}
-			if (charset != null) {
-				if ("UTF-8".equalsIgnoreCase(charset)) {
-					responseText = new String (baos.toByteArray(), UTF_8);
-				} else if ("ISO-8859-1".equalsIgnoreCase(charset)) {
-					responseText = new String (baos.toByteArray(), ISO_8859_1);
-				} else {
-					try {
-						responseText = baos.toString(charset);
-					} catch (UnsupportedEncodingException e) {
-						responseText = baos.toString();
-					}
-				}
-			}
-		}
-		if (responseText == null) {
-			responseText = new String (baos.toByteArray(), ISO_8859_1);
-		}
-		return responseText;
 	}
 	/**
 	 * Return response raw bytes of XMLHttpRequest 
@@ -187,35 +100,6 @@ public class HttpRequest {
 			responseBytes = responseBAOS.toByteArray();
 		}
 		return responseBytes;
-	}
-	/**
-	 * Return the parsed XML document of the response of XMLHttpRequest.
-	 * @return Document XML document. May be null if the response text is not
-	 * a valid XML document.
-	 */
-	public Document getResponseXML() {
-		if (responseXML != null) {
-			return responseXML;
-		}
-		String type = responseType;
-		if (type != null && (type.indexOf("/xml") != -1 || type.indexOf("+xml") != -1)) {
-			String responseContent = getResponseText();
-			if (responseContent != null && responseContent.length() != 0) {
-		        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-		        dbf.setNamespaceAware(true);
-		        dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
-				try {
-		            DocumentBuilder db = dbf.newDocumentBuilder();
-		            ByteArrayInputStream biStream = new ByteArrayInputStream(responseContent.getBytes(UTF_8));
-		            responseXML = db.parse(biStream);
-		        } catch (Exception e) {
-		            e.printStackTrace();
-		        }
-			}
-			return responseXML;
-		} else {
-			return null;
-		}
 	}
 	/**
 	 * Return response code.
@@ -233,27 +117,8 @@ public class HttpRequest {
 	public String getStatusText() {
 		return statusText;
 	}
-	/**
-	 * Register XMLHttpRequest callback.
-	 * 
-	 * @param onreadystatechange IXHRCallback callback
-	 */
-	public void registerOnReadyStateChange(IXHRCallback onreadystatechange) {
-		this.onreadystatechange = onreadystatechange;
-	}
-	/**
-	 * Register XMLHttpRequest receiving monitor.
-	 * 
-	 * This method is to given inherited class a chance to set a monitor to
-	 * monitor the process that the data is receiving from the connection. 
-	 * 
-	 * Attention: Only be visible inside Java! There is no such JavaScript
-	 * methods.
-	 *  
-	 * @param receiving IXHRReceiving monitor
-	 */
-	protected IXHRReceiving initializeReceivingMonitor() {
-		return null;
+	public void registerOnLoaded(Callable<Object> onLoaded) {
+		this.loadedCB = onLoaded;
 	}
 	/**
 	 * Set request header with given key and value.
@@ -364,16 +229,14 @@ public class HttpRequest {
 		this.password = password;
 		responseType = null;
 		responseBAOS = null;
-		responseText = null;
 		responseBytes = null;
-		responseXML = null;
 		readyState = 1;
 		status = 0; // default OK
 		statusText = null;
 		toAbort = false;
-		if (onreadystatechange != null) {
-			onreadystatechange.onOpen();
-		}
+//		if (onreadystatechange != null) {
+//			onreadystatechange.onOpen();
+//		}
 	}
 	
 	/**
@@ -396,13 +259,21 @@ public class HttpRequest {
 					}
 				}
 			};
-			ThreadPoolExecutor executor = ConfigWebWatchman.executor;
-			if (executor != null) {
-				executor.execute(requestTask);
-			} else {
-				//SimpleThreadHelper.runTask(requestTask);
-				new Thread(requestTask, "Java2Script HTTP Request Worker").start();
+			
+			if (executor == null) {
+				synchronized (HttpRequest.class) {
+					if (executor == null) {
+						executor = new ThreadPoolExecutor(HttpConnectionConfig.webCoreWorkers, HttpConnectionConfig.webMaxWorkers, HttpConnectionConfig.webWorkerIdleInterval,
+								TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new ThreadFactory() {
+							@Override
+							public Thread newThread(Runnable r) {
+								return new Thread(r, "Web Watchman Worker");
+							}
+						});
+					}
+				}
 			}
+			executor.execute(requestTask);
 		} else {
 			request();
 		}
@@ -492,16 +363,15 @@ public class HttpRequest {
 					e.printStackTrace();
 				}
 				readyState = 4;
-				if (onreadystatechange != null) {
-					onreadystatechange.onLoaded();
+				if (loadedCB != null) {
+					try {
+						loadedCB.call();
+					} catch (Exception e1) {
+						e1.printStackTrace();
+					}
 				}
 				connection = null;
 				readyState = 0;
-				/*
-				if (onreadystatechange != null) {
-					onreadystatechange.onUninitialized();
-				}
-				*/
 				return;
 			}
 			activeIS = is;
@@ -510,12 +380,7 @@ public class HttpRequest {
 				readyState = 2;
 				status = connection.getResponseCode();
 				statusText = connection.getResponseMessage();
-				if (onreadystatechange != null) {
-					onreadystatechange.onSent();
-				}
 			}
-			
-			receiving = initializeReceivingMonitor();
 			
 			int bufferSize = connection.getContentLength();
 			if (bufferSize <= 0) {
@@ -531,48 +396,36 @@ public class HttpRequest {
 				if (checkAbort()) return; // stop receiving anything
 				if (readyState != 3) {
 					readyState = 3;
-					if (onreadystatechange != null) {
-						onreadystatechange.onReceiving();
-					}
 				}
-				boolean received = false;
-				if (receiving != null) {
-					received = receiving.receiving(baos, buffer, 0, read);
-				}
-				if (!received) {
-					baos.write(buffer, 0, read);
-				}
+				baos.write(buffer, 0, read);
 			}
 			if (checkAbort()) return; // stop receiving anything
 			is.close();
 			activeIS = null;
-			responseText = null;
 			responseType = connection.getHeaderField("Content-Type");
 			readyState = 4;
-			if (onreadystatechange != null) {
-				onreadystatechange.onLoaded();
+			if (loadedCB != null) {
+				try {
+					loadedCB.call();
+				} catch (Exception e1) {
+					e1.printStackTrace();
+				}
 			}
 			connection.disconnect();
 			readyState = 0;
-			/*
-			if (onreadystatechange != null) {
-				onreadystatechange.onUninitialized();
-			}
-			*/
 		} catch (Exception e) {
 			if (checkAbort()) return; // exception caused by abort action
 			e.printStackTrace();
 			readyState = 4;
-			if (onreadystatechange != null) {
-				onreadystatechange.onLoaded();
+			if (loadedCB != null) {
+				try {
+					loadedCB.call();
+				} catch (Exception e1) {
+					e1.printStackTrace();
+				}
 			}
 			connection = null;
 			readyState = 0;
-			/*
-			if (onreadystatechange != null) {
-				onreadystatechange.onUninitialized();
-			}
-			*/
 		}
 	}
 	
@@ -585,4 +438,60 @@ public class HttpRequest {
 		this.isCometConnection = isCometConnection;
 	}
 	
+	public static String calculateMD5ETag(byte[] bytes) {
+		if (bytes == null) return null;
+		MessageDigest mdAlgorithm = null;
+		try {
+			mdAlgorithm = MessageDigest.getInstance("MD5");
+		} catch (NoSuchAlgorithmException e1) {
+			e1.printStackTrace();
+		}
+		if (mdAlgorithm != null) {
+			mdAlgorithm.update(bytes);
+			byte[] digest = mdAlgorithm.digest();
+			StringBuilder eTag = new StringBuilder();
+			eTag.append("\"");
+			for (int i = 0; i < digest.length; i++) {
+				String plainText = Integer.toHexString(0xFF & digest[i]);
+				if (plainText.length() < 2) {
+					plainText = "0" + plainText;
+				}
+				eTag.append(plainText);
+			}
+			eTag.append("\"");
+			return eTag.toString();
+		}
+		return null;
+	}
+	
+	@SuppressWarnings("deprecation")
+	public static String getHTTPDateString(long time) {
+		if (time < 0) {
+			time = System.currentTimeMillis();
+		}
+		Date date = new Date(time);
+		return WEEK_DAYS_ABBREV[date.getDay()] + ", " + date.toGMTString();
+	}
+	
+
+	public static long parseHeaderTimestamp(HttpRequest req, String headerName) {
+		long lastModified = -1;
+		String modifiedStr = req.getResponseHeader(headerName);
+		if (modifiedStr != null && modifiedStr.length() > 0) {
+			SimpleDateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz");
+			try {
+				Date d = format.parse(modifiedStr);
+				if (d != null) {
+					lastModified = d.getTime();
+				}
+			} catch (ParseException e) {
+				e.printStackTrace();
+			}
+		}
+		if (lastModified == -1) {
+			lastModified = System.currentTimeMillis();
+		}
+		return lastModified;
+	}
+
 }

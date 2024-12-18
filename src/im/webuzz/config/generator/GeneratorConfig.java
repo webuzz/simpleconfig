@@ -3,7 +3,7 @@ package im.webuzz.config.generator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.IConfigGenerator;
+import im.webuzz.config.ConfigGenerator;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
@@ -47,7 +47,7 @@ public class GeneratorConfig {
 	
 	@ConfigNotNull
 	@ConfigPattern("([a-zA-Z0-9]+)")
-	public static Map<String, Class<? extends IConfigGenerator<?>>> generatorExtensions = new ConcurrentHashMap<>();
+	public static Map<String, Class<? extends ConfigGenerator<?>>> generatorExtensions = new ConcurrentHashMap<>();
 	static {
 		generatorExtensions.put("ini", ConfigINIGenerator.class);
 		generatorExtensions.put("js", ConfigJSGenerator.class);

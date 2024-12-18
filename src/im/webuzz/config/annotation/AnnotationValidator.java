@@ -1,4 +1,4 @@
-package im.webuzz.config;
+package im.webuzz.config.annotation;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
@@ -9,8 +9,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import im.webuzz.config.annotation.*;
+import im.webuzz.config.Config;
+import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.generator.AnnotationWriter;
+import im.webuzz.config.util.TypeUtils;
 
 public class AnnotationValidator {
 
@@ -271,7 +273,7 @@ public class AnnotationValidator {
 		} else if (type.isEnum() || type == Enum.class) {
 			// not validating
 			return true;
-		} else if (Utils.isBasicDataType(type)) {
+		} else if (TypeUtils.isBasicDataType(type)) {
 			if (obj instanceof Number) {
 				return validateNumber(((Number) obj).doubleValue(), numberAnnotations, expectBuilder);
 			} else if (obj instanceof Character) {

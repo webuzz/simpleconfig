@@ -35,11 +35,10 @@ import org.w3c.dom.Text;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.IConfigParser;
 import im.webuzz.config.generator.ConfigINIGenerator;
 import im.webuzz.config.generator.GeneratorConfig;
 
-public class ConfigXMLParser implements IConfigParser<InputStream, Object> {
+public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 
 	// To add comments to the *.ini format while converting .xml format to .ini format.
 	// This is to help comparing parsed .ini format with the original .ini format.
@@ -144,8 +143,8 @@ public class ConfigXMLParser implements IConfigParser<InputStream, Object> {
 	}
 
 	@Override
-	public int parseConfiguration(Class<?> clz, int flag) {
-		return iniParser.parseConfiguration(clz, flag);
+	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields) {
+		return iniParser.parseConfiguration(clz, flag, remoteIgnoringFields);
 	}
 
 	private NodeType parseType(Element o, NodeType containerType) {

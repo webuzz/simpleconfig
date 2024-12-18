@@ -1,4 +1,4 @@
-package im.webuzz.config;
+package im.webuzz.config.annotation;
 
 import java.io.File;
 import java.io.IOException;
@@ -9,10 +9,11 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.jar.JarFile;
 
-import im.webuzz.config.annotation.ConfigClass;
+//import im.webuzz.config.annotation.ConfigClass;
 
 public class AnnotationScanner {
 
+	/*
 	public static void main(String[] args) {
 		try {
 			String packageName = "im.webuzz.config.web"; // The target package to scan
@@ -27,6 +28,7 @@ public class AnnotationScanner {
 			e.printStackTrace();
 		}
 	}
+	//*/
 
 	/**
 	 * Scans the given package for classes annotated with the specified annotation.

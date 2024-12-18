@@ -35,13 +35,13 @@ import java.util.Set;
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.IConfigGenerator;
-import im.webuzz.config.Utils;
+import im.webuzz.config.ConfigGenerator;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigIgnore;
+import im.webuzz.config.util.TypeUtils;
 
-public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, IConfigGenerator<StringBuilder> {
+public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, ConfigGenerator<StringBuilder> {
 
 	private Map<String, String> allFields;
 	protected CommentWriter commentWriter;
@@ -110,7 +110,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 		//boolean needsTypeInfo = false;
 		try {
-			if (type == null || Utils.isObjectOrObjectArray(type) || Utils.isAbstractClass(type)) {
+			if (type == null || TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
 				if (f != null) v = f.get(o);
 				if (v != null) {
 					type = v.getClass();
@@ -146,7 +146,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo, needsWrapping, compact);
 				} else if (type.isEnum() || type == Enum.class) {
 					generateEnum(valueBuilder, (Enum) v, definedType, needsTypeInfo, needsWrapping, compact);
-				} else if (Utils.isBasicDataType(type)) {
+				} else if (TypeUtils.isBasicDataType(type)) {
 					generateBasicData(valueBuilder, v, type, needsTypeInfo, needsWrapping, compact);
 				} else if (type.isArray()) {
 					int arrayLength = Array.getLength(v);
@@ -175,9 +175,9 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 							Type valueParamType = null;
 							if (paramType instanceof ParameterizedType) {
 								valueParamType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
-								valueType = Utils.getRawType(valueParamType);
+								valueType = TypeUtils.getRawType(valueParamType);
 							}
-							if (valueType == null || Utils.isObjectOrObjectArray(valueType) || Utils.isAbstractClass(valueType)) {
+							if (valueType == null || TypeUtils.isObjectOrObjectArray(valueType) || TypeUtils.isAbstractClass(valueType)) {
 								needsTypeInfo = true;
 							}
 						}
@@ -211,12 +211,12 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 							if (paramType instanceof ParameterizedType) {
 								Type[] actualTypeArgs = ((ParameterizedType) paramType).getActualTypeArguments();
 								keyParamType = actualTypeArgs[0];
-								keyType = Utils.getRawType(keyParamType);
+								keyType = TypeUtils.getRawType(keyParamType);
 								valueParamType = actualTypeArgs[1];
-								valueType = Utils.getRawType(valueParamType);
+								valueType = TypeUtils.getRawType(valueParamType);
 							}
-							if (keyType == null || Utils.isObjectOrObjectArray(keyType) || Utils.isAbstractClass(keyType)
-									|| valueType == null || Utils.isObjectOrObjectArray(valueType) || Utils.isAbstractClass(valueType)) {
+							if (keyType == null || TypeUtils.isObjectOrObjectArray(keyType) || TypeUtils.isAbstractClass(keyType)
+									|| valueType == null || TypeUtils.isObjectOrObjectArray(valueType) || TypeUtils.isAbstractClass(valueType)) {
 								needsTypeInfo = true;
 							}
 						}
@@ -274,23 +274,23 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		String[] preferredCodecs = null;
 		if (configCodecs.length == 1) {
 			ConfigCodec cc = configCodecs[0];
-			if (cc.key() && !isKeys) return false;
-			if (cc.value() && !isValues) return false;
+			if (cc.mapKey() && !isKeys) return false;
+			if (cc.mapValue() && !isValues) return false;
 			if (cc.depth() >= 0 && depth != cc.depth()) return false;
-			preferredCodecs = cc.preferences();
+			preferredCodecs = cc.value();
 			if (preferredCodecs == null) preferredCodecs = new String[0];
 		} else {
 			List<String> allCodecs = null;
 			boolean matched = false;
 			for (ConfigCodec cc : configCodecs) {
-				if (cc.key() && !isKeys) continue;
-				if (cc.value() && !isValues) continue;
+				if (cc.mapKey() && !isKeys) continue;
+				if (cc.mapValue() && !isValues) continue;
 				if (cc.depth() >= 0 && depth != cc.depth()) continue;
 				if (!matched) {
 					matched = true;
 					allCodecs = new ArrayList<String>();
 				}
-				String[] values = cc.preferences();
+				String[] values = cc.value();
 				if (values != null) {
 					for (String c : values) {
 						allCodecs.add(c);
@@ -315,7 +315,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 				if (codecKey == null || codecKey.length() == 0) continue;
 				IConfigCodec<T> codec = (IConfigCodec<T>) codecs.get(codecKey);
 				if (codec == null) continue;
-				Class<?> rawType = Utils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+				Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
 				if (rawType != v.getClass()) continue;
 				/*
 				Type paramType = codec.getClass().getGenericInterfaces()[0];
@@ -376,7 +376,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		Type valueParamType = null;
 		if (paramType instanceof ParameterizedType) {
 			valueParamType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
-			valueType = Utils.getRawType(valueParamType);
+			valueType = TypeUtils.getRawType(valueParamType);
 		} else if (paramType instanceof GenericArrayType) {
 			GenericArrayType gaType = (GenericArrayType) paramType;
 			valueParamType = gaType.getGenericComponentType();
@@ -429,9 +429,9 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		if (paramType instanceof ParameterizedType) {
 			Type[] actualTypeArgs = ((ParameterizedType) paramType).getActualTypeArguments();
 			keyParamType = actualTypeArgs[0];
-			keyType = Utils.getRawType(keyParamType);
+			keyType = TypeUtils.getRawType(keyParamType);
 			valueParamType = actualTypeArgs[1];
-			valueType = Utils.getRawType(valueParamType);
+			valueType = TypeUtils.getRawType(valueParamType);
 		}
 		boolean keyNeedsTypeInfo = false; //needsTypeInfo;
 		if (keyType == null || keyType == Object.class) {
@@ -443,14 +443,14 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 		if (keyNeedsTypeInfo && summarizeCollectionType && (keyType == null || keyType == Object.class)) {
 			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-			Class<?> commonType = Utils.calculateCommonType(vs.keySet(), conflictedClasses);
+			Class<?> commonType = TypeUtils.calculateCommonType(vs.keySet(), conflictedClasses);
 			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
 				keyType = commonType;
 			}
 		}
 		if (valueNeedsTypeInfo && summarizeCollectionType && (valueType == null || valueType == Object.class)) {
 			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-			Class<?> commonType = Utils.calculateCommonType(vs.values(), conflictedClasses);
+			Class<?> commonType = TypeUtils.calculateCommonType(vs.values(), conflictedClasses);
 			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
 				valueType = commonType;
 			}
@@ -641,7 +641,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			endLineComment(builder); //.append("\r\n");
 		}
 		//boolean skipUnchangedLines = false;
-		String keyPrefix = Config.getKeyPrefix(clz);
+		//String keyPrefix = Config.getKeyPrefix(clz);
 		commentWriter.appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
 		Field[] fields = clz.getDeclaredFields();
 		String clzName = clz.getName();
@@ -662,7 +662,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			if (filter != null && filter.filterName(name)) continue;
 			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
 
-			if (keyPrefix != null) name = prefixedField(keyPrefix, name);
+			//if (keyPrefix != null) name = prefixedField(keyPrefix, name);
 			// To check if there are duplicate fields over multiple configuration classes, especially for
 			// those classes without stand-alone configuration files.
 			String fullFieldName = clzName + "." + name;

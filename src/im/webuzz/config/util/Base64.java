@@ -24,7 +24,7 @@
  */
 
 //package java.util.prefs;
-package im.webuzz.config;
+package im.webuzz.config.util;
 
 /**
  * Static methods for translating Base64 encoded strings to byte arrays

@@ -19,8 +19,8 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(CodecTags.class)
 public @interface ConfigCodec {
-	String[] preferences() default {}; // Empty preferences
-	boolean key() default false;
-	boolean value() default false;
+	String[] value() default {}; // Empty preferences
+	boolean mapKey() default false;
+	boolean mapValue() default false;
 	int depth() default -1; // Default no depth limits
 }

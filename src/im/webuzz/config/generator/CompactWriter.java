@@ -29,9 +29,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.annotation.ConfigIgnore;
+import im.webuzz.config.util.TypeUtils;
 
 public class CompactWriter {
 
@@ -144,7 +144,7 @@ public class CompactWriter {
 			}
 			return true;
 		}
-		if (Utils.isBasicDataType(definedType)) return true;
+		if (TypeUtils.isBasicDataType(definedType)) return true;
 		if (definedType.isArray()) {
 			if (forKeys) return false;
 			Class<?> definedCompType = definedType.getComponentType();
@@ -154,7 +154,7 @@ public class CompactWriter {
 				return checkPrimitiveArrayCompactness(generator, value, size, definedCompType);
 			}
 			if (size == 0) return true;
-			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
+			if (field == null && !TypeUtils.isBasicDataType(definedCompType) && definedCompType != String.class) {
 				return false; // Array object is wrapped in another object
 			}
 			Type paramCompType = null;
@@ -186,9 +186,9 @@ public class CompactWriter {
 			Type paramCompType = null;
 			if (paramType instanceof ParameterizedType) {
 				paramCompType = ((ParameterizedType) paramType).getActualTypeArguments()[0];
-				definedCompType = Utils.getRawType(paramCompType);
+				definedCompType = TypeUtils.getRawType(paramCompType);
 			}
-			if (field == null && !Utils.isBasicDataType(definedCompType) && definedCompType != String.class) {
+			if (field == null && !TypeUtils.isBasicDataType(definedCompType) && definedCompType != String.class) {
 				return false; // List or set object is wrapped in another object
 			}
 			if (size == 1) {
@@ -211,9 +211,9 @@ public class CompactWriter {
 			if (paramType instanceof ParameterizedType) {
 				Type[] actualTypeArgs = ((ParameterizedType) paramType).getActualTypeArguments();
 				paramKeyType = actualTypeArgs[0];
-				definedKeyType = Utils.getRawType(paramKeyType);
+				definedKeyType = TypeUtils.getRawType(paramKeyType);
 				paramValueType = actualTypeArgs[1];
-				definedValueType = Utils.getRawType(paramValueType);
+				definedValueType = TypeUtils.getRawType(paramValueType);
 			}
 			if (!checkArrayCompactness(generator, map.keySet().toArray(new Object[size]),
 					definedKeyType, paramKeyType,
@@ -242,7 +242,7 @@ public class CompactWriter {
 			int modifiers = f.getModifiers();
 			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
 			Class<?> type = f.getType();
-			if (type == String.class || type.isPrimitive() || Utils.isBasicDataType(type)) {
+			if (type == String.class || type.isPrimitive() || TypeUtils.isBasicDataType(type)) {
 				continue; // ignore
 			}
 			String name = f.getName();
@@ -285,7 +285,7 @@ public class CompactWriter {
 			if (!checkCompactness(generator, arr[i], compType, paramCompType,
 					forKeys, forValues, depth + 1, codecs, null)) return false;
 			if (compType.isPrimitive() || compType == String.class
-					|| Utils.isBasicDataType(compType)) {
+					|| TypeUtils.isBasicDataType(compType)) {
 				if (i != 0) compactBuilder.append("; ");
 				// TODO: Make the following line independent from invoking #generateFieldValue
 				generator.generateFieldValue(compactBuilder, null, null, null,

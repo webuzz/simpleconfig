@@ -1,7 +1,7 @@
 package im.webuzz.config.codec;
 
-import im.webuzz.config.Base64;
 import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.util.Base64;
 
 public class Bytes64Codec implements IConfigCodec<byte[]> {
 	@Override

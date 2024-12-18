@@ -17,7 +17,7 @@ package im.webuzz.config.web;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.annotation.ConfigComment;
-import im.webuzz.config.annotation.ConfigRange;
+import im.webuzz.config.annotation.ConfigNumberEnum;
 
 @ConfigClass
 @ConfigComment({
@@ -44,7 +44,7 @@ public class WebConfig {
 	@ConfigComment({
 		"Marked as ${server.auth.password} in {@link #targetURLPattern}",
 	})
-	@ConfigCodec(preferences = {"secret", "aes"})
+	@ConfigCodec(value = {"secret", "aes"})
 	public static String globalServerAuthPassword = null;
 	
 	@ConfigComment({
@@ -84,17 +84,6 @@ public class WebConfig {
 	})
 	public static boolean webRequestSupportsMD5ETag = true;
 
-	@ConfigRange(min = 0, max = 64)
-	public static int webCoreWorkers = 1;
-	
-	@ConfigComment("Default is 50, It is considered as enough for configuration web synchronizing.")
-	@ConfigRange(min = 4, max = 512)
-	public static int webMaxWorkers = 50;
-	
-	@ConfigComment("Time unit is second.")
-	@ConfigRange(min = 1, max = 300)
-	public static int webWorkerIdleInterval = 30;
-	
 	@ConfigComment({
 		"Try to synchronize other resource files from remote server.",
 	})
@@ -123,5 +112,42 @@ public class WebConfig {
 		"#startWatchman will be blocked until being synchronized.",
 	})
 	public static long synchronizedExpiringInterval = 8 * 3600 * 1000; // 8 hours
-	
+
+	@ConfigComment({
+		"1: Save file only",
+		"2: Update configuration class only, using web file system",
+		"3: Update configuration class and save file to local system"
+	})
+	@ConfigNumberEnum({1, 2, 3})
+	public static int synchronizeMode = 1;
+
+	@ConfigComment({
+		"Whether start synchronizing configuration files from remote server or not.",
+		"Synchronization can be turned on or off at any time by updating local file.",
+		"This configuration item is here to avoid being changed from true to false by",
+		"remote configuration server after unintended updates."
+	})
+	public static boolean synchronizing = false;
+
+	@ConfigComment({
+		"Local server name which is used to tell configuration center who is requesting configurations.",
+		"Marked as ${local.server.name} in {@link WebConfig#targetURLPattern}",
+	})
+	public static String localServerName = null;
+
+	@ConfigComment({
+		"Local server port which is used to identifier different server session.",
+	})
+	public static int localServerPort = 0;
+
+	@ConfigComment({
+		"Only allows specified extensions. Ignore others extension file.",
+		"Be careful of those file extensions that may be harmful to the OS,",
+		"like .sh, .bashprofile, .bat, .exe, ..."
+	})
+	public static String[] extraResourceExtensions = new String[] {
+		".xml", ".properties", ".props", ".ini", ".txt", ".config", ".conf", ".cfg", ".js", ".json",
+		".key", ".crt", ".pem", ".keystore", // HTTPS
+		".html", ".htm", ".css", // web pages
+	};
 }

@@ -22,8 +22,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.util.FieldUtils;
+import im.webuzz.config.util.TypeUtils;
 
 public class ConfigINIGenerator extends ConfigBaseGenerator {
 
@@ -157,7 +158,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == null || type == Object.class) type = vs.getClass();
 		Class<?> vsType = vs.getClass();
-		String typeStr = Utils.getCollectionTypeName(vsType);
+		String typeStr = TypeUtils.getCollectionTypeName(vsType);
 		if (componentType != null && componentType != Object.class && componentType != valueType) {
 			// array, use array's class type directly
 			needsTypeInfo = true;
@@ -167,7 +168,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		Object[] values = getObjectArray(vs, vsSize, vsType, valueType);
 		if (needsTypeInfo && summarizeCollectionType && valueType == Object.class && values != null) {
 			Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-			Class<?> commonType = Utils.calculateCommonType(values, conflictedClasses);
+			Class<?> commonType = TypeUtils.calculateCommonType(values, conflictedClasses);
 			if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
 				valueType = commonType;
 			}
@@ -233,7 +234,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected boolean checkPlainKeys(Class<?> keyType, Object[] keys) {
-		return keyType == String.class && Utils.canKeysBePrefixedNames(keys);		
+		return keyType == String.class && FieldUtils.canKeysBePrefixedNames(keys);		
 	}
 
 	@Override

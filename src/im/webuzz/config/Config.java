@@ -17,6 +17,7 @@ package im.webuzz.config;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.agent.ConfigAgent;
+import im.webuzz.config.annotation.AnnotationScanner;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
@@ -42,12 +44,17 @@ import im.webuzz.config.codec.AESCodec;
 import im.webuzz.config.codec.Base64Codec;
 import im.webuzz.config.codec.Bytes64Codec;
 import im.webuzz.config.codec.BytesAESCodec;
+import im.webuzz.config.codec.CodecKit;
 import im.webuzz.config.codec.SecretCodec;
 import im.webuzz.config.codec.SecurityConfig;
+import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
 import im.webuzz.config.parser.ConfigJSParser;
+import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigXMLParser;
+import im.webuzz.config.parser.ValidatorKit;
+import im.webuzz.config.util.DeepComparator;
 import im.webuzz.config.watchman.ConfigFileWatchman;
 
 @ConfigClass
@@ -113,7 +120,7 @@ public class Config {
 	@ConfigPattern("([a-zA-Z0-9]+)")
 	// Each configuration class will have a parser for itself. Parser's class is configured here
 	// so we can instantiate many parser instances.
-	public static Map<String, Class<? extends IConfigParser<?, ?>>> configurationParsers = new ConcurrentHashMap<>();
+	public static Map<String, Class<? extends ConfigParser<?, ?>>> configurationParsers = new ConcurrentHashMap<>();
 	
 	@ConfigComment({
 		"Singleton for parsing command line arguments into configuration clases.",
@@ -122,13 +129,19 @@ public class Config {
 	})
 	@ConfigNotNull
 	// The command line argument parser is a singleton, configure parser object directly.
-	public static IConfigParser<String[], String[]> commandLineParser = new ConfigArgumentsParser();
+	public static ConfigParser<String[], String[]> commandLineParser = new ConfigArgumentsParser();
 
 	@ConfigComment({
 		"Configure ignored public fields here for some classes to avoid unexpected modifications.",
 		"Another way to ignore fields is using @ConfigIgnore annotation in source leve."
 	})
 	public static Map<Class<?>, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<>();
+	@ConfigComment({
+		"Containing those local-only configuration items, which are unique for each server/process.",
+		"These items will be overrided by remote items.",
+		"Especially for those sensitive items are not suitable for remote configuration center."
+	})
+	public static Map<Class<?>, Set<String>> configurationRemoteIgnoringFilters = new ConcurrentHashMap<>();
 	
 	@ConfigComment({
 		"Codec for some known data. Codec can be used for encrypting some sensitive value in configuration file.",
@@ -165,6 +178,7 @@ public class Config {
 	protected static boolean initializationFinished = false;
 
 	private static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
+	private static List<Class<?>> orderedConfigs = new ArrayList<>();
 	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<>();
 
 	private static volatile ClassLoader configurationLoader = null;
@@ -257,8 +271,9 @@ public class Config {
 		if (clazz == null) return;
 		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
 		if (!updating) return;
+		orderedConfigs.add(clazz);
 		initializedTime = System.currentTimeMillis();
-		commandLineParser.parseConfiguration(clazz, IConfigParser.FLAG_UPDATE);
+		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE, null);
 		// Load watchman classes and start loadConfigClass task
 		List<Class<? extends IConfigWatchman>> syncClasses = configurationWatchmen;
 		if (syncClasses != null && syncClasses.size() > 0) {
@@ -352,16 +367,16 @@ public class Config {
 	 */
 	public static String[] initialize(String[] args) {
 		allConfigs.put(Config.class.getName(), Config.class);
-
-		IConfigParser<String[], String[]> argumentsParser = null; 
+		orderedConfigs.add(Config.class);
+		ConfigParser<String[], String[]> argumentsParser = null; 
 		String[] retArgs = args;
 		do {
 			argumentsParser = commandLineParser;
 			retArgs = argumentsParser.loadResource(retArgs, true);
-			argumentsParser.parseConfiguration(Config.class, IConfigParser.FLAG_UPDATE);
+			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE, null);
 			Class<?>[] configs = Config.getAllConfigurations();
 			for (int i = 0; i < configs.length; i++) {
-				argumentsParser.parseConfiguration(configs[i], IConfigParser.FLAG_UPDATE);
+				argumentsParser.parseConfiguration(configs[i], ConfigParser.FLAG_UPDATE, null);
 			}
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
 		
@@ -389,12 +404,27 @@ public class Config {
 					String[] newRetArgs = new String[retArgs.length - 1];
 					System.arraycopy(retArgs, 1, newRetArgs, 0, newRetArgs.length);
 					retArgs = newRetArgs;
+				} else {
+					List<String> allExtensions = Config.configurationScanningExtensions;
+					if (allExtensions != null) {
+						for (String ext : allExtensions) {
+							if (firstArg.endsWith(ext)) {
+								configurationFolder = f.getParent();
+								configurationFile = firstArg;
+								configurationFileExtension = ext;
+								break;
+							}
+						}
+					}
 				}
 			}
 		}
 		String configPath = configurationFile;
 		if (configPath == null) {
 			configPath = configurationFile = "./config.ini";
+			if (configurationFolder == null) {
+				configurationFolder = "./";
+			}
 		}
 		int idx = configPath.lastIndexOf('.');
 		if (idx != -1) {
@@ -421,21 +451,42 @@ public class Config {
 			if (actionStr.startsWith("--run:")) {
 				actionStr = actionStr.substring(6);
 				if ("generator".equals(actionStr)) {
-					ConfigGenerator.run(retArgs, 1);
+					GeneratorKit.run(retArgs, 1);
 				} else if ("encoder".equals(actionStr)) {
-					Codec.run(retArgs, 1, false);
+					CodecKit.run(retArgs, 1, false);
 				} else if ("decoder".equals(actionStr)) {
-					Codec.run(retArgs, 1, true);
+					CodecKit.run(retArgs, 1, true);
 				} else if ("usage".equals(actionStr)) {
 					printUsage();
 				} else if ("validator".equals(actionStr)) {
-					if (ConfigFileWatchman.validateAllConfigurations()) {
+					if (ValidatorKit.validateAllConfigurations()) {
 						System.out.println("[INFO] Configuration files are OK.");
 					} else {
 						System.out.println("[ERROR] Configuration validation failed!");
 					}
 				} else if ("synchronizer".equals(actionStr)) {
 					ConfigAgent.run(retArgs, 1);
+				} else if ("class".equals(actionStr)) {
+					// --run:class xxx.xxxxx.XXX 
+					// By this way, we make all public configuration classes with public static fields configurable
+					// without modifying the original sources or jars.
+					if (retArgs.length == 1 || retArgs[1] == null || retArgs[1].length() == 0) {
+						printUsage();
+					} else {
+						try {
+							Class<?> clazz = Class.forName(retArgs[1]);
+							Method method = clazz.getMethod("main", new Class[] { String[].class });
+							if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) { //
+								String[] newRetArgs = new String[retArgs.length - 1];
+								System.arraycopy(retArgs, 1, newRetArgs, 0, newRetArgs.length);
+								method.invoke(null, new Object[] { newRetArgs});
+							} else {
+								System.out.println("[ERROR] Class " + retArgs[1] + " must contains public static void main(String[] args) method!");
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
 				} else {
 					System.out.println("[ERROR] Unknown action \"" + actionStr + "\"!");
 				}
@@ -453,7 +504,7 @@ public class Config {
 	private static void printUsage() {
 		System.out.println("Usage:");
 		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
-				+ " [--run:<generator | checker | synchronizer | secretkit | usage>] [...]");
+				+ " [--run:<usage | generator | encoder | decoder | validator | synchronizer | class>] [...]");
 		System.out.println();
 		System.out.println("For argument --c:xxx=###, the following formats are supported:");
 		System.out.println("\t--c:port=6173");
@@ -468,6 +519,7 @@ public class Config {
 		System.out.println("\t--run:decoder\tTo decode an encoded string back to original value");
 		System.out.println("\t--run:validator\tTo verify configuration files");
 		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
+		System.out.println("\t--run:class <App class with #main(String[]) method>\tContinue to run the main class");
 	}
 
 	public static boolean reportErrorToContinue(String msg) {
@@ -542,6 +594,8 @@ public class Config {
 	 * Will be invoked by watchman classes
 	 */
 	public static Class<?>[] getAllConfigurations() {
+		return orderedConfigs.toArray(new Class<?>[orderedConfigs.size()]);
+		/*
 		Collection<Class<?>> values = allConfigs.values();
 		List<Class<?>> uniqClasses = new ArrayList<Class<?>>(values.size());
 		uniqClasses.add(Config.class); // Add this Config.class by default
@@ -550,6 +604,7 @@ public class Config {
 			uniqClasses.add(clz);
 		}
 		return uniqClasses.toArray(new Class<?>[uniqClasses.size()]);
+		//*/
 	}
 	
 	public static ClassLoader getConfigurationClassLoader() {

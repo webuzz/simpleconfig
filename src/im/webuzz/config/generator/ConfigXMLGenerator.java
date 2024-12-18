@@ -23,9 +23,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.util.FieldUtils;
+import im.webuzz.config.util.TypeUtils;
 
 /**
  * Generate configuration default file in XML format.
@@ -271,7 +272,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == null || type == Object.class) type = vs.getClass();
 		Class<?> vsType = vs.getClass();
-		String typeStr = Utils.getCollectionTypeName(vsType);
+		String typeStr = TypeUtils.getCollectionTypeName(vsType);
 		Object[] values = getObjectArray(vs, vsSize, vsType, valueType);
 		if (needsWrapping) compactWriter.appendIndents(builder).append('<').append(typeStr);
 		if (compact) {
@@ -305,13 +306,13 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			if (needsTypeInfo && values != null && (valueType == null
 					|| GeneratorConfig.summarizeCollectionType && valueType == Object.class)) {
 				Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-				Class<?> commonType = Utils.calculateCommonType(values, conflictedClasses);
+				Class<?> commonType = TypeUtils.calculateCommonType(values, conflictedClasses);
 				if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
 					valueType = commonType;
 				}
 			}
-			if (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
-					|| valueType.isInterface() || Utils.isAbstractClass(valueType)) {
+			if (valueType == null || TypeUtils.isObjectOrObjectArray(valueType) || valueType == String.class
+					|| valueType.isInterface() || TypeUtils.isAbstractClass(valueType)) {
 				//builder.append('<').append(typeStr);
 				//builder.append(typeStr);
 				if (needsWrapping) {
@@ -333,7 +334,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		}
 		if (needsWrapping) builder.append('>');
 		if (valueType == null) valueType = Object.class;
-		boolean basicType = Utils.isBasicType(valueType);
+		boolean basicType = TypeUtils.isBasicType(valueType);
 		boolean multipleLines = vsSize >= 1 || !basicType;
 		if (multipleLines) compactWriter.increaseIndent();
 		boolean first = true;
@@ -343,8 +344,8 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			} else {
 				Object v = values[k];
 				if (first && multipleLines && (basicType
-						|| ((valueType == Object.class || Utils.isAbstractClass(valueType))
-								&& v != null && Utils.isBasicType(v.getClass())))) {
+						|| ((valueType == Object.class || TypeUtils.isAbstractClass(valueType))
+								&& v != null && TypeUtils.isBasicType(v.getClass())))) {
 					//appendIndents(builder);
 					first = false;
 				}
@@ -380,7 +381,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected boolean checkPlainKeys(Class<?> keyType, Object[] keys) {
-		return keyType == String.class && Utils.canKeysBeFieldNames(keys);		
+		return keyType == String.class && FieldUtils.canKeysBeFieldNames(keys);		
 	}
 
 	@Override

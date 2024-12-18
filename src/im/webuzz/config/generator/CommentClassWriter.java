@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.Utils;
+import im.webuzz.config.util.TypeUtils;
 
 public class CommentClassWriter {
 	
@@ -46,7 +46,7 @@ public class CommentClassWriter {
 	private StringBuilder appendParameterizedType(Type paramType, int argIndex, StringBuilder builder) {
 		if (paramType instanceof ParameterizedType) {
 			Type valueType = ((ParameterizedType) paramType).getActualTypeArguments()[argIndex];
-			appendFieldType(builder, Utils.getRawType(valueType), valueType);
+			appendFieldType(builder, TypeUtils.getRawType(valueType), valueType);
 		} else {
 			builder.append("Object");
 		}

@@ -78,9 +78,11 @@ public class AnnotationWriter {
 				}
 			} else if (ann instanceof ConfigCodec) {
 				ConfigCodec a = (ConfigCodec) ann;
-				String[] values = a.preferences();
+				String[] values = a.value();
 				if (values != null && values.length > 0) {
-					builder.append("preferences = ");
+					if (a.mapKey() || a.mapValue() || a.depth() >= 0 || multiple) {
+						builder.append("value = ");
+					}
 					if (values.length > 1) builder.append('{');
 					boolean first = true;
 					for (String value : values) {
@@ -96,13 +98,13 @@ public class AnnotationWriter {
 					}
 					if (values.length > 1) builder.append('}');
 				}
-				if (a.key()) {
+				if (a.mapKey()) {
 					if (builder.charAt(builder.length() - 1) != '(') {
 						builder.append(", ");
 					}
 					builder.append("key = true");
 				}
-				if (a.value()) {
+				if (a.mapValue()) {
 					if (builder.charAt(builder.length() - 1) != '(') {
 						builder.append(", ");
 					}

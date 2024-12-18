@@ -1,20 +1,25 @@
-package im.webuzz.config;
+package im.webuzz.config.codec;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
+import im.webuzz.config.Config;
+import im.webuzz.config.ConfigFieldFilter;
+import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.ConfigGenerator;
 import im.webuzz.config.annotation.ConfigCodec;
 import im.webuzz.config.generator.GeneratorConfig;
+import im.webuzz.config.generator.GeneratorKit;
+import im.webuzz.config.parser.ConfigParser;
+import im.webuzz.config.parser.ConfigParserBuilder;
+import im.webuzz.config.util.TypeUtils;
 
-class Codec {
+public class CodecKit {
 
 	public static class CodecItemConfig {
 		// Need to configure GeneratorConfig#preferredCodecOrder for the final codec 
@@ -88,13 +93,13 @@ class Codec {
 			int lastChar = value.charAt(length - 1);
 			if (firstChar == '{' && (lastChar == '}' || lastChar == ',')) {
 				value = "{ " + field + ": " + value + " }";
-				extension = "js";
+				extension = ".js";
 			} else if (firstChar == '<' && lastChar == '>') {
 				value = "<config><" + field + ">" + value + "</" + field + "></config>";
-				extension = "xml";
+				extension = ".xml";
 			} else if (firstChar == '[' && lastChar == ']') {
 				value = field + "=" + value;
-				extension = "ini";
+				extension = ".ini";
 			} else {
 				if (decoder) System.out.println("[WARN] Unknown data format!");
 				//extension = "raw";
@@ -145,7 +150,7 @@ class Codec {
 						continue;
 					}
 					String decoded = null;
-					Class<?> rawType = Utils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+					Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
 					if (rawType == String.class) {
 						decoded = codec.encode(value);
 					} else if (rawType == byte[].class) {
@@ -180,22 +185,25 @@ class Codec {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static boolean encode(String value, String extension) {
-		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
-		if (parsers == null) return false;
-		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(extension);
-		if (clazz == null) return false;
 		try {
-			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, value);
-			parser.parseConfiguration(CodecItemConfig.class, IConfigParser.FLAG_UPDATE);
+			ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(extension, value, false);
+			if (parser == null) return false;
+			parser.parseConfiguration(CodecItemConfig.class, ConfigParser.FLAG_UPDATE, null);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 		
-		Config.configurationFilters.put(CodecItemConfig.class, new ConfigFieldFilter(null, new String[] { "decoded" }));
-		IConfigGenerator generator = ConfigGenerator.getConfigurationGenerator(extension);
+		ConfigGenerator generator = GeneratorKit.getConfigurationGenerator(extension);
 		if (generator == null) return false;
-		Class<?> rawType = Utils.getInterfaceParamType(generator.getClass(), IConfigGenerator.class);
-		Object builder = createABuilder(rawType);
+		Class<?> rawType = TypeUtils.getInterfaceParamType(generator.getClass(), ConfigGenerator.class);
+		Object builder;
+		try {
+			builder = rawType.newInstance();
+		} catch (Throwable e) {
+			e.printStackTrace();
+			return false;
+		}
+		Config.configurationFilters.put(CodecItemConfig.class, new ConfigFieldFilter(null, new String[] { "decoded" }));
 		generator.startGenerate(builder, CodecItemConfig.class);
 		generator.endGenerate(builder, null);
 		System.out.println(builder);
@@ -205,22 +213,25 @@ class Codec {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static boolean decodec(String value, String extension) {
-		Map<String, Class<? extends IConfigParser<?, ?>>> parsers = Config.configurationParsers;
-		if (parsers == null) return false;
-		Class<? extends IConfigParser<?, ?>> clazz = parsers.get(extension);
-		if (clazz == null) return false;
 		try {
-			IConfigParser<?, ?> parser = prepareParserWithFile(clazz, value);
-			parser.parseConfiguration(CodecItemConfig.class, IConfigParser.FLAG_UPDATE);
+			ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(extension, value, false);
+			if (parser == null) return false;
+			parser.parseConfiguration(CodecItemConfig.class, ConfigParser.FLAG_UPDATE, null);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 		//CodecItemConfig.decoded = CodecItemConfig.encoded;
-		Config.configurationFilters.put(CodecItemConfig.class, new ConfigFieldFilter(null, new String[] { "encoded" }));
-		IConfigGenerator generator = ConfigGenerator.getConfigurationGenerator(extension);
+		ConfigGenerator generator = GeneratorKit.getConfigurationGenerator(extension);
 		if (generator == null) return false;
-		Class<?> rawType = Utils.getInterfaceParamType(generator.getClass(), IConfigGenerator.class);
-		Object builder = createABuilder(rawType);
+		Class<?> rawType = TypeUtils.getInterfaceParamType(generator.getClass(), ConfigGenerator.class);
+		Object builder;
+		try {
+			builder = rawType.newInstance();
+		} catch (Throwable e) {
+			e.printStackTrace();
+			return false;
+		}
+		Config.configurationFilters.put(CodecItemConfig.class, new ConfigFieldFilter(null, new String[] { "encoded" }));
 		generator.startGenerate(builder, CodecItemConfig.class);
 		generator.endGenerate(builder, null);
 		if (builder instanceof byte[]) {
@@ -230,70 +241,6 @@ class Codec {
 		}
 		Config.configurationFilters.remove(CodecItemConfig.class);
 		return true;
-	}
-
-	private static Object createABuilder(Class<?> rawType) {
-		try {
-			return rawType.newInstance();
-		} catch (Throwable e) {
-			e.printStackTrace();
-			return null;
-		}
-	}
-	
-	@SuppressWarnings("unchecked")
-	private static IConfigParser<?, ?> prepareParserWithFile(Class<? extends IConfigParser<?, ?>> clazz, String str) throws Exception {
-		IConfigParser<?, ?> parser = clazz.newInstance();
-		Class<?> rawType = Utils.getInterfaceParamType(clazz, IConfigParser.class);
-		if (rawType == String.class) {
-			((IConfigParser<String, ?>) parser).loadResource(str, false);
-		} else if (rawType == InputStream.class) {
-			InputStream fis = null;
-			try {
-				fis = new ByteArrayInputStream(str.getBytes(Config.configFileEncoding));
-				((IConfigParser<InputStream, ?>) parser).loadResource(fis, false);
-			} catch (Exception e) {
-				e.printStackTrace();
-			} finally {
-				if (fis != null) {
-					try {
-						fis.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		} else if (rawType == byte[].class) {
-			((IConfigParser<byte[], ?>) parser).loadResource(str.getBytes(Config.configFileEncoding), false);
-		} else if (rawType == Properties.class) {
-			Properties props = new Properties();
-			InputStream fis = null;
-			InputStreamReader reader = null;
-			try {
-				fis = new ByteArrayInputStream(str.getBytes(Config.configFileEncoding));
-				reader = new InputStreamReader(fis, Config.configFileEncoding);
-				props.load(reader);
-				((IConfigParser<Properties, ?>) parser).loadResource(props, false);
-			} catch (Exception e) {
-				e.printStackTrace();
-			} finally {
-				if (reader != null) {
-					try {
-						reader.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-				if (fis != null) {
-					try {
-						fis.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-		return parser;
 	}
 
 }

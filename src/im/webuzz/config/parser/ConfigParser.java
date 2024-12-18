@@ -1,8 +1,8 @@
-package im.webuzz.config;
+package im.webuzz.config.parser;
 
 import java.util.Set;
 
-public interface IConfigParser<S,L> {
+public interface ConfigParser<S,L> {
 
 	public int FLAG_UPDATE = 1;
 	public int FLAG_CHECK = 2;
@@ -18,7 +18,7 @@ public interface IConfigParser<S,L> {
 	 */
 	public L loadResource(S source, boolean combinedConfigs);
 	
-	public int parseConfiguration(Class<?> clz, int flag);
+	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields);
 
 	public Set<String> unusedConfigurationItems();
 }

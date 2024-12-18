@@ -5,7 +5,6 @@ import java.util.List;
 import im.webuzz.config.Config;
 import im.webuzz.config.IConfigWatchman;
 import im.webuzz.config.web.WebConfig;
-import im.webuzz.config.web.WebConfigLocal;
 
 public class ConfigAgent {
 
@@ -38,7 +37,6 @@ public class ConfigAgent {
 		}
 		Config.registerUpdatingListener(ConfigAgent.class);
 		Config.registerUpdatingListener(WebConfig.class);
-		Config.registerUpdatingListener(WebConfigLocal.class);
 		System.out.println("[INFO] Config agent started.");
 		while (agentRunning) {
 			try {

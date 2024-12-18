@@ -1,44 +1,20 @@
-package im.webuzz.config;
+package im.webuzz.config.util;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class Utils {
+public class TypeUtils {
 
 
-	static Set<String> keywords = new HashSet<String>(Arrays.asList(new String[] {
-			"var", "let", "const",
-			"if", "else", "switch", "case", "default",
-			"for", "in", "while", "do", "break", "continue", "return",
-			"throw", "try", "catch", "throws", "finally",
-			"function", "class", "extends", "implements", "interface", "enum", "super", "constructor", "this",
-			"new", "delete", "async", "await", "yield",
-			"package", "import", "export",
-			"pubic", "protected", "private", "static", "final",
-			"instanceof", "typeof", "void",
-			"prototype", "arguments", "null", "undefined", "true", "fasle",
-			"with", "debugger", "valueOf",
-			/*"label", "java", "javax", "sun", */
-	}));
-
-	public static String wrapAsJSFieldName(Object k) {
-		return keywords.contains(k) ? "\"" + k + "\"" : String.valueOf(k);
-	}
-	
 	public static boolean isObjectOrObjectArray(Class<?> clazz) {
 		if (clazz.isArray()) return isObjectOrObjectArray(clazz.getComponentType());
 		return clazz == Object.class;
@@ -185,49 +161,6 @@ public class Utils {
 		return commonType;
 	}
 
-	public static boolean canAKeyBeAFieldName(String key) {
-		int len = key.length();
-		for (int i = 0; i < len; i++) {
-			char c = key.charAt(i);
-			if (i == 0) {
-				if (!(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || '_' == c || '$' == c)) {
-					return false;
-				}
-			} else {
-				if (!(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || '_' == c || '$' == c || ('0' <= c && c <= '9'))) {
-					return false;
-				}
-			}
-		}
-		return true;
-	}
-
-	public static boolean canKeysBeFieldNames(Object[] keys) {
-		for (int i = 0; i < keys.length; i++) {
-			if (!(keys[i] instanceof String && canAKeyBeAFieldName((String) keys[i]))) return false;
-		}
-		return true;
-	}
-
-
-	public static boolean canAKeyBeAPrefixedName(String key) {
-		int len = key.length();
-		for (int i = 0; i < len; i++) {
-			char c = key.charAt(i);
-			if (!(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || '.' == c || '-' == c || '_' == c || '$' == c || ('0' <= c && c <= '9'))) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	public static boolean canKeysBePrefixedNames(Object[] keys) {
-		for (int i = 0; i < keys.length; i++) {
-			if (!(keys[i] instanceof String && canAKeyBeAPrefixedName((String) keys[i]))) return false;
-		}
-		return true;
-	}
-
 	public static boolean isBasicType(Class<?> type) {
 		return type == String.class || isBasicDataType(type);
 	}
@@ -244,31 +177,6 @@ public class Utils {
 			typeStr = "array"; //$array;
 		}
 		return typeStr;
-	}
-
-	public static byte[] readFileBytes(File file) {
-		FileInputStream fis = null;
-		byte[] buffer = new byte[8096];
-		int read = -1;
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		try {
-			fis = new FileInputStream(file);
-			while ((read = fis.read(buffer)) != -1) {
-				baos.write(buffer, 0, read);
-			}
-		} catch (IOException e1) {
-			//e1.printStackTrace();
-			return null;
-		} finally {
-			if (fis != null) {
-				try {
-					fis.close();
-				} catch (IOException e) {
-					//e.printStackTrace();
-				}
-			}
-		}
-		return baos.toByteArray();
 	}
 
 

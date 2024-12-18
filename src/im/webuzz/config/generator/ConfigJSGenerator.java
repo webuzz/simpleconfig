@@ -23,8 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.Utils;
 import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.util.FieldUtils;
+import im.webuzz.config.util.TypeUtils;
 
 /**
  * Generate configuration default file in JavaScript format.
@@ -99,7 +100,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected String prefixedField(String prefix, String name) {
-		return Utils.wrapAsJSFieldName(name);
+		return FieldUtils.wrapAsJSFieldName(name);
 	}
 	
 	@Override
@@ -225,19 +226,19 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			if (valueType == null
 					|| GeneratorConfig.summarizeCollectionType && valueType == Object.class) {
 				Set<Class<?>> conflictedClasses = new HashSet<Class<?>>(5);
-				Class<?> commonType = Utils.calculateCommonType(values, conflictedClasses);
+				Class<?> commonType = TypeUtils.calculateCommonType(values, conflictedClasses);
 				if (commonType != null && commonType != Object.class && conflictedClasses.size() == 0) {
 					valueType = commonType;
 				}
 			}
-			if (type != Object.class && (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
-					|| valueType.isInterface() || Utils.isAbstractClass(valueType))) {
+			if (type != Object.class && (valueType == null || TypeUtils.isObjectOrObjectArray(valueType) || valueType == String.class
+					|| valueType.isInterface() || TypeUtils.isAbstractClass(valueType))) {
 				needsTypeInfo = false;
 			} else {
-				builder.append("{ \"class\": \"").append(Utils.getCollectionTypeName(vsType));
+				builder.append("{ \"class\": \"").append(TypeUtils.getCollectionTypeName(vsType));
 				// TODO
-				if (valueType == null || Utils.isObjectOrObjectArray(valueType) || valueType == String.class
-						|| valueType.isInterface() || Utils.isAbstractClass(valueType)) {
+				if (valueType == null || TypeUtils.isObjectOrObjectArray(valueType) || valueType == String.class
+						|| valueType.isInterface() || TypeUtils.isAbstractClass(valueType)) {
 				} else {
 					builder.append(':');
 					typeWriter.appendFieldType(builder, valueType, null);
@@ -266,7 +267,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			return;
 		}
 		builder.append("[");
-		boolean basicType = Utils.isBasicType(valueType);
+		boolean basicType = TypeUtils.isBasicType(valueType);
 		int size = vsSize;
 		boolean singleLine = size == 1 && basicType;
 		boolean multipleLines = size > 1 || !basicType;
@@ -321,7 +322,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 
 	@Override
 	protected boolean checkPlainKeys(Class<?> keyType, Object[] keys) {
-		return keyType == String.class && Utils.canKeysBeFieldNames(keys);		
+		return keyType == String.class && FieldUtils.canKeysBeFieldNames(keys);		
 	}
 
 	@Override

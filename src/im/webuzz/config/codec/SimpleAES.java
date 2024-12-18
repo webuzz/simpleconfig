@@ -17,7 +17,7 @@ package im.webuzz.config.codec;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
-import im.webuzz.config.Base64;
+import im.webuzz.config.util.Base64;
 
 //import org.bouncycastle.jce.provider.BouncyCastleProvider;
 

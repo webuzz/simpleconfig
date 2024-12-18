@@ -118,14 +118,15 @@ public class ConfigFieldFilter {
 		}
 		if ((filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0)
 				|| (modifiers & Modifier.FINAL) != 0) {
-			// Ignore static, final fields
+			// Ignore final fields, ignore non-matched modifier
 			return true;
 		}
+		boolean staticField = (modifiers & Modifier.STATIC) != 0;
 		if (filterStatic) {
-			if ((modifiers & Modifier.STATIC) != 0) return true;
+			if (staticField) return true;
 		} else {
 			// not filter static fields
-			if ((modifiers & Modifier.STATIC) == 0) return true;
+			if (!staticField) return true;
 		}
 		return false;
 	}

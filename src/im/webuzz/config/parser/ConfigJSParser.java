@@ -31,9 +31,8 @@ import javax.script.ScriptEngineManager;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.IConfigParser;
 
-public class ConfigJSParser implements IConfigParser<InputStream, Object> {
+public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 
 	private static String convertJS = null;
 
@@ -85,6 +84,14 @@ public class ConfigJSParser implements IConfigParser<InputStream, Object> {
 			}
 		}
 		if (factoryName == null ) {
+			System.out.println("[INFO] Add maven dependency to your pom.xml for nashorn JavaScript engine:");
+			System.out.println("		<!-- https://mvnrepository.com/artifact/org.openjdk.nashorn/nashorn-core -->\n"
+					+ "		<dependency>\n"
+					+ "			<groupId>org.openjdk.nashorn</groupId>\n"
+					+ "			<artifactId>nashorn-core</artifactId>\n"
+					+ "			<version>15.4</version>\n"
+					+ "		</dependency>\n"
+					+ "\n");
 			System.out.println("[FATAL] You need to include nashorn Javascript engine after Java 15!");
 			return false;
 		}
@@ -192,8 +199,8 @@ public class ConfigJSParser implements IConfigParser<InputStream, Object> {
 	}
 
 	@Override
-	public int parseConfiguration(Class<?> clz, int flag) {
-		return iniParser.parseConfiguration(clz, flag);
+	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields) {
+		return iniParser.parseConfiguration(clz, flag, remoteIgnoringFields);
 	}
 
 	@Override
