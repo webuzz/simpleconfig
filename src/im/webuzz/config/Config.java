@@ -31,7 +31,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.agent.ConfigAgent;
 import im.webuzz.config.annotation.AnnotationScanner;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
@@ -55,7 +54,9 @@ import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigXMLParser;
 import im.webuzz.config.parser.ValidatorKit;
 import im.webuzz.config.util.DeepComparator;
+import im.webuzz.config.watchman.SynchronizerKit;
 import im.webuzz.config.watchman.ConfigFileWatchman;
+import im.webuzz.config.watchman.ConfigWatchman;
 
 @ConfigClass
 @ConfigComment({
@@ -91,10 +92,10 @@ public class Config {
 		});
 	
 	// 
-	public static List<Class<? extends IConfigWatchman>> configurationWatchmen = new ArrayList<>();
+	public static List<Class<? extends ConfigWatchman>> configurationWatchmen = new ArrayList<>();
 	// Once watchman is running, keep the instance in the map. In this way, adding new watchman into
 	// configurationWatchmen will not affect the running watchman.
-	private static Map<String, IConfigWatchman> watchmen = new ConcurrentHashMap<>();
+	private static Map<String, ConfigWatchman> watchmen = new ConcurrentHashMap<>();
 
 	@ConfigComment({
 		"Array of configuration class names, listing all classes which are to be configured via files.",
@@ -275,12 +276,12 @@ public class Config {
 		initializedTime = System.currentTimeMillis();
 		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE, null);
 		// Load watchman classes and start loadConfigClass task
-		List<Class<? extends IConfigWatchman>> syncClasses = configurationWatchmen;
+		List<Class<? extends ConfigWatchman>> syncClasses = configurationWatchmen;
 		if (syncClasses != null && syncClasses.size() > 0) {
-			for (Class<? extends IConfigWatchman> clz : syncClasses) {
+			for (Class<? extends ConfigWatchman> clz : syncClasses) {
 				if (clz != null) {
 					try {
-						IConfigWatchman watchman = watchmen.get(clz.getName());
+						ConfigWatchman watchman = watchmen.get(clz.getName());
 						if (watchman == null) {
 							watchman = clz.newInstance();
 							watchmen.put(clz.getName(), watchman);
@@ -465,7 +466,7 @@ public class Config {
 						System.out.println("[ERROR] Configuration validation failed!");
 					}
 				} else if ("synchronizer".equals(actionStr)) {
-					ConfigAgent.run(retArgs, 1);
+					SynchronizerKit.run(retArgs, 1);
 				} else if ("class".equals(actionStr)) {
 					// --run:class xxx.xxxxx.XXX 
 					// By this way, we make all public configuration classes with public static fields configurable
@@ -496,10 +497,6 @@ public class Config {
 		}
 		return retArgs;
 	}
-
-	public static boolean isInitializationFinished() {
-		return initializationFinished && initializedTime > 0 && System.currentTimeMillis() - initializedTime > 3000;
-	}
 	
 	private static void printUsage() {
 		System.out.println("Usage:");
@@ -520,6 +517,10 @@ public class Config {
 		System.out.println("\t--run:validator\tTo verify configuration files");
 		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
 		System.out.println("\t--run:class <App class with #main(String[]) method>\tContinue to run the main class");
+	}
+
+	public static boolean isInitializationFinished() {
+		return initializationFinished && initializedTime > 0 && System.currentTimeMillis() - initializedTime > 3000;
 	}
 
 	public static boolean reportErrorToContinue(String msg) {
@@ -549,14 +550,14 @@ public class Config {
 		// Load watchman classes and start synchronizing task
 		Set<Class<?>> loadedWatchmen = new HashSet<Class<?>>();
 		int loopLoadings = 5;
-		List<Class<? extends IConfigWatchman>> syncClasses = configurationWatchmen;
+		List<Class<? extends ConfigWatchman>> syncClasses = configurationWatchmen;
 		while (syncClasses != null && syncClasses.size() > 0 && loopLoadings-- > 0) {
 			// by default, there is a watchman: im.webuzz.config.ConfigFileWatchman
-			for (Class<? extends IConfigWatchman> clazz : syncClasses) {
+			for (Class<? extends ConfigWatchman> clazz : syncClasses) {
 				if (loadedWatchmen.contains(clazz)) continue;
 				if (clazz != null) {
 					try {
-						IConfigWatchman watchman = watchmen.get(clazz.getName());
+						ConfigWatchman watchman = watchmen.get(clazz.getName());
 						if (watchman == null) {
 							watchman = clazz.newInstance();
 							watchmen.put(clazz.getName(), watchman);
@@ -580,7 +581,7 @@ public class Config {
 					loadedWatchmen.add(clazz);
 				}
 			}
-			List<Class<? extends IConfigWatchman>> updatedClasses = configurationWatchmen;
+			List<Class<? extends ConfigWatchman>> updatedClasses = configurationWatchmen;
 			if (DeepComparator.listDeepEquals(configurationWatchmen, syncClasses)) break;
 			// Config.configurationWatchmen may be updated from file
 			syncClasses = updatedClasses;

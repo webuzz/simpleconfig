@@ -12,13 +12,13 @@ import java.lang.annotation.Target;
 @Retention(RUNTIME)
 @Target(FIELD)
 @interface CodecTags {
-	ConfigCodec[] value();
+	ConfigPreferredCodec[] value();
 }
 
 @Target({FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(CodecTags.class)
-public @interface ConfigCodec {
+public @interface ConfigPreferredCodec {
 	String[] value() default {}; // Empty preferences
 	boolean mapKey() default false;
 	boolean mapValue() default false;

@@ -90,7 +90,7 @@ public class CommentWriter {
 		// The followings are string related
 		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigEnum.class));
 		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigPattern.class));
-		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigCodec.class));
+		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigPreferredCodec.class));
 		// The followings are number related
 		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNonNegative.class));
 		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigPositive.class));

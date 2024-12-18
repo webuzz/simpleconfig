@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.util.FieldUtils;
 import im.webuzz.config.util.TypeUtils;
 
@@ -212,7 +212,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	@Override
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		/*
 		if ("anyArr4".equals(name)) {
@@ -328,7 +328,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	@Override
 	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
 		/*

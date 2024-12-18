@@ -56,7 +56,7 @@ public class AnnotationValidator {
 				numberAnnotations.add(ann);
 			} else if (ann instanceof ConfigRange) {
 				numberAnnotations.add(ann);
-			} else if (ann instanceof ConfigCodec) {
+			} else if (ann instanceof ConfigPreferredCodec) {
 				stringAnnotations.add(ann);
 			}
 		}

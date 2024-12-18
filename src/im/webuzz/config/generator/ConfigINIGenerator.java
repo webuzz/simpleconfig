@@ -22,7 +22,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.util.FieldUtils;
 import im.webuzz.config.util.TypeUtils;
 
@@ -154,7 +154,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	@Override
 	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == null || type == Object.class) type = vs.getClass();
 		Class<?> vsType = vs.getClass();
@@ -240,7 +240,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	@Override
 	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
 		if ("mms".equals(name)) {

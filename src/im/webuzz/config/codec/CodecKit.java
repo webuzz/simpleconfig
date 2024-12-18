@@ -11,8 +11,8 @@ import java.util.Map;
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.ConfigGenerator;
-import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.generator.ConfigGenerator;
 import im.webuzz.config.generator.GeneratorConfig;
 import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.parser.ConfigParser;
@@ -23,7 +23,7 @@ public class CodecKit {
 
 	public static class CodecItemConfig {
 		// Need to configure GeneratorConfig#preferredCodecOrder for the final codec 
-		@ConfigCodec
+		@ConfigPreferredCodec
 		public static Object encoded;
 		public static Object decoded;
 	}

@@ -1,4 +1,4 @@
-package im.webuzz.config;
+package im.webuzz.config.generator;
 
 // T will be StringBuilder, StringBuffer or ByteArrayOutputStream
 // T should be a class which can be initialized by new T()

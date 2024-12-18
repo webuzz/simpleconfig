@@ -3,7 +3,6 @@ package im.webuzz.config.generator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.ConfigGenerator;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;

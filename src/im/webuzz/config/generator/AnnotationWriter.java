@@ -20,7 +20,7 @@ public class AnnotationWriter {
 	public void appendAnnotation(StringBuilder builder, Annotation ann, boolean multiple) {
 		builder.append('@').append(ann.annotationType().getSimpleName());
 		if (ann instanceof ConfigNotNull || ann instanceof ConfigNotEmpty || ann instanceof ConfigLength
-				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern || ann instanceof ConfigCodec
+				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern || ann instanceof ConfigPreferredCodec
 				|| ann instanceof ConfigRange || ann instanceof ConfigNumberEnum
 				|| ann instanceof ConfigSince) {
 			builder.append('(');
@@ -76,8 +76,8 @@ public class AnnotationWriter {
 				if (value != null && value.length() > 0) {
 					builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
 				}
-			} else if (ann instanceof ConfigCodec) {
-				ConfigCodec a = (ConfigCodec) ann;
+			} else if (ann instanceof ConfigPreferredCodec) {
+				ConfigPreferredCodec a = (ConfigPreferredCodec) ann;
 				String[] values = a.value();
 				if (values != null && values.length > 0) {
 					if (a.mapKey() || a.mapValue() || a.depth() >= 0 || multiple) {

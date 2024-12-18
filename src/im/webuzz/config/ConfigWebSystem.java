@@ -1,7 +1,6 @@
 package im.webuzz.config;
 
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ConfigWebSystem {
@@ -59,8 +58,5 @@ public class ConfigWebSystem {
 		if (file == null || file.extension == null || !file.extension.equals(fileExtension)) return -1l;
 		return file.modified;
 	}
-	
-//	public static void asyncLoad(String keyPrefix, Callable<WebFile> task) {
-//		
-//	}
+
 }

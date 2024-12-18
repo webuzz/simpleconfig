@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.util.TypeUtils;
 
@@ -94,7 +94,7 @@ public class CompactWriter {
 	// For array, list and set
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean checkCompactness(ConfigBaseGenerator generator, Object value, Class<?> definedType, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs, Field field) {
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs, Field field) {
 		if (definedType.isPrimitive()) return true;
 		if (value == null) return true;
 		
@@ -279,7 +279,7 @@ public class CompactWriter {
 	}
 
 	private boolean checkArrayCompactness(ConfigBaseGenerator generator,  Object[] arr, Class<?> compType, Type paramCompType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs) {
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs) {
 		StringBuilder compactBuilder = new StringBuilder();
 		for (int i = 0; i < arr.length; i++) {
 			if (!checkCompactness(generator, arr[i], compType, paramCompType,

@@ -35,8 +35,7 @@ import java.util.Set;
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.IConfigCodec;
-import im.webuzz.config.ConfigGenerator;
-import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.util.TypeUtils;
@@ -93,7 +92,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean generateFieldValue(StringBuilder builder, Field f, String name, Object o,
 			Object v, Class<?> definedType, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping,
 			boolean compact, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
@@ -119,7 +118,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			}
 			if (definedType == null) definedType = type;
 			if (f != null) {
-				codecs = f.getAnnotationsByType(ConfigCodec.class);
+				codecs = f.getAnnotationsByType(ConfigPreferredCodec.class);
 			}
 			if (type.isPrimitive()) { // Config.isPrimitiveType(type)) {
 				//if (typeBuilder != null) typeBuilder.append(type.getName());
@@ -267,13 +266,13 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	protected abstract void appendEncodedString(StringBuilder builder, String codecKey, String encoded);
 
 	@SuppressWarnings("unchecked")
-	protected <T> boolean encode(StringBuilder builder, T v, boolean isKeys, boolean isValues, int depth, ConfigCodec[] configCodecs) {
+	protected <T> boolean encode(StringBuilder builder, T v, boolean isKeys, boolean isValues, int depth, ConfigPreferredCodec[] configCodecs) {
 		if (v == null || configCodecs == null || configCodecs.length == 0) return false;
 		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs == null || codecs.size() == 0) return false;
 		String[] preferredCodecs = null;
 		if (configCodecs.length == 1) {
-			ConfigCodec cc = configCodecs[0];
+			ConfigPreferredCodec cc = configCodecs[0];
 			if (cc.mapKey() && !isKeys) return false;
 			if (cc.mapValue() && !isValues) return false;
 			if (cc.depth() >= 0 && depth != cc.depth()) return false;
@@ -282,7 +281,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		} else {
 			List<String> allCodecs = null;
 			boolean matched = false;
-			for (ConfigCodec cc : configCodecs) {
+			for (ConfigPreferredCodec cc : configCodecs) {
 				if (cc.mapKey() && !isKeys) continue;
 				if (cc.mapValue() && !isValues) continue;
 				if (cc.depth() >= 0 && depth != cc.depth()) continue;
@@ -354,12 +353,12 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	// Will always end with line break
 	protected abstract void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact);
 
 	void generateCollection(StringBuilder builder, Field f, String name, Object vs, int collectionSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (type == Object.class) {
 			Class<?> vsType = vs.getClass();
@@ -414,13 +413,13 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 
 	protected abstract void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact);
 
 	void generateMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		Class<?> keyType = null;
 		Type keyParamType = null;
@@ -476,7 +475,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	// type is not basic data type or collection type
 	void generateObject(StringBuilder builder, Field field, String keyPrefix, Object o,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigCodec[] codecs,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		if (typeBuilder != null) {
 			if (needsTypeInfo) {
@@ -516,7 +515,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			}
 			int oldLength = builder.length();
 			generateFieldValue(builder, f, name, o, null, null, null,
-					false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
+					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
 					false, false, compact, false);
 			if (builder.length() > oldLength) {
 				separatorGenerated = false;
@@ -540,7 +539,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 
 	protected void appendMapKeyValue(StringBuilder builder, String name, Object k, Object v,
 			Class<?> valueType, Type valueParamType,
-			int depth, ConfigCodec[] codecs, boolean compact) {
+			int depth, ConfigPreferredCodec[] codecs, boolean compact) {
 		boolean diffValueTypes = false;
 		//Class<?> targetValueType = null;
 		if (v != null) {
@@ -556,7 +555,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 
 	protected void appendMapEntry(StringBuilder builder, String kvPrefix, Object k, Object v,
 			Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
-			int depth, ConfigCodec[] codecs) {
+			int depth, ConfigPreferredCodec[] codecs) {
 		boolean compact = false;
 		//Class<?> targetKeyType = k.getClass();
 		boolean diffKeyTypes = checkTypeDefinition(keyType, k.getClass());
@@ -609,7 +608,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 
 	protected abstract boolean checkPlainKeys(Class<?> keyType, Object[] keys);
 	
-	protected boolean supportsDirectKeyValueMode(Object[] keys, Class<?> keyType, int depth, ConfigCodec[] codecs) {
+	protected boolean supportsDirectKeyValueMode(Object[] keys, Class<?> keyType, int depth, ConfigPreferredCodec[] codecs) {
 		boolean directPropsMode = false;
 		if (keys.length == 0 || GeneratorConfig.preferKeyValueMapFormat
 				&& checkPlainKeys(keyType, keys)) { // make sure if the key is valid here or not
@@ -678,7 +677,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			//*/
 			int oldLength = builder.length();
 			generateFieldValue(builder, f, name, clz, null, null, null,
-					false, false, 0, f.getAnnotationsByType(ConfigCodec.class),
+					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
 					false, false, false, true);
 			if (builder.length() > oldLength) {
 				compactWriter.appendLinebreak(builder);
