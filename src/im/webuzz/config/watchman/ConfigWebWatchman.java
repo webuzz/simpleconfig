@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.web;
+package im.webuzz.config.watchman;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -28,14 +28,13 @@ import java.util.concurrent.TimeUnit;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigWebSystem;
-import im.webuzz.config.IConfigWatchman;
 import im.webuzz.config.util.FileUtils;
 import im.webuzz.config.util.HttpRequest;
 
 /**
  * Synchronize configuration files from given server to local file system.
  */
-public class ConfigWebWatchman implements Runnable, IConfigWatchman {
+public class ConfigWebWatchman implements Runnable, ConfigWatchman {
 
 	protected static boolean running = false;
 	

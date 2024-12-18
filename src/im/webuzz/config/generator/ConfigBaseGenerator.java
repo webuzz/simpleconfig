@@ -34,8 +34,8 @@ import java.util.Set;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.util.TypeUtils;
@@ -268,7 +268,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	@SuppressWarnings("unchecked")
 	protected <T> boolean encode(StringBuilder builder, T v, boolean isKeys, boolean isValues, int depth, ConfigPreferredCodec[] configCodecs) {
 		if (v == null || configCodecs == null || configCodecs.length == 0) return false;
-		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
+		Map<String, ConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs == null || codecs.size() == 0) return false;
 		String[] preferredCodecs = null;
 		if (configCodecs.length == 1) {
@@ -312,9 +312,9 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		do {
 			for (String codecKey : preferredCodecs) {
 				if (codecKey == null || codecKey.length() == 0) continue;
-				IConfigCodec<T> codec = (IConfigCodec<T>) codecs.get(codecKey);
+				ConfigCodec<T> codec = (ConfigCodec<T>) codecs.get(codecKey);
 				if (codec == null) continue;
-				Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+				Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), ConfigCodec.class);
 				if (rawType != v.getClass()) continue;
 				/*
 				Type paramType = codec.getClass().getGenericInterfaces()[0];
@@ -531,7 +531,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		Object k = keys[0];
 		if (k instanceof Number || k.getClass().isArray()
 				|| k instanceof Collection<?> || k instanceof Map<?, ?>) return false;
-		Map<String, IConfigCodec<?>> configCodecs = Config.configurationCodecs;
+		Map<String, ConfigCodec<?>> configCodecs = Config.configurationCodecs;
 		if (configCodecs == null) return false;
 		// e.g { aes: "AES algorithm" }
 		return configCodecs.containsKey(String.valueOf(k));

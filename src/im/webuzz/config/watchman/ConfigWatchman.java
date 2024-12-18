@@ -1,6 +1,6 @@
-package im.webuzz.config;
+package im.webuzz.config.watchman;
 
-public interface IConfigWatchman {
+public interface ConfigWatchman {
 
 	public void watchConfigClass(Class<?> clazz);
 

@@ -1,10 +1,10 @@
-package im.webuzz.config;
+package im.webuzz.config.codec;
 
 /**
  * Interface for encoding and decoding configuration data.
  * @param <T> The type of object to be encoded or decoded.
  */
-public interface IConfigCodec<T> {
+public interface ConfigCodec<T> {
 
     /**
      * Encodes the given object into a string.

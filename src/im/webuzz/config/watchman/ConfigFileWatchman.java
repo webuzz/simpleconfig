@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.IConfigWatchman;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
 import im.webuzz.config.util.DeepComparator;
@@ -37,7 +36,7 @@ import static java.nio.file.StandardWatchEventKinds.*;
  * @author zhourenjian
  *
  */
-public class ConfigFileWatchman implements IConfigWatchman {
+public class ConfigFileWatchman implements ConfigWatchman {
 
 	private static boolean running = false;
 	
@@ -232,7 +231,7 @@ public class ConfigFileWatchman implements IConfigWatchman {
 	}
 	
 	private void updateAllConfigurations(String configPath, String configExtension, String extraFolder) {
-		List<Class<? extends IConfigWatchman>> oldWatchmen = Config.configurationWatchmen;
+		List<Class<? extends ConfigWatchman>> oldWatchmen = Config.configurationWatchmen;
 //		boolean configurationSwitched = false;
 //		int loopLoadings = 5;
 //		do {

@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.util.Base64;
 
 /**
@@ -30,7 +29,7 @@ import im.webuzz.config.util.Base64;
  * 
  * @author zhourenjian
  */
-public class SecretCodec implements IConfigCodec<String> {
+public class SecretCodec implements ConfigCodec<String> {
 
 	private static int maxCredentials = 1024; // Maximum supported caching credentials.
 

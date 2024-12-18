@@ -10,7 +10,6 @@ import java.util.Map;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.generator.ConfigGenerator;
 import im.webuzz.config.generator.GeneratorConfig;
@@ -126,7 +125,7 @@ public class CodecKit {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static boolean codecRaw(String value, boolean decoder) {
 		// Try to decode it rawly
-		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
+		Map<String, ConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs == null) return false;
 		boolean gotCha = false;
 		String[] keys = GeneratorConfig.preferredCodecOrders;
@@ -138,7 +137,7 @@ public class CodecKit {
 		do {
 			for (String codecKey : keys) {
 				try {
-					IConfigCodec codec = codecs.get(codecKey);
+					ConfigCodec codec = codecs.get(codecKey);
 					if (decoder) {
 						Object decoded = codec.decode(value);
 						if (decoded != null) {
@@ -150,7 +149,7 @@ public class CodecKit {
 						continue;
 					}
 					String decoded = null;
-					Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+					Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), ConfigCodec.class);
 					if (rawType == String.class) {
 						decoded = codec.encode(value);
 					} else if (rawType == byte[].class) {

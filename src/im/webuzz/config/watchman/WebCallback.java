@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.web;
+package im.webuzz.config.watchman;
 
 /**
  * Web request call back. Interface is provided for the convenience of class

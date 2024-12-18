@@ -1,8 +1,6 @@
 package im.webuzz.config.codec;
 
-import im.webuzz.config.IConfigCodec;
-
-public class AESCodec implements IConfigCodec<String> {
+public class AESCodec implements ConfigCodec<String> {
 	@Override
 	public String encode(String source) {
 		return SimpleAES.encrypt(source);

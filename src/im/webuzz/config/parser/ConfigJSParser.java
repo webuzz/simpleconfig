@@ -30,7 +30,7 @@ import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.codec.ConfigCodec;
 
 public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 
@@ -125,7 +125,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 		}
 		StringBuilder builder = new StringBuilder();
 		builder.append("$configurationCodecs = ");
-		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
+		Map<String, ConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs != null) {
 			String[] cs = codecs.keySet().toArray(new String[codecs.size()]);
 			builder.append('[');

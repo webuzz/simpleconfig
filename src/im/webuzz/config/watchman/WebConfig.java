@@ -12,10 +12,10 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.web;
+package im.webuzz.config.watchman;
 
 import im.webuzz.config.annotation.ConfigClass;
-import im.webuzz.config.annotation.ConfigCodec;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigNumberEnum;
 
@@ -44,7 +44,7 @@ public class WebConfig {
 	@ConfigComment({
 		"Marked as ${server.auth.password} in {@link #targetURLPattern}",
 	})
-	@ConfigCodec(value = {"secret", "aes"})
+	@ConfigPreferredCodec(value = {"secret", "aes"})
 	public static String globalServerAuthPassword = null;
 	
 	@ConfigComment({

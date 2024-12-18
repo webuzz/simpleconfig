@@ -44,6 +44,7 @@ import im.webuzz.config.codec.Base64Codec;
 import im.webuzz.config.codec.Bytes64Codec;
 import im.webuzz.config.codec.BytesAESCodec;
 import im.webuzz.config.codec.CodecKit;
+import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.codec.SecretCodec;
 import im.webuzz.config.codec.SecurityConfig;
 import im.webuzz.config.generator.GeneratorKit;
@@ -151,7 +152,7 @@ public class Config {
 	@ConfigNotNull
 	@ConfigLength(min = 3, max = 32, depth = 1)
 	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
-	public static Map<String, IConfigCodec<?>> configurationCodecs = new ConcurrentHashMap<>();
+	public static Map<String, ConfigCodec<?>> configurationCodecs = new ConcurrentHashMap<>();
 	
 	static {
 		configurationWatchmen.add(ConfigFileWatchman.class);

@@ -25,10 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.ConfigFieldFilter;
-import im.webuzz.config.IConfigCodec;
 import im.webuzz.config.annotation.AnnotationValidator;
 import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.annotation.ConfigRange;
+import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.util.DeepComparator;
 import im.webuzz.config.util.TypeUtils;
 
@@ -486,7 +486,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	}
 
 	protected Object decodeRaw(String codecKey, String rawEncoded) {
-		IConfigCodec<?> codec = Config.configurationCodecs.get(codecKey);
+		ConfigCodec<?> codec = Config.configurationCodecs.get(codecKey);
 		if (codec == null) return null;
 		try {
 			return codec.decode(rawEncoded);
@@ -1112,9 +1112,9 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			}
 			String prefix = p.substring(0, idx);
 			
-			IConfigCodec<?> codec = Config.configurationCodecs.get(prefix.substring(1).trim());
+			ConfigCodec<?> codec = Config.configurationCodecs.get(prefix.substring(1).trim());
 			if (codec != null) {
-				Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), IConfigCodec.class);
+				Class<?> rawType = TypeUtils.getInterfaceParamType(codec.getClass(), ConfigCodec.class);
 				if (rawType != null) return rawType;
 			}
 			

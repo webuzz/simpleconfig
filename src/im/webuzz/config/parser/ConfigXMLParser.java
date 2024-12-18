@@ -34,7 +34,7 @@ import org.w3c.dom.NodeList;
 import org.w3c.dom.Text;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.IConfigCodec;
+import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.generator.ConfigINIGenerator;
 import im.webuzz.config.generator.GeneratorConfig;
 
@@ -177,7 +177,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		if ("list".equals(typeName)) return NodeType.listDirect;
 		if ("set".equals(typeName)) return NodeType.setDirect;
 		if ("array".equals(typeName)) return NodeType.arrayDirect;
-		Map<String, IConfigCodec<?>> codecs = Config.configurationCodecs;
+		Map<String, ConfigCodec<?>> codecs = Config.configurationCodecs;
 		if (codecs != null && codecs.containsKey(typeName)) {
 			if (containerType != NodeType.mapDirect && containerType != NodeType.mapGeneric
 					&& containerType != NodeType.mapKnown && containerType != NodeType.object) {
