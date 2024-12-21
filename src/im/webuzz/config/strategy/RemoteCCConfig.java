@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.watchman;
+package im.webuzz.config.strategy;
 
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigPreferredCodec;

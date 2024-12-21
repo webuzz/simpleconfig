@@ -1,22 +1,21 @@
-package im.webuzz.config.watchman;
+package im.webuzz.config.strategy;
 
 import java.io.File;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.util.FileUtils;
 
-public class ConfigHybridOnce extends ConfigWebOnce {
+public class ConfigHybridWatcher extends ConfigWebWatcher {
 
-	protected ConfigFileOnce fileOnce = new ConfigFileOnce();
+	private ConfigFileWatcher fileWatcher = new ConfigFileWatcher();
 	
 	private boolean running = false;
-	
 	@Override
 	public boolean start() {
 		if (running) return false;
-		if (!fileOnce.start()) return false;
+		if (!fileWatcher.start()) return false;
 		if (!super.start()) {
-			fileOnce.stop();
+			fileWatcher.stop();
 			return false;
 		}
 		running = true;
@@ -25,7 +24,7 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 	
 	@Override
 	public void stop() {
-		fileOnce.stop();
+		fileWatcher.stop();
 		super.stop();
 		running = false;
 	}
@@ -33,10 +32,11 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 	@Override
 	public void add(Class<?> configClazz) {
 		if (!running) return;
-		fileOnce.add(configClazz);
+		fileWatcher.add(configClazz);
 		super.add(configClazz);
 	}
-
+	
+	@Override
 	protected void fetchAllConfigurations() {
 		super.fetchAllConfigurations();
 		String[] extraFiles = RemoteCCConfig.extraResourceFiles;
@@ -84,5 +84,4 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 			ConfigMemoryFS.saveToLocalFS(file);
 		}
 	}
-
 }

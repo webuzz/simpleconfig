@@ -1,4 +1,4 @@
-package im.webuzz.config.watchman;
+package im.webuzz.config.strategy;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;

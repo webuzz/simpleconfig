@@ -1,4 +1,4 @@
-package im.webuzz.config.watchman;
+package im.webuzz.config.strategy;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;

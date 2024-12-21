@@ -1,4 +1,4 @@
-package im.webuzz.config.watchman;
+package im.webuzz.config.strategy;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
