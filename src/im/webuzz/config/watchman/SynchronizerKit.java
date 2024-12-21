@@ -16,7 +16,7 @@ public class SynchronizerKit {
 //		Config.initializeLoadingStrategy();
 		
 		Config.register(SynchronizerKit.class);
-		Config.register(WebConfig.class);
+		Config.register(RemoteCCConfig.class);
 		System.out.println("[INFO] Config agent started.");
 		while (agentRunning) {
 			try {

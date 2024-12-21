@@ -17,6 +17,7 @@ package im.webuzz.config.watchman;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
 import im.webuzz.config.annotation.ConfigNotEmpty;
 import im.webuzz.config.annotation.ConfigNotNull;
 import im.webuzz.config.annotation.ConfigNumberEnum;
@@ -27,10 +28,9 @@ import im.webuzz.config.annotation.ConfigPattern;
 	"This configuration file is used to be configured for synchronization between",
 	"local and remote server. The remote server is considered as configuration center.",
 })
-public class WebConfig {
+@ConfigKeyPrefix("remotecc")
+public class RemoteCCConfig {
 
-	public static final String configKeyPrefix = "webconfig";
-	
 	@ConfigComment({
 		"Global configuration center URL.",
 		"Marked as ${server.url.prefix} in {@link #targetURLPattern}. Usually it is", 

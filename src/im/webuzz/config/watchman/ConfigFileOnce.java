@@ -20,7 +20,7 @@ public class ConfigFileOnce implements ConfigStrategy {
 	@Override
 	public boolean start() {
 		if (running) return false;
-		Config.register(FileConfig.class);
+		Config.register(LocalFSConfig.class);
 		updateAllConfigurations(Config.getConfigFolder(), Config.getConfigMainName(), Config.getConfigMainExtension());
 		running = true;
 		return true;

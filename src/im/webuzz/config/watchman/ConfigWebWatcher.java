@@ -37,7 +37,7 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 	public void run() {
 		while (running) {
 			try {
-				int seconds = Math.max(1, (int) (WebConfig.webRequestInterval / 1000));
+				int seconds = Math.max(1, (int) (RemoteCCConfig.webRequestInterval / 1000));
 				for (int i = 0; i < seconds; i++) {
 					Class<?> clazz = null;
 					try {
@@ -50,13 +50,13 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 						break;
 					}
 					if (clazz != null) {
-						synchronizeClass(clazz, WebConfig.webRequestTimeout);								
+						synchronizeClass(clazz, RemoteCCConfig.webRequestTimeout);								
 						i = i > seconds / 2 ? Math.max(seconds / 2 - 2, 1) : 0; // restart sleep waiting
 					}
 				}
 				fetchAllConfigurations();
 				//refreshAll(false, WebConfig.webRequestTimeout);
-				if (!WebConfig.synchronizing) {
+				if (!RemoteCCConfig.synchronizing) {
 					continue;
 				}
 			} catch (Throwable e) {

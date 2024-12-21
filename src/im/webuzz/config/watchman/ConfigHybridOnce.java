@@ -39,9 +39,9 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 
 	protected void fetchAllConfigurations() {
 		super.fetchAllConfigurations();
-		String[] extraFiles = WebConfig.extraResourceFiles;
-		if (WebConfig.extraTargetURLPattern != null && extraFiles != null) {
-			String[] extraExts = WebConfig.extraResourceExtensions;
+		String[] extraFiles = RemoteCCConfig.extraResourceFiles;
+		if (RemoteCCConfig.extraTargetURLPattern != null && extraFiles != null) {
+			String[] extraExts = RemoteCCConfig.extraResourceExtensions;
 			for (String path : extraFiles) {
 				if (path == null || path.length() == 0) {
 					continue;

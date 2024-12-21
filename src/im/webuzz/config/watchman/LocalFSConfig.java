@@ -11,8 +11,8 @@ import im.webuzz.config.annotation.ConfigLocalOnly;
 	"This configuration file is used to configure local configuration file watchman.",
 	"It will control how the file watchman keep eyes on local files."
 })
-@ConfigKeyPrefix("fileconfig")
-public class FileConfig {
+@ConfigKeyPrefix("localfs")
+public class LocalFSConfig {
 
 	public static boolean watching = true;
 	

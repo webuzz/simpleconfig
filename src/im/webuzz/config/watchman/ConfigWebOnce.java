@@ -83,7 +83,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 	}
 	
 	protected String getFileMD5ETag(ConfigMemoryFile file) {
-		if (file == null || !WebConfig.webRequestSupportsMD5ETag) return null;
+		if (file == null || !RemoteCCConfig.webRequestSupportsMD5ETag) return null;
 		return HttpRequest.calculateMD5ETag(file.content);
 	}
 
@@ -92,7 +92,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 	public boolean start() {
 		if (running) return false;
 		
-		Config.register(WebConfig.class);
+		Config.register(RemoteCCConfig.class);
 
 		fetchAllConfigurations();
 		// Wait until all classes' configuration files are loaded & parsed
@@ -103,7 +103,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 		//System.out.println("Start with size=" + inQueueRequests.size());
 		while (inQueueRequests.size() > 0) {
 			try {
-				Thread.sleep(WebConfig.webRequestTimeout * refreshedCount / 10);
+				Thread.sleep(RemoteCCConfig.webRequestTimeout * refreshedCount / 10);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -207,7 +207,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 						byte[] localBytes = file.content; // readContent(keyPrefix, fileExtension);
 						if (!Arrays.equals(responseBytes, localBytes)) {
 							saveResponseToFile(file, responseBytes, lastModified);
-							if (WebConfig.synchronizing) {
+							if (RemoteCCConfig.synchronizing) {
 								System.out.println("[Config] Configuration file " + keyPrefix + fileExtension + " content synchronized remotely.");
 							}
 							processQueue(currentQueueKey, buildParserCallback(clz, file));
@@ -238,7 +238,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 				}
 			}
 		};
-		sendWebRequest(requestURL, WebConfig.globalServerAuthUser, WebConfig.globalServerAuthPassword,
+		sendWebRequest(requestURL, RemoteCCConfig.globalServerAuthUser, RemoteCCConfig.globalServerAuthPassword,
 				file.modified, getFileMD5ETag(file), callback);
 		
 		if (timeout > 0) {
@@ -265,7 +265,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 		}
 		System.out.println("Failed to load " + requestURL + " for " + count.intValue() + " times.");
 		long now = System.currentTimeMillis();
-		if (now - waitingTime > WebConfig.webRequestTimeout * 2 / 3) {
+		if (now - waitingTime > RemoteCCConfig.webRequestTimeout * 2 / 3) {
 			// TODO: There is no enough time left
 		}
 		count.incrementAndGet();
@@ -276,7 +276,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 					Thread.sleep(10);
 				} catch (InterruptedException e) {
 				}
-				sendWebRequest(requestURL, WebConfig.globalServerAuthUser, WebConfig.globalServerAuthPassword,
+				sendWebRequest(requestURL, RemoteCCConfig.globalServerAuthUser, RemoteCCConfig.globalServerAuthPassword,
 						file.modified, getFileMD5ETag(file), thisCallback);
 			}
 		});
@@ -312,7 +312,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 	}
 
 	protected static String buildURL(String keyPrefix, String fileExtension,  String extraPath) {
-		String url = extraPath == null ? WebConfig.targetURLPattern : WebConfig.extraTargetURLPattern;
+		String url = extraPath == null ? RemoteCCConfig.targetURLPattern : RemoteCCConfig.extraTargetURLPattern;
 		if (url == null) return null;
 		if (extraPath == null) { // configurations
 			url = url.replaceAll("\\$\\{config.key.prefix\\}", keyPrefix);
@@ -323,8 +323,8 @@ public class ConfigWebOnce implements ConfigStrategy {
 		} else { // resource files
 			url = url.replaceAll("\\$\\{extra.file.path\\}", extraPath);
 		}
-		String server = WebConfig.globalServerURLPrefix;
-		String localName = WebConfig.localServerName;
+		String server = RemoteCCConfig.globalServerURLPrefix;
+		String localName = RemoteCCConfig.localServerName;
 		if (server != null) {
 			url = url.replaceAll("\\$\\{server.url.prefix\\}", server);
 		}
@@ -336,7 +336,7 @@ public class ConfigWebOnce implements ConfigStrategy {
 
 	protected void sendWebRequest(String url, String user, String password, long lastModified, String eTag, WebCallback callback) {
 		boolean done = false;
-		String reqClass = WebConfig.webRequestClient;
+		String reqClass = RemoteCCConfig.webRequestClient;
 		if (reqClass != null && reqClass.length() > 0) {
 			// Other class may be used to request remote configuration file besides HTTP client
 			Class<?> clz = Config.loadConfigurationClass(reqClass);
