@@ -67,7 +67,7 @@ public class GeneratorKit {
 	 * @param classes
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static void generateConfigurationFiles(String folder, String fileName,
+	static void generateConfigurationFiles(String folder, String fileName, String fileExtension,
 			Map<Class<?>, String> classWithExtensions, Class<?>[] orderedClasses) {
 		File ff = new File(folder);
 		if (!ff.exists()) {
@@ -104,11 +104,11 @@ public class GeneratorKit {
 			generator.startGenerate(builder, clz);
 			if (!globalConfig) { // multiple configurations
 				generator.endGenerate(builder, clz);
-				writeObjectToFile(builder, new File(folder, Config.parseFilePath(keyPrefix + fileExt)));
+				writeObjectToFile(builder, new File(folder, FileUtils.parseFilePath(keyPrefix + fileExt)));
 			}
 		} // end of for classes
 		globaleGenerator.endGenerate(globalBuilder, null);
-		writeObjectToFile(globalBuilder, new File(folder, fileName));
+		writeObjectToFile(globalBuilder, new File(folder, fileName + fileExtension));
 	}
 	
 	private static Object createABuilder(Class<?> rawType) {
@@ -157,62 +157,35 @@ public class GeneratorKit {
 			}
 		}
 	}
-	
-	private static void updatedConfigExtension(Map<Class<?>, String> classExtensions, Class<?> lastClass,
-			String targetExtension, boolean force) {
+
+
+	private static void updateConfigExtension(Map<Class<?>, String> classExtensions, Class<?> lastClass, String targetExtension) {
 		if (lastClass == null) return;
 		String extension = targetExtension;
-		if (!force) {
-			String prefix = Config.getKeyPrefix(lastClass);
-			if (prefix != null && prefix.length() > 0) {
-				extension = Config.getConfigExtension(lastClass);
-			}
+		String prefix = Config.getKeyPrefix(lastClass);
+		if (prefix != null && prefix.length() > 0) {
+			extension = Config.getConfigExtension(lastClass);
 		}
 		classExtensions.put(lastClass, extension);
 	}
 
 	public static void run(String[] args, int indexOffset) {
-		if (args.length - indexOffset < 2) {
-			printUsage();
-			return;
-		}
-		String targetFolder = args[indexOffset];
-		if (targetFolder == null || targetFolder.length() <= 0) {
-			System.out.println("[ERROR] Target configuration folder path can not be empty.");
-			printUsage();
-			return;
-		}
-		if ("-h".equals(targetFolder) || "--help".equals(targetFolder)) {
-			printUsage();
-			return;
-		}
-		indexOffset++;
-		String mainTargetFileName = args[indexOffset];
-		String mainFileName = new File(Config.getConfigurationMainFile()).getName();
-		String mainExtension = null;
-		if (mainTargetFileName.startsWith(".") && mainTargetFileName.lastIndexOf('.') != 0) {
-			mainExtension = mainTargetFileName;
-			if (mainFileName.endsWith(mainExtension)) {
-				mainTargetFileName = mainFileName;;
-			} else {
-				mainTargetFileName = mainFileName.substring(0, mainFileName.lastIndexOf('.')) + mainExtension;
-			}
-			indexOffset++;
-		} else {
-			// check if mainTargetFileName is a configuration file name or a class name
-			boolean existed = false;
-			int idx = mainTargetFileName.lastIndexOf('.');
-			if (idx != -1) {
-				mainExtension = mainTargetFileName.substring(idx);
-				List<String> exts = Config.configurationScanningExtensions;
-				if (exts != null) existed = exts.contains(mainExtension);
-			}
-			if (existed) {
-				indexOffset++;
-			} else {
-				mainExtension = mainFileName.substring(mainFileName.lastIndexOf('.') + 1);
+		if (args.length > indexOffset) {
+			String targetFolder = args[indexOffset];
+			if ("-h".equals(targetFolder) || "--help".equals(targetFolder)) {
+				printUsage();
+				return;
 			}
 		}
+		
+		StringBuilder folderBuilder = new StringBuilder();
+		StringBuilder nameBuilder = new StringBuilder();
+		StringBuilder extBuilder = new StringBuilder();
+		indexOffset = Config.parseMainFile(args, indexOffset, folderBuilder, nameBuilder, extBuilder);
+		String configFolder = folderBuilder.toString();
+		String configMainName = nameBuilder.toString();
+		String configMainExtension = extBuilder.toString();
+		
 		List<Class<?>> orderedClasses = new ArrayList<Class<?>>();
 		Map<Class<?>, String> classExtensions = new HashMap<Class<?>, String>();
 		Class<?> lastClass = null;
@@ -220,32 +193,33 @@ public class GeneratorKit {
 			String clazz = args[i];
 			if (clazz != null && clazz.length() > 0) {
 				if (clazz.startsWith(".")) {
-					updatedConfigExtension(classExtensions, lastClass, clazz, true); // clazz is a file extension
+					// ./etc/ test.js im.webuzz.config.Security .js
+					if (lastClass != null) classExtensions.put(lastClass, clazz); // clazz is a file extension
 					lastClass = null;
 					continue;
 				}
 				try {
 					Class<?> c = Class.forName(clazz);
 					orderedClasses.add(c);
-					updatedConfigExtension(classExtensions, lastClass, mainExtension, false);
+					updateConfigExtension(classExtensions, c, configMainExtension);
 					lastClass = c;
-					Config.registerUpdatingListener(c);
+					Config.register(c);
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
 				}
 			}
 		}
-		updatedConfigExtension(classExtensions, lastClass, mainExtension, false);
+		if (lastClass != null) updateConfigExtension(classExtensions, lastClass, configMainExtension);
 		Class<?>[] classes = orderedClasses.toArray(new Class<?>[orderedClasses.size()]);
 
-		Config.registerUpdatingListener(GeneratorConfig.class);
-		generateConfigurationFiles(targetFolder, mainTargetFileName, classExtensions, classes);
+		Config.register(GeneratorConfig.class);
+		generateConfigurationFiles(configFolder, configMainName, configMainExtension, classExtensions, classes);
 	}
 
 	private static void printUsage() {
 		System.out.println("Usage:");
 		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini> --run:generator"
-				+ " <target configuration folder> [main configuration file name or file extension, e.g. config.ini or .ini]"
+				+ " [<target main file>|<target folder>|<target folder> <main file name>]"
 				+ " <<configuration class> [file extension, e.g. .ini or .js or .xml]>"
 				+ " [<configuration class> [file extension, e.g. .ini or .js or .xml] ...]"
 				+ " [checking class]");

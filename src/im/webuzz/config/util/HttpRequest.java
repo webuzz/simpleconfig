@@ -77,8 +77,6 @@ public class HttpRequest {
 	private OutputStream activeOS;
 	private InputStream activeIS;
 	
-	protected boolean isCometConnection = false;
-
 	private final static String[] WEEK_DAYS_ABBREV = new String[] {
 		"Sun", "Mon", "Tue", "Wed", "Thu",  "Fri", "Sat"
 	};
@@ -239,6 +237,23 @@ public class HttpRequest {
 //		}
 	}
 	
+	public static void runTask(Runnable task) {
+		if (executor == null) {
+			synchronized (HttpRequest.class) {
+				if (executor == null) {
+					executor = new ThreadPoolExecutor(HttpConnectionConfig.webCoreWorkers, HttpConnectionConfig.webMaxWorkers, HttpConnectionConfig.webWorkerIdleInterval,
+							TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new ThreadFactory() {
+						@Override
+						public Thread newThread(Runnable r) {
+							return new Thread(r, "Web Watchman Worker");
+						}
+					});
+				}
+			}
+		}
+		executor.execute(task);
+	}
+	
 	/**
 	 * Send the HTTP request without extra content.
 	 */
@@ -252,28 +267,13 @@ public class HttpRequest {
 	public void send(String str) {
 		content = str;
 		if (asynchronous) {
-			Runnable requestTask = new Runnable() {
+			runTask(new Runnable() {
 				public void run() {
 					if (!toAbort) {
 						request();
 					}
 				}
-			};
-			
-			if (executor == null) {
-				synchronized (HttpRequest.class) {
-					if (executor == null) {
-						executor = new ThreadPoolExecutor(HttpConnectionConfig.webCoreWorkers, HttpConnectionConfig.webMaxWorkers, HttpConnectionConfig.webWorkerIdleInterval,
-								TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), new ThreadFactory() {
-							@Override
-							public Thread newThread(Runnable r) {
-								return new Thread(r, "Web Watchman Worker");
-							}
-						});
-					}
-				}
-			}
-			executor.execute(requestTask);
+			});
 		} else {
 			request();
 		}
@@ -317,16 +317,13 @@ public class HttpRequest {
 	private void request() {
 		try {
 			connection = (HttpURLConnection) new URL(url).openConnection();
-			if (isCometConnection) {
-				connection.setReadTimeout(0); // 0 infinite
-			} else {
-				connection.setReadTimeout(30000); // 30s
-			}
+			connection.setConnectTimeout(30000); // 30s
+			connection.setReadTimeout(30000); // 30s
 			connection.setInstanceFollowRedirects(false);
 			connection.setDoInput(true);
 			connection.setRequestMethod(method);
 			connection.setRequestProperty("User-Agent", DEFAULT_USER_AGENT);
-			if ("post".equalsIgnoreCase(method)) {
+			if ("POST".equalsIgnoreCase(method)) {
 				connection.setDoOutput(true);
 				connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 			}
@@ -369,6 +366,7 @@ public class HttpRequest {
 					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
+					loadedCB = null;
 				}
 				connection = null;
 				readyState = 0;
@@ -410,6 +408,7 @@ public class HttpRequest {
 				} catch (Exception e1) {
 					e1.printStackTrace();
 				}
+				loadedCB = null;
 			}
 			connection.disconnect();
 			readyState = 0;
@@ -423,19 +422,11 @@ public class HttpRequest {
 				} catch (Exception e1) {
 					e1.printStackTrace();
 				}
+				loadedCB = null;
 			}
 			connection = null;
 			readyState = 0;
 		}
-	}
-	
-	/**
-	 * Enabling Comet mode for HTTP request connection.
-	 * Comet connection is used on Java level to provide SimplePipe connection.
-	 * @param isCometConnection
-	 */
-	protected void setCometConnection(boolean isCometConnection) {
-		this.isCometConnection = isCometConnection;
 	}
 	
 	public static String calculateMD5ETag(byte[] bytes) {

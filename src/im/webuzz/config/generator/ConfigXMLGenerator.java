@@ -390,9 +390,11 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
+		/*
 		if ("strMap".equals(name)) {
 			System.out.println(12344);
 		}
+		//*/
 		if (compact) {
 			// TODO:
 			compact = false; // Compact mode for map is not supported yet.

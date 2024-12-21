@@ -2,7 +2,7 @@ package im.webuzz.config.parser;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
+//import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -15,11 +15,12 @@ import java.util.Map;
 import java.util.Properties;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.util.FileUtils;
+//import im.webuzz.config.util.FileUtils;
 import im.webuzz.config.util.TypeUtils;
 
 public class ConfigParserBuilder {
 
+	/*
 	@SuppressWarnings("unchecked")
 	public static ConfigParser<?, ?> prepareParser(String fileExtension, File file,
 			boolean combinedConfigs) throws Exception {
@@ -79,7 +80,7 @@ public class ConfigParserBuilder {
 		}
 		return parser;
 	}
-
+	//*/
 	@SuppressWarnings("unchecked")
 	public static ConfigParser<?, ?> prepareParser(String fileExtension, String str,
 			boolean combinedConfigs) throws Exception {

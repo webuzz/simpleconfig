@@ -41,7 +41,7 @@ public class SecretCodec implements ConfigCodec<String> {
 	public String encode(String source) {
 		if (!initialized) {
 			initialized = true;
-			Config.registerUpdatingListener(SecurityConfig.class);
+			Config.register(SecurityConfig.class);
 		}
 		
 		if (source == null || source.length() == 0) {
@@ -75,7 +75,7 @@ public class SecretCodec implements ConfigCodec<String> {
 	public String decode(String encodedString) {
 		if (!initialized) {
 			initialized = true;
-			Config.registerUpdatingListener(SecurityConfig.class);
+			Config.register(SecurityConfig.class);
 		}
 		
 		if (encodedString == null || encodedString.length() == 0) {

@@ -17,7 +17,10 @@ package im.webuzz.config.watchman;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigNotEmpty;
+import im.webuzz.config.annotation.ConfigNotNull;
 import im.webuzz.config.annotation.ConfigNumberEnum;
+import im.webuzz.config.annotation.ConfigPattern;
 
 @ConfigClass
 @ConfigComment({
@@ -145,6 +148,10 @@ public class WebConfig {
 		"Be careful of those file extensions that may be harmful to the OS,",
 		"like .sh, .bashprofile, .bat, .exe, ..."
 	})
+	@ConfigNotNull
+	@ConfigNotNull(depth = 1)
+	@ConfigNotEmpty
+	@ConfigPattern("(\\.[a-zA-Z0-9]+)")
 	public static String[] extraResourceExtensions = new String[] {
 		".xml", ".properties", ".props", ".ini", ".txt", ".config", ".conf", ".cfg", ".js", ".json",
 		".key", ".crt", ".pem", ".keystore", // HTTPS

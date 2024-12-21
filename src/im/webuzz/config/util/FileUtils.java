@@ -32,4 +32,90 @@ public class FileUtils {
 		return baos.toByteArray();
 	}
 
+	/**
+	 * Remove "/../" or "/./" in path.
+	 * 
+	 * @param path
+	 * @return file path without "/../" or "/./"
+	 */
+	public static String parseFilePath(String path) {
+		int length = path.length();
+		if (length == 0) return path;
+		boolean slashStarted = path.charAt(0) == '/';
+		boolean slashEnded = length > 1 && path.charAt(length - 1) == '/';
+		
+		int idxBegin = slashStarted ? 1 : 0;
+		int idxEnd = slashEnded ? length - 1 : length;
+		if (idxEnd - idxBegin <= 0) {
+			return "";
+		}
+		String[] segments = path.substring(idxBegin, idxEnd).split("\\/|\\\\");
+		int count = segments.length + 1;
+		for (int i = 0; i < segments.length; i++) {
+			count--;
+			if (count < 0) {
+				System.out.println("[ERROR] Failed to fix the URL: " + path);
+				break;
+			}
+			String segment = segments[i];
+			if (segment == null) break;
+			if (segments[i].equals("..")) {
+				int shift = 2;
+				if (i > 0) {
+					segments[i - 1] = null;
+					segments[i] = null;
+					if (i + 1 > segments.length - 1 || segments[i + 1] == null) {
+						slashEnded = true;
+					}
+				} else {
+					segments[i] = null;
+					shift = 1;
+				}
+				for (int j = i - shift + 1; j < segments.length - shift; j++) {
+					String s = segments[j + shift];
+					segments[j] = s;
+					if (j == segments.length - shift - 1 || s == null) {
+						if (shift == 1) {
+							segments[j + 1] = null;
+						} else { // shift == 2
+							segments[j + 1] = null;
+							segments[j + 2] = null;
+						}
+					}
+				}
+				i -= shift;
+			} else if (segments[i].equals(".")) {
+				segments[i] = null;
+				if (i + 1 > segments.length - 1 || segments[i + 1] == null) {
+					slashEnded = true;
+				}
+				for (int j = i; j < segments.length - 1; j++) {
+					String s = segments[j + 1];
+					segments[j] = s;
+					if (j == segments.length - 2) {
+						segments[j + 1] = null;
+					}
+				}
+				i--;
+			}
+		}
+		StringBuilder builder = new StringBuilder(length);
+		int lastLength = 0;
+		boolean needSlash = true;
+		for (int i = 0; i < segments.length; i++) {
+			String segment = segments[i];
+			if (segment == null) break;
+			if (needSlash && builder.length() > 0) {
+				builder.append("/");
+			}
+			builder.append(segment);
+			lastLength = segment.length();
+			needSlash = lastLength > 0;
+		}
+		//if (lastLength == 0 || slashEnded) {
+		//	builder.append("/");
+		//}
+		return builder.toString();
+	}
+
 }

@@ -173,9 +173,11 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 				valueType = commonType;
 			}
 		}
+		/*
 		if ("refToFloatArr".equals(name)) {
 			System.out.println("Debug.");
 		}
+		//*/
 		if (compact) {
 			if (typeBuilder != null) typeBuilder.append(typeStr);
 			for (int k = 0; k < vsSize; k++) {
@@ -243,9 +245,11 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
 			boolean needsWrapping, boolean compact) {
+		/*
 		if ("mms".equals(name)) {
 			System.out.println("XXX");
 		}
+		//*/
 		if (compact) {
 			int size = keys.length;
 			for (int i = 0; i < size; i++) {

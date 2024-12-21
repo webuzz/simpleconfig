@@ -1,4 +1,4 @@
-package im.webuzz.config;
+package im.webuzz.config.watchman;
 
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
