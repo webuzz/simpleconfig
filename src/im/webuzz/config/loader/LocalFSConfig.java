@@ -1,4 +1,4 @@
-package im.webuzz.config.strategy;
+package im.webuzz.config.loader;
 
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;

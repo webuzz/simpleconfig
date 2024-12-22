@@ -1,4 +1,4 @@
-package im.webuzz.config.strategy;
+package im.webuzz.config.loader;
 
 public interface ConfigStrategy {
 

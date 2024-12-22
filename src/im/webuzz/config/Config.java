@@ -47,15 +47,15 @@ import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.codec.SecretCodec;
 import im.webuzz.config.codec.SecurityConfig;
 import im.webuzz.config.generator.GeneratorKit;
+import im.webuzz.config.loader.ConfigFileWatcher;
+import im.webuzz.config.loader.ConfigMemoryFS;
+import im.webuzz.config.loader.ConfigStrategy;
+import im.webuzz.config.loader.SynchronizerKit;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
 import im.webuzz.config.parser.ConfigJSParser;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigXMLParser;
-import im.webuzz.config.strategy.ConfigFileWatcher;
-import im.webuzz.config.strategy.ConfigMemoryFS;
-import im.webuzz.config.strategy.ConfigStrategy;
-import im.webuzz.config.strategy.SynchronizerKit;
 import im.webuzz.config.util.FileUtils;
 
 @ConfigClass
