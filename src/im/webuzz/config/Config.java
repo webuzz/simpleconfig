@@ -49,7 +49,7 @@ import im.webuzz.config.codec.SecurityConfig;
 import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.loader.ConfigFileWatcher;
 import im.webuzz.config.loader.ConfigMemoryFS;
-import im.webuzz.config.loader.ConfigStrategy;
+import im.webuzz.config.loader.ConfigLoader;
 import im.webuzz.config.loader.SynchronizerKit;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
@@ -141,8 +141,8 @@ public class Config {
 	public static Map<Class<?>, Map<String, Object[]>> configurationAnnotations = new ConcurrentHashMap<>();
 	
 	@ConfigNotNull
-	public static Class<? extends ConfigStrategy> configurationLoadingStrategy = ConfigFileWatcher.class;
-	private static ConfigStrategy loadingStrategy = null;
+	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
+	private static ConfigLoader resourceLoader = null;
 	
 	@ConfigComment({
 		"Codec for some known data. Codec can be used for encrypting some sensitive value in configuration file.",
@@ -180,7 +180,7 @@ public class Config {
 	private static List<Class<?>> orderedConfigs = new ArrayList<>();
 	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<>();
 
-	private static volatile ClassLoader configurationLoader = null;
+	private static volatile ClassLoader classLoader = null;
 	
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -202,8 +202,8 @@ public class Config {
 				if (!allConfigs.containsKey(pkg)) register(pkg);
 			}
 		}
-		if (isInitializationFinished() && ((loadingStrategy == null && configurationLoadingStrategy != null)
-				|| loadingStrategy.getClass() != configurationLoadingStrategy)) {
+		if (isInitializationFinished() && ((resourceLoader == null && configurationLoader != null)
+				|| resourceLoader.getClass() != configurationLoader)) {
 			initializeLoadingStrategy();
 		}
 	}
@@ -272,7 +272,7 @@ public class Config {
 		orderedConfigs.add(clazz);
 		initializedTime = System.currentTimeMillis();
 		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE, null);
-		if (loadingStrategy != null) loadingStrategy.add(clazz);
+		if (resourceLoader != null) resourceLoader.add(clazz);
 		if (configurationLogging) {
 			System.out.println("[Config] Registering configuration class " + clazz.getName() + " done.");
 		}
@@ -571,15 +571,15 @@ public class Config {
 	
 	public static void initializeLoadingStrategy() {
 		int loopLoadings = 5;
-		while ((loadingStrategy == null || loadingStrategy.getClass() != configurationLoadingStrategy)) {
-			if (loadingStrategy != null) loadingStrategy.stop();
+		while ((resourceLoader == null || resourceLoader.getClass() != configurationLoader)) {
+			if (resourceLoader != null) resourceLoader.stop();
 			try {
-				loadingStrategy = configurationLoadingStrategy.newInstance();
+				resourceLoader = configurationLoader.newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				return;
 			}
-			loadingStrategy.start();
+			resourceLoader.start();
 			if (loopLoadings-- <= 0) break;
 		}
 		if (loopLoadings <= 0 && configurationLogging) {
@@ -595,11 +595,11 @@ public class Config {
 	}
 	
 	public static ClassLoader getConfigurationClassLoader() {
-		return configurationLoader;
+		return classLoader;
 	}
 
-	public static void setConfigurationClassLoader(ClassLoader loader) {
-		Config.configurationLoader = loader;
+	public static void setConfigurationClassLoader(ClassLoader classLoader) {
+		Config.classLoader = classLoader;
 	}
 
 	public static Class<?> loadConfigurationClass(String clazz) {
@@ -608,9 +608,9 @@ public class Config {
 	public static Class<?> loadConfigurationClass(String clazz, StringBuilder errBuilder) {
 		Class<?> clz = loadedClasses.get(clazz);
 		if (clz != null) return clz;
-		if (configurationLoader != null) {
+		if (classLoader != null) {
 			try {
-				clz = configurationLoader.loadClass(clazz);
+				clz = classLoader.loadClass(clazz);
 			} catch (ClassNotFoundException e) {
 				if (!notFoundClasses.contains(clazz)) {
 					notFoundClasses.add(clazz);

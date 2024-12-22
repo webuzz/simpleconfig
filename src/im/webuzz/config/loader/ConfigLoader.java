@@ -1,6 +1,6 @@
 package im.webuzz.config.loader;
 
-public interface ConfigStrategy {
+public interface ConfigLoader {
 
 	public boolean start();
 	public void stop();

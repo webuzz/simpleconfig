@@ -17,7 +17,7 @@ import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
 import im.webuzz.config.util.HttpRequest;
 
-public class ConfigWebOnce implements ConfigStrategy {
+public class ConfigWebOnce implements ConfigLoader {
 
 	protected boolean running = false;
 	

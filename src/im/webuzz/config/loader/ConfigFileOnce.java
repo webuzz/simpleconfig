@@ -8,7 +8,7 @@ import im.webuzz.config.Config;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
 
-public class ConfigFileOnce implements ConfigStrategy {
+public class ConfigFileOnce implements ConfigLoader {
 
 	protected boolean running = false;
 	protected Map<String, Long> fileLastUpdateds = new ConcurrentHashMap<String, Long>();
@@ -95,11 +95,11 @@ public class ConfigFileOnce implements ConfigStrategy {
 			return;
 		}
 
-		Class<?> oldStrategy = Config.configurationLoadingStrategy; // old strategy should be this class
+		Class<?> oldStrategy = Config.configurationLoader; // old strategy should be this class
 		for (Class<?> config : Config.getAllConfigurations()) {
 			if (parseConfig(defaultParser, config)) {
 				Config.recordConfigExtension(config, configExtension);
-				if (config == Config.class && oldStrategy != Config.configurationLoadingStrategy) { // strategy changed!
+				if (config == Config.class && oldStrategy != Config.configurationLoader) { // strategy changed!
 					return;
 				}
 			}
