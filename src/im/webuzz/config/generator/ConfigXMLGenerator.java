@@ -170,21 +170,35 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	protected boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
 		if (!needsWrapping) return false;
 		compactWriter.appendIndents(builder);
+		boolean isAnnotation = Annotation.class.isAssignableFrom(type);
+		String tagName = isAnnotation ? "annotation" : "object";
+		builder.append('<').append(tagName);
 		if (needsTypeInfo) {
-			builder.append("<object class=\"");
-			typeWriter.appendFieldType(builder, type, null);
+			builder.append(" class=\"");
+			if (isAnnotation) {
+				StringBuilder typeBuilder = new StringBuilder();
+				typeWriter.appendFieldType(typeBuilder, type, null);
+				String typeName = typeBuilder.toString();
+				String pkg = "im.webuzz.config.annotation.";
+				if (typeName.startsWith(pkg + "Config")) {
+					builder.append('@').append(typeName.substring(pkg.length()));
+				} else {
+					builder.append(typeName);
+				}
+			} else {
+				typeWriter.appendFieldType(builder, type, null);
+			}
 			builder.append("\"");
-		} else {
-			builder.append("<object");
 		}
 		builder.append(">\r\n");
 		return false; // No needs of new line breaks
 	}
 	@Override
-	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
+	protected void endObjectBlock(StringBuilder builder, Class<?> type, boolean needsIndents, boolean needsWrapping) {
 		if (!needsWrapping) return;
 		if (needsIndents) compactWriter.appendIndents(builder);
-		builder.append("</object>\r\n");
+		String tagName = (Annotation.class.isAssignableFrom(type)) ? "annotation" : "object";
+		builder.append("</").append(tagName).append(">\r\n");
 	}
 
 
@@ -266,7 +280,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
+	protected void appendCollection(StringBuilder builder, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
@@ -385,7 +399,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
+	protected void appendMap(StringBuilder builder, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,

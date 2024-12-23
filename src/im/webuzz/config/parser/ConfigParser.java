@@ -7,6 +7,7 @@ public interface ConfigParser<S,L> {
 	public int FLAG_UPDATE = 1;
 	public int FLAG_CHECK = 2;
 	public int FLAG_VALIDATE = 4;
+	public int FLAG_REMOTE = 8;
 	
 	/**
 	 * Load the source, and consume configuration items, and update internal states, and then return.
@@ -18,7 +19,7 @@ public interface ConfigParser<S,L> {
 	 */
 	public L loadResource(S source, boolean combinedConfigs);
 	
-	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields);
+	public int parseConfiguration(Class<?> clz, int flag);
 
 	public Set<String> unusedConfigurationItems();
 }

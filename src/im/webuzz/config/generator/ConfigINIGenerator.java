@@ -16,7 +16,7 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
-import java.lang.reflect.Field;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.Map;
@@ -71,17 +71,30 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	// To wrap or separate an object with fields
 	@Override
 	protected boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping) {
-		builder.append("[object");
+		boolean isAnnotation = Annotation.class.isAssignableFrom(type);
+		String tagName = isAnnotation ? "annotation" : "object";
+		builder.append('[').append(tagName);
 		if (needsTypeInfo) {
 			builder.append(':');
-			typeWriter.appendFieldType(builder, type, null);
+			if (isAnnotation) {
+				StringBuilder typeBuilder = new StringBuilder();
+				typeWriter.appendFieldType(typeBuilder, type, null);
+				String typeName = typeBuilder.toString();
+				String pkg = "im.webuzz.config.annotation.";
+				if (typeName.startsWith(pkg + "Config")) {
+					builder.append('@').append(typeName.substring(pkg.length()));
+				} else {
+					builder.append(typeName);
+				}
+			} else {
+				typeWriter.appendFieldType(builder, type, null);
+			}
 		}
-		builder.append(']');
-		builder.append("\r\n");
+		builder.append("]\r\n");
 		return false; // No needs of appending new separators or line breaks
 	}
 	@Override
-	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
+	protected void endObjectBlock(StringBuilder builder, Class<?> type, boolean needsIndents, boolean needsWrapping) {
 	}
 
 	@Override
@@ -152,7 +165,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	
 	// Will always end with line break
 	@Override
-	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
+	protected void appendCollection(StringBuilder builder, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
@@ -174,7 +187,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			}
 		}
 		/*
-		if ("refToFloatArr".equals(name)) {
+		if ("localServerName".equals(name)) {
 			System.out.println("Debug.");
 		}
 		//*/
@@ -240,7 +253,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
+	protected void appendMap(StringBuilder builder, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,

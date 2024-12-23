@@ -16,10 +16,10 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -33,11 +33,11 @@ import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.codec.ConfigCodec;
+import im.webuzz.config.annotation.AnnotationField;
+import im.webuzz.config.annotation.AnnotationProxy;
 import im.webuzz.config.annotation.ConfigComment;
-import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.util.TypeUtils;
 
 public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, ConfigGenerator<StringBuilder> {
@@ -98,7 +98,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
 		/*
-		if ("commandLineParser".equals(name)) {
+		if ("localServerName".equals(name)) {
 			System.out.println("object array");
 		}
 		//*/
@@ -109,11 +109,13 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 		//boolean needsTypeInfo = false;
 		try {
-			if (type == null || TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
+			if (type == Annotation.class) {
 				if (f != null) v = f.get(o);
-				if (v != null) {
-					type = v.getClass();
-				}
+				if (v != null) type = ((Annotation) v).annotationType();
+				needsTypeInfo = true;
+			} else if (type == null || TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
+				if (f != null) v = f.get(o);
+				if (v != null) type = v.getClass();
 				needsTypeInfo = true;
 			}
 			if (definedType == null) definedType = type;
@@ -235,13 +237,24 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 						//if (typeBuilder != null) typeBuilder.append("map");
 						generateEmptyObject(valueBuilder); // A map is like an object 
 					}
+				} else if (Annotation.class.isAssignableFrom(type)) {
+					boolean finalCompactMode = compact;
+					if (!compact && !readableObjectFormat && compactWriter.checkCompactness(this, v, definedType, paramType,
+							forKeys, forValues, depth, codecs, f)) {
+						finalCompactMode = true;
+					}
+					generateAnnotation(valueBuilder, name, v,
+							typeBuilder, definedType, paramType,
+							forKeys, forValues, depth, codecs,
+							needsTypeInfo, needsWrapping, finalCompactMode);
+					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder);
 				} else {
 					boolean finalCompactMode = compact;
 					if (!compact && !readableObjectFormat && compactWriter.checkCompactness(this, v, definedType, paramType,
 							forKeys, forValues, depth, codecs, f)) {
 						finalCompactMode = true;
 					}
-					generateObject(valueBuilder, f, name, v,
+					generateObject(valueBuilder, name, v,
 							typeBuilder, definedType, paramType,
 							forKeys, forValues, depth, codecs,
 							needsTypeInfo, needsWrapping, finalCompactMode);
@@ -253,6 +266,113 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			} else {
 				if (topConfigClass && GeneratorConfig.separateFieldsByBlankLines) builder.append("\r\n"); // Leave a blank for each field
 				if (f != null) commentWriter.generateFieldComment(builder, f, topConfigClass);
+				assign(builder, name, valueBuilder, typeBuilder, compact);
+				//appendLinebreak(builder);
+			}
+			return true;
+		} catch (Throwable e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
+
+	protected boolean generateAnnotationFieldValue(StringBuilder builder, AnnotationField f, String name, Object o,
+			Object v, Class<?> definedType, Type paramType,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
+			boolean needsTypeInfo, boolean needsWrapping,
+			boolean compact, boolean topConfigClass) {
+		StringBuilder valueBuilder = new StringBuilder();
+		StringBuilder typeBuilder = new StringBuilder();
+		/*
+		if ("localServerName".equals(name)) {
+			System.out.println("object array");
+		}
+		//*/
+		Class<?> type = definedType;
+		if (f != null) {
+			type = f.getType();
+			if (definedType == null) definedType = type;
+		}
+		//boolean needsTypeInfo = false;
+		try {
+			if (type == Annotation.class) {
+				if (f != null) v = f.get(o);
+				if (v != null) {
+					type = ((Annotation) v).annotationType();
+				}
+				needsTypeInfo = true;
+			} else if (type == null || TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
+				if (f != null) v = f.get(o);
+				if (v != null) {
+					type = v.getClass();
+				}
+				needsTypeInfo = true;
+			}
+			if (definedType == null) definedType = type;
+//			if (f != null) {
+//				codecs = f.getAnnotationsByType(ConfigPreferredCodec.class);
+//			}
+			if (type.isPrimitive()) { // Config.isPrimitiveType(type)) {
+				//if (typeBuilder != null) typeBuilder.append(type.getName());
+				if (type == int.class) valueBuilder.append(f.getInt(o));
+				else if (type == boolean.class) valueBuilder.append(f.getBoolean(o));
+				else if (type == long.class) valueBuilder.append(f.getLong(o));
+				else if (type == double.class) valueBuilder.append(f.getDouble(o));
+				else if (type == float.class) valueBuilder.append(f.getFloat(o));
+				else if (type == short.class) valueBuilder.append(f.getShort(o));
+				else if (type == byte.class) valueBuilder.append(f.getByte(o));
+				else appendChar(valueBuilder, f.getChar(o)); // if (type == char.class) {
+			} else {
+				if (f != null) paramType = f.getGenericType();
+				if (f != null) v = f.get(o);
+				if (v == null) {
+					generateNull(valueBuilder);
+				} else if (encode(valueBuilder, v, forKeys, forValues, depth, codecs)) {
+					// 
+				} else if (type == String.class) {
+					//if (typeBuilder != null) typeBuilder.append("String");
+					generateString(valueBuilder, (String) v);
+				} else if (type == Class.class) {
+					//if (typeBuilder != null) typeBuilder.append("Class");
+					generateClass(valueBuilder, (Class<?>) v, needsTypeInfo, needsWrapping, compact);
+				} else if (type.isEnum() || type == Enum.class) {
+					generateEnum(valueBuilder, (Enum<?>) v, definedType, needsTypeInfo, needsWrapping, compact);
+				} else if (TypeUtils.isBasicDataType(type)) {
+					generateBasicData(valueBuilder, v, type, needsTypeInfo, needsWrapping, compact);
+				} else if (type.isArray()) {
+					int arrayLength = Array.getLength(v);
+					if (arrayLength > 0) {
+						boolean finalCompactMode = compact;
+						if (!compact && !readableArrayFormat
+								&& compactWriter.checkCompactness(this, v, definedType, paramType,
+										forKeys, forValues, depth, codecs, f)) {
+							finalCompactMode = true;
+						}
+						generateCollection(valueBuilder, f, name, v, arrayLength,
+								typeBuilder, definedType, paramType,
+								forKeys, forValues, depth, codecs,
+								needsTypeInfo, needsWrapping, finalCompactMode);
+					} else {
+						//if (typeBuilder != null) typeBuilder.append("array");
+						generateEmptyArray(valueBuilder);
+					}
+				} else { // if (Annotation.class.isAssignableFrom(type)) {
+					boolean finalCompactMode = compact;
+					if (!compact && !readableObjectFormat && compactWriter.checkCompactness(this, v, definedType, paramType,
+							forKeys, forValues, depth, codecs, f)) {
+						finalCompactMode = true;
+					}
+					generateAnnotation(valueBuilder, name, v,
+							typeBuilder, definedType, paramType,
+							forKeys, forValues, depth, codecs,
+							needsTypeInfo, needsWrapping, finalCompactMode);
+					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder);
+				}
+			}
+			if (compact) {
+				assign(builder, name, valueBuilder, typeBuilder, compact);
+			} else {
+				if (topConfigClass && GeneratorConfig.separateFieldsByBlankLines) builder.append("\r\n"); // Leave a blank for each field
 				assign(builder, name, valueBuilder, typeBuilder, compact);
 				//appendLinebreak(builder);
 			}
@@ -351,12 +471,12 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	}
 
 	// Will always end with line break
-	protected abstract void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
+	protected abstract void appendCollection(StringBuilder builder, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact);
 
-	void generateCollection(StringBuilder builder, Field f, String name, Object vs, int collectionSize,
+	void generateCollection(StringBuilder builder, Object f, String name, Object vs, int collectionSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
@@ -365,7 +485,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			Class<?> valueType = vsType.getComponentType();
 			if (valueType == null) valueType = Object.class;
 			Type valueParamType = null;
-			appendCollection(builder, f, name, vs, collectionSize,
+			appendCollection(builder, name, vs, collectionSize,
 					typeBuilder, type, paramType, valueType, valueParamType, null,
 					forKeys, forValues, depth, codecs,
 					needsTypeInfo, needsWrapping || (f == null && (name == null || name.length() == 0)), compact);
@@ -381,7 +501,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			valueParamType = gaType.getGenericComponentType();
 		}
 		if (valueType == null) valueType = Object.class;
-		appendCollection(builder, f, name, vs, collectionSize,
+		appendCollection(builder, name, vs, collectionSize,
 				typeBuilder, type, paramType, valueType, valueParamType, null,
 				forKeys, forValues, depth, codecs,
 				needsTypeInfo, needsWrapping || (f == null && (name == null || name.length() == 0)), compact);
@@ -411,7 +531,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		return builder;
 	}
 
-	protected abstract void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
+	protected abstract void appendMap(StringBuilder builder, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean mapNeedsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
@@ -462,7 +582,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 				Arrays.sort((Class[])keys, Comparator.comparing(Class::getName));
 			}
 		}
-		appendMap(builder, f, name, vs, keys,
+		appendMap(builder, name, vs, keys,
 				typeBuilder, keyType, keyParamType, valueType, valueParamType,
 				forKeys, forValues, depth, codecs,
 				needsTypeInfo, keyNeedsTypeInfo, valueNeedsTypeInfo, needsWrapping, compact);
@@ -470,10 +590,58 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 	
 	// To wrap or separate an object with fields
 	protected abstract boolean startObjectBlock(StringBuilder builder, Class<?> type, boolean needsTypeInfo, boolean needsWrapping);
-	protected abstract void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping);
+	protected abstract void endObjectBlock(StringBuilder builder, Class<?> type, boolean needsIndents, boolean needsWrapping);
+
+	@SuppressWarnings("unchecked")
+	void generateAnnotation(StringBuilder builder, String keyPrefix, Object o,
+			StringBuilder typeBuilder, Class<?> type, Type paramType,
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
+			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
+		if (typeBuilder != null) {
+			if (needsTypeInfo) {
+				typeBuilder.append("annotation:");
+				if (type == null || type == Annotation.class || type.isInterface()) {
+					type = ((Annotation) o).annotationType();
+				}
+				typeWriter.appendFieldType(typeBuilder, type, null);
+			} else {
+				//typeBuilder.append("object");
+			}
+		}
+
+		//int oldLength = builder.length();
+		boolean needsSeparator = startObjectBlock(builder, type, needsTypeInfo, needsWrapping);
+		compactWriter.increaseIndent();
+		boolean generated = false;
+		boolean separatorGenerated = !needsSeparator; //false;
+		AnnotationProxy p = new AnnotationProxy((Class<? extends Annotation>) type, (Annotation) o);
+		AnnotationField[] fields = p.getDeclaredFields();
+		for (int i = 0; i < fields.length; i++) {
+			AnnotationField f = fields[i];
+			if (f == null) continue;
+			String name = f.getName();
+			if (!separatorGenerated) {
+				appendSeparator(builder, compact);
+				separatorGenerated = true;
+			}
+			if (keyPrefix != null)  {
+				name = prefixedField(keyPrefix, name);
+			}
+			int oldLength = builder.length();
+			generateAnnotationFieldValue(builder, f, name, o, null, null, null,
+					false, false, 0, null, //f.getAnnotationsByType(ConfigPreferredCodec.class),
+					false, false, compact, false);
+			if (builder.length() > oldLength) {
+				separatorGenerated = false;
+				generated = true;
+			}
+		} // end of for fields
+		compactWriter.decreaseIndent();
+		endObjectBlock(builder, type, generated, needsWrapping);
+	}
 
 	// type is not basic data type or collection type
-	void generateObject(StringBuilder builder, Field field, String keyPrefix, Object o,
+	void generateObject(StringBuilder builder, String keyPrefix, Object o,
 			StringBuilder typeBuilder, Class<?> type, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
@@ -495,24 +663,17 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		boolean generated = false;
 		boolean separatorGenerated = !needsSeparator; //false;
 		Field[] fields = o.getClass().getDeclaredFields();
-		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(o.getClass()) : null;
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(o.getClass());
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (f == null) continue;
-			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
-			int modifiers = f.getModifiers();
-			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
-			String name = f.getName();
-			if (filter != null && filter.filterName(name)) continue;
-			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
+			if (Config.isFiltered(f, true, fieldAnns, false)) continue;
 			if (!separatorGenerated) {
 				appendSeparator(builder, compact);
 				separatorGenerated = true;
 			}
-			if (keyPrefix != null)  {
-				name = prefixedField(keyPrefix, name);
-			}
+			String name = f.getName();
+			if (keyPrefix != null)  name = prefixedField(keyPrefix, name);
 			int oldLength = builder.length();
 			generateFieldValue(builder, f, name, o, null, null, null,
 					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
@@ -523,7 +684,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			}
 		} // end of for fields
 		compactWriter.decreaseIndent();
-		endObjectBlock(builder, generated, needsWrapping);
+		endObjectBlock(builder, type, generated, needsWrapping);
 	}
 
 	protected boolean needsToAvoidCodecKeys(Object[] keys) {
@@ -644,37 +805,20 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		commentWriter.appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
 		Field[] fields = clz.getDeclaredFields();
 		String clzName = clz.getName();
-		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (f == null) continue;
-			/*
-			if ("heights".equals(f.getName())) {
-				System.out.println("Debug");
-			}
-			//*/
-			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
-			int modifiers = f.getModifiers();
-			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
-			String name = f.getName();
-			if (filter != null && filter.filterName(name)) continue;
-			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
-
+			if (Config.isFiltered(f, false, fieldAnns, false)) continue;
 			//if (keyPrefix != null) name = prefixedField(keyPrefix, name);
 			// To check if there are duplicate fields over multiple configuration classes, especially for
 			// those classes without stand-alone configuration files.
+			String name = f.getName();
 			String fullFieldName = clzName + "." + name;
 			if (allFields.containsKey(name) && !fullFieldName.equals(allFields.get(name))) {
 				System.out.println("[WARN] " + fullFieldName + " is duplicated with " + (allFields.get(name)));
 			}
 			allFields.put(name, fullFieldName);
-
-			/*
-			if ("town".equals(name)) {
-				System.out.println("Debug");
-			}
-			//*/
 			int oldLength = builder.length();
 			generateFieldValue(builder, f, name, clz, null, null, null,
 					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),

@@ -6,7 +6,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -124,7 +123,7 @@ public class ConfigWebOnce implements ConfigLoader {
 		if (!running) return; // Not started yet
 		// to load
 		//System.out.println("Adding " + configClazz.getName());
-		if (defaultParser != null) defaultParser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE, null);
+		if (defaultParser != null) defaultParser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 		synchronizeClass(configClazz, -1);
 	}
 
@@ -289,11 +288,10 @@ public class ConfigWebOnce implements ConfigLoader {
 				System.out.println("========== " + webFile.name + webFile.extension);
 				ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(webFile.extension, webFile.content, false);
 				if (parser == null) return null;
-				Map<Class<?>, Set<String>> ignoringFilters = Config.configurationRemoteIgnoringFilters;
 				if (clz == null) {
 					defaultParser = parser;
 					for (Class<?> configClazz : Config.getAllConfigurations()) {
-						parser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE, ignoringFilters == null ? null : ignoringFilters.get(configClazz));
+						parser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 					}
 					if (Config.configurationLogging) {
 						System.out.println("[Config] Configuration " + webFile.name + webFile.extension + " loaded.");
@@ -302,7 +300,7 @@ public class ConfigWebOnce implements ConfigLoader {
 				}
 				Config.recordConfigExtension(clz, webFile.extension); // always update the configuration class' file extension
 				//if (ignoringFilters != null) System.out.println(ignoringFilters.size());
-				parser.parseConfiguration(clz, ConfigParser.FLAG_UPDATE, ignoringFilters == null ? null : ignoringFilters.get(clz));
+				parser.parseConfiguration(clz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 				if (Config.configurationLogging) {
 					System.out.println("[Config] Configuration " + clz.getName() + "/" + webFile.name + webFile.extension + " loaded.");
 				}

@@ -16,6 +16,7 @@ package im.webuzz.config;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -33,11 +34,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import im.webuzz.config.annotation.AnnotationScanner;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigIgnored;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
 import im.webuzz.config.annotation.ConfigLength;
+import im.webuzz.config.annotation.ConfigLocalOnly;
 import im.webuzz.config.annotation.ConfigNotEmpty;
 import im.webuzz.config.annotation.ConfigNotNull;
+import im.webuzz.config.annotation.ConfigOverridden;
 import im.webuzz.config.annotation.ConfigPattern;
+import im.webuzz.config.annotation.Configurable;
 import im.webuzz.config.codec.AESCodec;
 import im.webuzz.config.codec.Base64Codec;
 import im.webuzz.config.codec.Bytes64Codec;
@@ -126,19 +131,7 @@ public class Config {
 	// The command line argument parser is a singleton, configure parser object directly.
 	public static ConfigParser<String[], String[]> commandLineParser = new ConfigArgumentsParser();
 
-	@ConfigComment({
-		"Configure ignored public fields here for some classes to avoid unexpected modifications.",
-		"Another way to ignore fields is using @ConfigIgnore annotation in source leve."
-	})
-	public static Map<Class<?>, ConfigFieldFilter> configurationFilters = new ConcurrentHashMap<>();
-	@ConfigComment({
-		"Containing those local-only configuration items, which are unique for each server/process.",
-		"These items will be overrided by remote items.",
-		"Especially for those sensitive items are not suitable for remote configuration center."
-	})
-	public static Map<Class<?>, Set<String>> configurationRemoteIgnoringFilters = new ConcurrentHashMap<>();
-	
-	public static Map<Class<?>, Map<String, Object[]>> configurationAnnotations = new ConcurrentHashMap<>();
+	public static Map<Class<?>, Map<String, Annotation[]>> configurationAnnotations = new ConcurrentHashMap<>();
 	
 	@ConfigNotNull
 	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
@@ -271,7 +264,7 @@ public class Config {
 		if (!updating) return;
 		orderedConfigs.add(clazz);
 		initializedTime = System.currentTimeMillis();
-		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE, null);
+		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE);
 		if (resourceLoader != null) resourceLoader.add(clazz);
 		if (configurationLogging) {
 			System.out.println("[Config] Registering configuration class " + clazz.getName() + " done.");
@@ -442,10 +435,10 @@ public class Config {
 		do {
 			argumentsParser = commandLineParser;
 			retArgs = argumentsParser.loadResource(retArgs, true);
-			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE, null);
+			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE);
 			Class<?>[] configs = Config.getAllConfigurations();
 			for (int i = 0; i < configs.length; i++) {
-				argumentsParser.parseConfiguration(configs[i], ConfigParser.FLAG_UPDATE, null);
+				argumentsParser.parseConfiguration(configs[i], ConfigParser.FLAG_UPDATE);
 			}
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
 		
@@ -666,6 +659,66 @@ public class Config {
 			}
 		}
 		return null;
+	}
+	
+	
+	/**
+	 * Check if given field is filtered/skipped or not.
+	 * @param modifiers
+	 * @param filterStatic
+	 * @return true, should be skipped; false, should not be skipped.
+	 */
+	public static boolean filterModifiers(int modifiers, boolean filterStatic) {
+		int filteringModifiers = Modifier.PUBLIC;
+		if ((filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0)
+				|| (modifiers & Modifier.FINAL) != 0) {
+			// Ignore final fields, ignore non-matched modifier
+			return true;
+		}
+		boolean staticField = (modifiers & Modifier.STATIC) != 0;
+		if (filterStatic) {
+			if (staticField) return true;
+		} else {
+			// not filter static fields
+			if (!staticField) return true;
+		}
+		return false;
+	}
+
+	public static boolean isFiltered(Field field, boolean filterStatic, Map<String, Annotation[]> fieldAnns, boolean filterLocalOnly) {
+		if (field == null) return true;
+		int modifiers = field.getModifiers();
+		if ((modifiers & Modifier.FINAL) != 0) return true;
+		boolean staticField = (modifiers & Modifier.STATIC) != 0;
+		if (filterStatic) {
+			if (staticField) return true;
+		} else {
+			// not filter static fields
+			if (!staticField) return true;
+		}
+		boolean annOverridden = false;
+		Annotation[] anns = fieldAnns == null ? null : fieldAnns.get(field.getName());
+		if (anns != null && anns.length > 0) {
+			// Check the first annotation to see if Annotation declared in the source
+			// file should be discarded or not 
+			annOverridden = anns[0] != null && anns[0] instanceof ConfigOverridden;
+		}
+		Class<ConfigIgnored> ignoringClass = ConfigIgnored.class;
+		if (!annOverridden && field.getAnnotation(ignoringClass) != null) return true;
+		int filteringModifiers = Modifier.PUBLIC;
+		if (anns != null) {
+			for (Annotation ann : anns) {
+				Class<? extends Annotation> annClass = ann.getClass();
+				if (annClass == ignoringClass) return true;
+				if (filterLocalOnly && annClass == ConfigLocalOnly.class) return true;
+				if (annClass == Configurable.class) {
+					if ((modifiers & Modifier.PUBLIC) == 0) field.setAccessible(true);
+					filteringModifiers = 0;
+				}
+			}
+		}
+		if (filteringModifiers > 0 && (modifiers & filteringModifiers) == 0) return true;
+		return false;
 	}
 
 	public static void main(String[] args) {

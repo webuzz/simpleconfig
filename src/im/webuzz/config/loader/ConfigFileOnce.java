@@ -34,7 +34,7 @@ public class ConfigFileOnce implements ConfigLoader {
 	@Override
 	public void add(Class<?> configClazz) {
 		if (!running) return; // Not started yet
-		if (defaultParser != null) defaultParser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE, null);
+		if (defaultParser != null) defaultParser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE);
 		String keyPrefix = Config.getKeyPrefix(configClazz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			return;
@@ -53,7 +53,7 @@ public class ConfigFileOnce implements ConfigLoader {
 			fileLastUpdateds.put(file.getName(), lastUpdated);
 			keyPrefixClassMap.put(keyPrefix, configClazz);
 			Config.recordConfigExtension(configClazz, extension); // always update the configuration class' file extension
-			parser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE, null);
+			parser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE);
 			if (Config.configurationLogging) {
 				System.out.println("[Config] Configuration " + configClazz.getName() + "/" + file.getAbsolutePath() + " loaded.");
 			}
@@ -64,12 +64,12 @@ public class ConfigFileOnce implements ConfigLoader {
 	
 	private boolean parseConfig(ConfigParser<?, ?> parser, Class<?> config) {
 		if (Config.skipUpdatingWithInvalidItems) {
-			if (parser.parseConfiguration(config, ConfigParser.FLAG_CHECK, null) != -1) { // checking
-				return parser.parseConfiguration(config, ConfigParser.FLAG_UPDATE, null) == 1;
+			if (parser.parseConfiguration(config, ConfigParser.FLAG_CHECK) != -1) { // checking
+				return parser.parseConfiguration(config, ConfigParser.FLAG_UPDATE) == 1;
 			}
 			return false;
 		}
-		return parser.parseConfiguration(config, ConfigParser.FLAG_UPDATE, null) == 1;
+		return parser.parseConfiguration(config, ConfigParser.FLAG_UPDATE) == 1;
 	}
 	
 	protected void updateAllConfigurations(String configFolder, String configName, String configExtension) {

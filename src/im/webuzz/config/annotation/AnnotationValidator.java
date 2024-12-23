@@ -3,14 +3,12 @@ package im.webuzz.config.annotation;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.generator.AnnotationWriter;
 import im.webuzz.config.util.TypeUtils;
 
@@ -339,20 +337,12 @@ public class AnnotationValidator {
 			}
 			return true;
 		} else { // 
-			Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
-			ConfigFieldFilter filter = configFilter != null ? configFilter.get(type) : null;
+			Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+			Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(type);
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (f == null) continue; // never happen
-				if (f.getAnnotation(ConfigIgnore.class) != null) continue;
-				int modifiers = f.getModifiers();
-				if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
-				String name = f.getName();
-				if (filter != null && filter.filterName(name)) continue;
-				if ((modifiers & Modifier.PUBLIC) == 0) {
-					f.setAccessible(true);
-				}
+				if (Config.isFiltered(f, false, fieldAnns, false)) continue;
 				Class<?> fieldType = f.getType();
 				try {
 					if (fieldType.isPrimitive()) {

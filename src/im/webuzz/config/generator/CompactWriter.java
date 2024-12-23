@@ -14,10 +14,10 @@
 
 package im.webuzz.config.generator;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -28,9 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
-import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.util.TypeUtils;
 
 public class CompactWriter {
@@ -94,7 +92,7 @@ public class CompactWriter {
 	// For array, list and set
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean checkCompactness(ConfigBaseGenerator generator, Object value, Class<?> definedType, Type paramType,
-			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs, Field field) {
+			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs, Object field) {
 		if (definedType.isPrimitive()) return true;
 		if (value == null) return true;
 		
@@ -233,23 +231,17 @@ public class CompactWriter {
 		Class<?> clz = value.getClass();
 		Field[] fields = clz.getDeclaredFields();
 		if (fields.length == 0) return true;
-		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (f == null) continue;
-			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
-			int modifiers = f.getModifiers();
-			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
+			if (Config.isFiltered(f, true, fieldAnns, false)) continue;
 			Class<?> type = f.getType();
 			if (type == String.class || type.isPrimitive() || TypeUtils.isBasicDataType(type)) {
 				continue; // ignore
 			}
-			String name = f.getName();
-			if (filter != null && filter.filterName(name)) continue;
 			if (field == null) return false; // Map object is wrapped in another object
 			if (forKeys) return false;
-			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
 			try {
 				Object v = f.get(value);
 				Type genericType = f.getGenericType();

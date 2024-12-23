@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.ConfigFieldFilter;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.generator.ConfigGenerator;
 import im.webuzz.config.generator.GeneratorConfig;
@@ -187,7 +186,7 @@ public class CodecKit {
 		try {
 			ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(extension, value, false);
 			if (parser == null) return false;
-			parser.parseConfiguration(CodecItemConfig.class, ConfigParser.FLAG_UPDATE, null);
+			parser.parseConfiguration(CodecItemConfig.class, ConfigParser.FLAG_UPDATE);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
@@ -202,11 +201,9 @@ public class CodecKit {
 			e.printStackTrace();
 			return false;
 		}
-		Config.configurationFilters.put(CodecItemConfig.class, new ConfigFieldFilter(null, new String[] { "decoded" }));
 		generator.startGenerate(builder, CodecItemConfig.class);
 		generator.endGenerate(builder, null);
 		System.out.println(builder);
-		Config.configurationFilters.remove(CodecItemConfig.class);
 		return true;
 	}
 
@@ -215,7 +212,7 @@ public class CodecKit {
 		try {
 			ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(extension, value, false);
 			if (parser == null) return false;
-			parser.parseConfiguration(CodecItemConfig.class, ConfigParser.FLAG_UPDATE, null);
+			parser.parseConfiguration(CodecItemConfig.class, ConfigParser.FLAG_UPDATE);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
@@ -230,7 +227,6 @@ public class CodecKit {
 			e.printStackTrace();
 			return false;
 		}
-		Config.configurationFilters.put(CodecItemConfig.class, new ConfigFieldFilter(null, new String[] { "encoded" }));
 		generator.startGenerate(builder, CodecItemConfig.class);
 		generator.endGenerate(builder, null);
 		if (builder instanceof byte[]) {
@@ -238,7 +234,6 @@ public class CodecKit {
 		} else {
 			System.out.println(builder.toString());
 		}
-		Config.configurationFilters.remove(CodecItemConfig.class);
 		return true;
 	}
 

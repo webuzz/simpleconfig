@@ -90,7 +90,7 @@ public class ConfigMemoryFS {
 			}
 		
 			for (Class<?> config : Config.getAllConfigurations()) {
-				if (defaultParser.parseConfiguration(config, ConfigParser.FLAG_VALIDATE, null) == -1) return false;
+				if (defaultParser.parseConfiguration(config, ConfigParser.FLAG_VALIDATE) == -1) return false;
 			}
 			Set<String> unused = defaultParser.unusedConfigurationItems();
 			if (unused != null) {
@@ -136,7 +136,7 @@ public class ConfigMemoryFS {
 					System.out.println("[ERROR] No parser for configuration extension " + extension);
 					return false;
 				}
-				if (parser.parseConfiguration(clz, ConfigParser.FLAG_VALIDATE, null) == -1) return false;
+				if (parser.parseConfiguration(clz, ConfigParser.FLAG_VALIDATE) == -1) return false;
 				Set<String> unused = parser.unusedConfigurationItems();
 				if (unused != null) {
 					String[] unusedKeys = unused.toArray(new String[unused.size()]);

@@ -3,6 +3,7 @@ package im.webuzz.config.parser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
@@ -24,9 +25,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
-import im.webuzz.config.ConfigFieldFilter;
+import im.webuzz.config.annotation.AnnotationField;
+import im.webuzz.config.annotation.AnnotationProxy;
 import im.webuzz.config.annotation.AnnotationValidator;
-import im.webuzz.config.annotation.ConfigIgnore;
 import im.webuzz.config.annotation.ConfigRange;
 import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.util.DeepComparator;
@@ -44,6 +45,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	protected static final String $set = "[set]";
 	protected static final String $map = "[map]";
 	protected static final String $object = "[object]";
+	protected static final String $annotation = "[annotation]";
 
 	private final static Object error = new Object();
 
@@ -81,13 +83,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		return null;
 	}
 
-
-//	@Override
-//	public Object getConvertedResource() {
-//		return props;
-//	}
-
-
+	
 	/**
 	 * Parse the given properties map into the given class's static fields.
 	 * @param props
@@ -97,7 +93,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	 * @return Whether the given properties map contains matching configuration items or not
 	 */
 	@Override
-	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields) {
+	public int parseConfiguration(Class<?> clz, int flag) {
 		if (clz == null || props.size() == 0) {
 			if ((flag & FLAG_VALIDATE) != 0) {
 				if (combinedConfigs) {
@@ -120,25 +116,14 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			// all configuration items are in one file, use key prefix to distinguish fields
 			keyPrefix = Config.getKeyPrefix(clz);
 		} // else // single file, no keyPrefix
-		//System.out.println(remoteIgnoringFields);
-		//if (remoteIgnoringFields != null) System.out.println(remoteIgnoringFields.size());
 		Field[] fields = clz.getDeclaredFields();
-		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(clz) : null;
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		boolean itemMatched = false;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (f == null) continue;
-			if (f.getAnnotation(ConfigIgnore.class) != null) continue;
-			int modifiers = f.getModifiers();
-			if (ConfigFieldFilter.filterModifiers(filter, modifiers, false)) continue;
+			if (Config.isFiltered(f, false, fieldAnns, (flag & ConfigParser.FLAG_REMOTE) != 0)) continue;
 			String name = f.getName();
-			/*
-			if ("genders".equals(name)) {
-				System.out.println("X city");
-			} // */
-			if (filter != null && filter.filterName(name)) continue;
-			if (remoteIgnoringFields!= null && remoteIgnoringFields.contains(name)) continue;
 			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
 			String p = props.getProperty(keyName);
 			if (p == null) {
@@ -152,7 +137,6 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			p = p.trim();
 			// Should NOT skip empty string, as it may mean empty string or default value
 			//if (p.length() == 0) continue;
-			if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
 			int result = parseAndUpdateField(keyName, p, clz, f, flag);
 			if (result == -1) return -1;
 			if (result == 1 && (flag & FLAG_UPDATE) != 0 && Config.configurationLogging && Config.isInitializationFinished()) {
@@ -206,6 +190,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		}
 		return pType;
 	}
+	
 	/**
 	 * Parse the given key-prefixed properties for a field value, update the field if necessary.
 	 * @param props
@@ -441,6 +426,14 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 					newVal = nv;
 					changed = true;
 				}
+			} else if (Annotation.class.isAssignableFrom(type)) {
+				Object nv = decoded != null ? decoded : parseAnnotation(keyName, p, (Class<? extends Annotation>) type, flag);
+				if (nv == error) return -1;
+				Object ov = f.get(obj);
+				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
+					newVal = nv;
+					changed = true;
+				}
 			} else {
 				Object nv = decoded != null ? decoded : parseObject(keyName, p, type, f.getGenericType(), flag);
 				if (nv == error) return -1;
@@ -454,6 +447,190 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				int result = validator.validateObject(f, newVal, 0, keyName);
 				if (result == 1 && updatingField) f.set(obj, newVal);
 				return result;
+			}
+		} catch (Throwable e) {
+			e.printStackTrace();
+			StringBuilder errMsg = new StringBuilder();
+			errMsg.append("Error occurs on parsing value for field \"").append(keyName)
+					.append("\": ").append(e.getMessage());
+			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+			return unchanged;
+		}
+		return unchanged;
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private int parseAndUpdateAnnotationField(String keyName, String p,
+			Object obj, AnnotationField f) {
+		/*
+		if ("configurationClasses".equals(keyName)) {
+			System.out.println("X parse");
+		} // */
+		Class<?> type = f.getType();
+		if (TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
+			Class<?> pType = recognizeObjectType(p);
+			if (type == Enum.class && pType == String.class) {
+				Object ret = parseEnumType(p, keyName);
+				if (ret == error) return -1;
+				pType = (Class<?>) ret;
+			}
+			if (pType != null && pType != Object.class) type = pType;
+		}
+		Object newVal = null;
+		boolean changed = false;
+		try {
+			Object decoded = decode(p);
+			if (type == String.class) {
+				String nv = decoded != null ? (String) decoded : parseString(p);
+				String ov = (String) f.get(obj);
+				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
+					newVal = nv;
+					changed = true;
+				}
+			} else if (type == int.class) {
+				int nv = Integer.decode(p).intValue();
+				if (nv == f.getInt(obj)) return unchanged;
+				f.setInt(obj, nv);
+				return 1;
+			} else if (type == long.class) {
+				long nv = Long.decode(p).longValue();
+				if (nv == f.getLong(obj)) return unchanged;
+				f.setLong(obj, nv);
+				return 1;
+			} else if (type == boolean.class) {
+				if (!"false".equals(p) && !"true".equals(p)) {
+					throw new RuntimeException("\"" + p + "\" is an invalid boolean value");
+				}
+				boolean nv = Boolean.parseBoolean(p);
+				if (nv == f.getBoolean(obj)) return unchanged;
+				// Just true or false, no validating
+				f.setBoolean(obj, nv);
+				return 1;
+			} else if (type == double.class) {
+				double nv = Double.parseDouble(p);
+				if (nv == f.getDouble(obj)) return unchanged;
+				f.setDouble(obj, nv);
+				return 1;
+			} else if (type == float.class) {
+				float nv = Float.parseFloat(p);
+				if (nv == f.getFloat(obj)) return unchanged;
+				f.setFloat(obj, nv);
+				return 1;
+			} else if (type == short.class) {
+				short nv = Short.decode(p).shortValue();
+				if (nv == f.getShort(obj)) return unchanged;
+				f.setShort(obj, nv);
+				return 1;
+			} else if (type == byte.class) {
+				byte nv = Byte.decode(p).byteValue();
+				if (nv == f.getByte(obj)) return unchanged;
+				f.setByte(obj, nv);
+				return 1;
+			} else if (type == char.class) {
+				char nv = parseChar(p);
+				if (nv == f.getChar(obj)) return unchanged;
+				f.setChar(obj, nv);
+				return 1;
+			} else if (type != null && type.isArray()) {
+				Object nv = decoded != null ? decoded : parseCollection(keyName, p, type, f.getGenericType(), FLAG_UPDATE);
+				if (nv == error) return -1;
+				if (!DeepComparator.arrayDeepEquals(type.getComponentType().isPrimitive(), nv, f.get(obj))) {
+					newVal = nv;
+					changed = true;
+				}
+			} else if (type == Class.class) {
+				Class<?> ov = (Class<?>) f.get(obj);
+				Class<?> nv = null;
+				String nvStr = null;
+				if (decoded != null) {
+					nv = (Class<?>) decoded;
+					nvStr = nv.getName();
+				} else if (p != null && !$null.equals(p)) {
+					int length = p.length();
+					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+						int idx = p.indexOf(':');
+						if (idx != -1) {
+							nvStr = p.substring(idx + 1, length - 1);
+						}
+					} else {
+						nvStr = p;
+					}
+				}
+				String ovStr = null;
+				if (ov != null) ovStr = ov.getName();
+				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
+					if (nvStr != null && nvStr.length() > 0 && nv == null) {
+						StringBuilder err = new StringBuilder();
+						nv = Config.loadConfigurationClass(nvStr, err);
+						if (nv == null) {
+							StringBuilder errMsg = new StringBuilder();
+							errMsg.append("Invalid value for field \"").append(keyName)
+									.append("\": ").append(err);
+							if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+							return 0;
+						}
+					}
+					newVal = nv;
+					changed = true;
+				}
+			} else if (type.isEnum() || type == Enum.class) {
+				Enum<?> ov = (Enum<?>) f.get(obj);
+				Enum<?> nv = null;
+				String nvStr = null;
+				if (decoded != null) {
+					nv = (Enum<?>) decoded;
+					nvStr = nv.name();
+				} else if (p != null && !$null.equals(p)) {
+					String suffix = null;
+					int length = p.length();
+					if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {
+						int idx = p.indexOf(':');
+						if (idx != -1) {
+							suffix = p.substring(idx + 1, length - 1);
+						} else {
+							suffix = p.substring(1, length - 1);
+						}
+					} else {
+						suffix = p;
+					}
+					int nameIdx = suffix.lastIndexOf('.');
+					if (nameIdx != -1) {
+						nvStr = suffix.substring(nameIdx + 1).trim();
+					} else {
+						nvStr = suffix;
+					}
+				}
+				String ovStr = null;
+				if (ov != null) ovStr = ov.name();
+				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
+					if (nvStr != null && nvStr.length() > 0 && nv == null) {
+						nv = Enum.valueOf((Class<? extends Enum>) type, nvStr);
+					} // else TODO:
+					newVal = nv;
+					changed = true;
+				}
+			} else { //if (Annotation.class.isAssignableFrom(type)) {
+				Object nv = decoded != null ? decoded : parseAnnotation(keyName, p, (Class<? extends Annotation>) type, FLAG_UPDATE);
+				if (nv == error) return -1;
+				Object ov = f.get(obj);
+				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
+					newVal = nv;
+					changed = true;
+				}
+			/*
+			} else {
+				Object nv = decoded != null ? decoded : parseObject(keyName, p, type, f.getGenericType(), FLAG_UPDATE);
+				if (nv == error) return -1;
+				Object ov = f.get(obj);
+				if ((nv == null && ov != null) || (nv != null && !nv.equals(ov))) {
+					newVal = nv;
+					changed = true;
+				}
+			//*/
+			}
+			if (changed) {
+				f.set(obj, newVal);
+				return 1;
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -565,6 +742,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	 * @param paramType, Field's generic type, if existed
 	 * @return The parsed collection object. 
 	 */
+	@SuppressWarnings("unchecked")
 	private Object parseCollection(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		/*
 		if ("strBytes".equals(keyName)) {
@@ -706,9 +884,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if (isArray) {
 					Array.set(value, j, o);
 				} else { // List or Set
-					@SuppressWarnings("unchecked")
-					Collection<Object> collection = (Collection<Object>) value;
-					collection.add(o);
+					((Collection<Object>) value).add(o);
 				}
 			}
 		}
@@ -941,6 +1117,62 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	 * @param paramType
 	 * @return
 	 */
+	private Object parseAnnotation(String keyName, String p, Class<? extends Annotation> type, int flag) {
+		if (p == null || $null.equals(p) || type == null) return null;
+		//if (type == null) return new Object();
+		AnnotationProxy obj = new AnnotationProxy(type, null);
+		if ($empty.equals(p) || p.length() == 0 || obj == null) return obj;
+
+		String prefix = keyName + ".";
+		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
+			AnnotationField[] fields = obj.getDeclaredFields(); // type.getFields();
+			for (int i = 0; i < fields.length; i++) {
+				AnnotationField f = fields[i];
+				if (f == null) continue; // never happen
+				String name = f.getName();
+				String fieldKeyName = prefix + name;
+				String pp = props.getProperty(fieldKeyName);
+				if (pp == null) {
+					if ((flag & FLAG_VALIDATE) != 0) {
+						System.out.println("[WARN] Missing \"" + fieldKeyName + "\" configuration for \"" + type.getName() + "\" object");
+					}
+					continue;
+				}
+				if (parsedKeys != null) parsedKeys.add(fieldKeyName);
+				pp = pp.trim();
+				if (pp.length() == 0) continue;
+				if (parseAndUpdateAnnotationField(fieldKeyName, pp, obj, f) == -1) return error;
+			}
+			return obj.newAnnotation();
+		}
+		// Single line configuration
+		String[] arr = p.split("\\s*;\\s*");
+		for (int j = 0; j < arr.length; j++) {
+			String item = arr[j].trim();
+			if (item.length() == 0) continue;
+			String[] kv = item.split("\\s*>+\\s*");
+			if (kv.length != 2) continue;
+			String k = kv[0].trim();
+			AnnotationField f = obj.getDeclaredField(k);
+			if (f == null) {
+				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
+				continue;
+			}
+			String pp = kv[1].trim();
+			if (parseAndUpdateAnnotationField(prefix + k, pp, obj, f) == -1) return error;
+		}
+		return obj.newAnnotation();
+	}
+
+	/**
+	 * Parse the key-prefixed properties into a object with fields.
+	 * @param props
+	 * @param keyName
+	 * @param p
+	 * @param type
+	 * @param paramType
+	 * @return
+	 */
 	private Object parseObject(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if (p == null || $null.equals(p)) return null;
 		if (type == null) return new Object();
@@ -953,19 +1185,14 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		if ($empty.equals(p) || p.length() == 0 || obj == null) return obj;
 
 		String prefix = keyName + ".";
-		Map<Class<?>, ConfigFieldFilter> configFilter = Config.configurationFilters;
-		ConfigFieldFilter filter = configFilter != null ? configFilter.get(type) : null;
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(type);
 		if ($object.equals(p) || (p.startsWith("[") && p.endsWith("]"))) { // Multiple line configuration
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (f == null) continue; // never happen
-				if (f.getAnnotation(ConfigIgnore.class) != null) continue;
-				int modifiers = f.getModifiers();
-				if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
-				String name = f.getName();
-				if (filter != null && filter.filterName(name)) continue;
-				String fieldKeyName = prefix + name;
+				if (Config.isFiltered(f, true, fieldAnns, false)) continue;
+				String fieldKeyName = prefix + f.getName();
 				String pp = props.getProperty(fieldKeyName);
 				if (pp == null) {
 					if ((flag & FLAG_VALIDATE) != 0) {
@@ -976,9 +1203,6 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if (parsedKeys != null) parsedKeys.add(fieldKeyName);
 				pp = pp.trim();
 				if (pp.length() == 0) continue;
-				if ((modifiers & Modifier.PUBLIC) == 0) {
-					f.setAccessible(true);
-				}
 				if (parseAndUpdateField(fieldKeyName, pp, obj, f, FLAG_UPDATE) == -1) return error;
 			}
 			return obj;
@@ -991,24 +1215,20 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			String[] kv = item.split("\\s*>+\\s*");
 			if (kv.length != 2) continue;
 			String k = kv[0].trim();
-			if (filter != null && filter.filterName(k)) continue;
 			Field f = null;
 			try {
 				f = type.getField(k);
 			} catch (Exception e1) {
 				//e1.printStackTrace();
+				continue;
 			}
 			if (f == null) {
 				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
 				continue;
 			}
-			int modifiers = f.getModifiers();
-			if (ConfigFieldFilter.filterModifiers(filter, modifiers, true)) continue;
-			if ((modifiers & Modifier.PUBLIC) == 0) {
-				f.setAccessible(true);
-			}
-			String pp = kv[1].trim();
-			if (parseAndUpdateField(prefix + k, pp, obj, f, FLAG_UPDATE) == -1) return error;
+			if (Config.isFiltered(f, true, fieldAnns, false)) continue;
+			String v = kv[1].trim();
+			if (parseAndUpdateField(prefix + k, v, obj, f, FLAG_UPDATE) == -1) return error;
 		}
 		return obj;
 	}
@@ -1042,7 +1262,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				Object decoded = decode(p);
 				if (decoded != null) return decoded;
 				String typePrefix = p.substring(0, idx);
-				if (!($object.startsWith(typePrefix)
+				if (!($object.startsWith(typePrefix) || $annotation.startsWith(typePrefix)
 						|| $array.startsWith(typePrefix) || $list.startsWith(typePrefix)
 						|| $set.startsWith(typePrefix) || $map.startsWith(typePrefix))) {
 					p = p.substring(idx + 1, length - 1);
@@ -1093,6 +1313,9 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		if (Map.class.isAssignableFrom(type)) { // Map<String, Object>
 			return parseMap(keyName, p, type, paramType, flag);
 		}
+		if (Annotation.class.isAssignableFrom(type)) {
+			return parseAnnotation(keyName, p, (Class<? extends Annotation>) type, flag);
+		}
 		return parseObject(keyName, p, type, paramType, flag);
 	}
 
@@ -1106,6 +1329,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if ($list.equals(p)) return List.class;
 				if ($map.equals(p)) return Map.class;
 				if ($set.equals(p)) return Set.class;
+				if ($annotation.equals(p)) return Annotation.class;
 				if ($object.equals(p)) return Object.class;
 				String rawType = p.substring(1, length - 1);
 				return Config.loadConfigurationClass(rawType);
@@ -1143,6 +1367,23 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			if ($list.startsWith(prefix)) return List.class;
 			if ($map.startsWith(prefix)) return Map.class;
 			if ($set.startsWith(prefix)) return Set.class;
+			if ($set.startsWith(prefix)) return Set.class;
+			if ($annotation.startsWith(prefix)) {
+				if (suffix.charAt(0) == '@') {
+					suffix = suffix.substring(1);
+				}
+				if (suffix.startsWith("Config")) {
+					/*
+					String className = ConfigIgnore.class.getName();
+					int lastDot = className.lastIndexOf('.');
+					suffix = className.substring(0, lastDot + 1) + suffix;
+					//*/
+					suffix = "im.webuzz.config.annotation." + suffix;
+				}
+				Class<?> type = Config.loadConfigurationClass(suffix);
+				if (type == null) type = Object.class;
+				return type;
+			}
 			if ($object.startsWith(prefix)) {
 				Class<?> type = Config.loadConfigurationClass(suffix);
 				if (type == null) type = Object.class;

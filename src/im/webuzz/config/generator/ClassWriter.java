@@ -11,6 +11,9 @@ import im.webuzz.config.util.TypeUtils;
 public class ClassWriter {
 	
 	public StringBuilder appendFieldType(StringBuilder builder, Class<?> type, Type paramType) {
+		if (type == null) {
+			System.out.println("xxx");
+		}
 		if (type.isArray()) {
 			Class<?> compType = type.getComponentType();
 			Type compParamType = null;

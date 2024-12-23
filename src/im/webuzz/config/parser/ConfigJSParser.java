@@ -199,8 +199,8 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 	}
 
 	@Override
-	public int parseConfiguration(Class<?> clz, int flag, Set<String> remoteIgnoringFields) {
-		return iniParser.parseConfiguration(clz, flag, remoteIgnoringFields);
+	public int parseConfiguration(Class<?> clz, int flag) {
+		return iniParser.parseConfiguration(clz, flag);
 	}
 
 	@Override

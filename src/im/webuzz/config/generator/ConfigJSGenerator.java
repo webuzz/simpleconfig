@@ -14,7 +14,8 @@
 
 package im.webuzz.config.generator;
 
-import java.lang.reflect.Field;
+
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -124,7 +125,22 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		if (needsTypeInfo) {
 			//appendIndents(builder);
 			builder.append(" \"class\": \""); //object:");
-			typeWriter.appendFieldType(builder, type, null);
+			boolean isAnnotation = Annotation.class.isAssignableFrom(type);
+			//String tagName = isAnnotation ? "annotation" : "object";
+			//builder.append(tagName).append(':');
+			if (isAnnotation) {
+				StringBuilder typeBuilder = new StringBuilder();
+				typeWriter.appendFieldType(typeBuilder, type, null);
+				String typeName = typeBuilder.toString();
+				String pkg = "im.webuzz.config.annotation.";
+				if (typeName.startsWith(pkg + "Config")) {
+					builder.append('@').append(typeName.substring(pkg.length()));
+				} else {
+					builder.append(typeName);
+				}
+			} else {
+				typeWriter.appendFieldType(builder, type, null);
+			}
 			builder.append('\"');
 			//builder.append(",");
 			return true; // need to append separator
@@ -133,7 +149,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	protected void endObjectBlock(StringBuilder builder, boolean needsIndents, boolean needsWrapping) {
+	protected void endObjectBlock(StringBuilder builder, Class<?> type, boolean needsIndents, boolean needsWrapping) {
 		if (needsIndents) {
 			compactWriter.appendIndents(builder);
 		} else {
@@ -210,7 +226,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	}
 	
 	@Override
-	protected void appendCollection(StringBuilder builder, Field f, String name, Object vs, int vsSize,
+	protected void appendCollection(StringBuilder builder, String name, Object vs, int vsSize,
 			StringBuilder typeBuilder, Class<?> type, Type paramType, Class<?> valueType, Type valueParamType, Class<?> componentType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
@@ -326,7 +342,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	protected void appendMap(StringBuilder builder, Field f, String name, Map<Object, Object> vs, Object[] keys,
+	protected void appendMap(StringBuilder builder, String name, Map<Object, Object> vs, Object[] keys,
 			StringBuilder typeBuilder, Class<?> keyType, Type keyParamType, Class<?> valueType, Type valueParamType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean keyNeedsTypeInfo, boolean valueNeedsTypeInfo,
@@ -356,7 +372,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 				if (!compact || i != size - 1) appendSeparator(builder, compact);
 			}
 			if (!compact) compactWriter.decreaseIndent();
-			endObjectBlock(builder, !compact, needsWrapping); // #endObjectBlock will prepare indents
+			endObjectBlock(builder, valueType, !compact, needsWrapping); // #endObjectBlock will prepare indents
 			return;
 		}
 		
@@ -379,7 +395,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		compactWriter.decreaseIndent();
 		compactWriter.appendIndents(valueBuilder).append("} ]");
 		assign(builder, "entries", valueBuilder, typeBuilder, true);
-		endObjectBlock(builder, false, needsWrapping);
+		endObjectBlock(builder, valueType, false, needsWrapping);
 	}
 	
 	@Override
