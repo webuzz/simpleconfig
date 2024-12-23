@@ -196,7 +196,15 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	@Override
 	protected void endObjectBlock(StringBuilder builder, Class<?> type, boolean needsIndents, boolean needsWrapping) {
 		if (!needsWrapping) return;
-		if (needsIndents) compactWriter.appendIndents(builder);
+		if (needsIndents) {
+			compactWriter.appendIndents(builder);
+		} else {
+			// empty annotation or object block
+			int length = builder.length();
+			if (builder.substring(length - 3).equals(">\r\n")) {
+				builder.delete(length - 2, length);
+			}
+		}
 		String tagName = (Annotation.class.isAssignableFrom(type)) ? "annotation" : "object";
 		builder.append("</").append(tagName).append(">\r\n");
 	}

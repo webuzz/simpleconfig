@@ -483,7 +483,7 @@ public class Config {
 					}
 				} else if ("synchronizer".equals(actionStr)) {
 					SynchronizerKit.run(retArgs, indexOffset);
-				} else if ("class".equals(actionStr)) {
+				} else if ("wrapper".equals(actionStr)) {
 					// --run:class xxx.xxxxx.XXX 
 					// By this way, we make all public configuration classes with public static fields configurable
 					// without modifying the original sources or jars.
@@ -517,7 +517,7 @@ public class Config {
 	private static void printUsage() {
 		System.out.println("Usage:");
 		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
-				+ " [--run:<usage | generator | encoder | decoder | validator | synchronizer | class>] [...]");
+				+ " [--run:<usage | generator | encoder | decoder | validator | synchronizer | wrapper>] [...]");
 		System.out.println();
 		System.out.println("For argument --c:xxx=###, the following formats are supported:");
 		System.out.println("\t--c:port=6173");
@@ -532,7 +532,7 @@ public class Config {
 		System.out.println("\t--run:decoder\tTo decode an encoded string back to original value");
 		System.out.println("\t--run:validator\tTo verify configuration files");
 		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
-		System.out.println("\t--run:class <App class with #main(String[]) method>\tContinue to run the main class");
+		System.out.println("\t--run:wrapper <App class with #main(String[]) method>\tContinue to run the main class");
 	}
 
 	public static boolean isInitializationFinished() {

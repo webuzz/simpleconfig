@@ -76,6 +76,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		basicData.add("BigInteger");
 		
 		knownObjects.add("object");
+		knownObjects.add("annotation");
 		knownObjects.add("map");
 		knownObjects.add("set");
 		knownObjects.add("list");

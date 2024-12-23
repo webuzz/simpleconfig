@@ -231,7 +231,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping, boolean compact) {
 		/*
-		if ("anyArr4".equals(name)) {
+		if ("localServerName".equals(name)) {
 			System.out.println("Debug");
 		} // */
 		compactWriter.checkIndents(builder);
@@ -289,6 +289,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		boolean multipleLines = size > 1 || !basicType;
 		boolean moreIndents = basicType || valueType.isPrimitive()
 				|| Object.class == valueType
+				|| Annotation.class.isAssignableFrom(valueType)
 				|| valueType.isArray()
 				|| List.class.isAssignableFrom(valueType)
 				|| Set.class.isAssignableFrom(valueType)
@@ -327,7 +328,8 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		}
 		int length = builder.length();
 		if (!moreIndents && length > 4 && builder.substring(length - 4, length).equals("},\r\n")) {
-			builder.insert(length - 3, needsTypeInfo ? " ] }" : " ]");
+			builder.delete(length - 3, length).append(']');
+			//builder.insert(length - 3, needsTypeInfo ? " ] }" : " ]");
 		} else {
 			builder.append("]");
 			if (needsTypeInfo) {
@@ -400,6 +402,10 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	
 	@Override
 	protected StringBuilder assign(StringBuilder builder, String name, StringBuilder value, StringBuilder typeBuilder, boolean compact) {
+		/*
+		if ("localServerName".equals(name)) {
+			System.out.println("Hello");
+		} //*/
 		if (name != null && name.length() > 0) {
 			if (!compact) compactWriter.appendIndents(builder);
 			return builder.append(name).append(": ").append(value);
