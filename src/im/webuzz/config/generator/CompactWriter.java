@@ -78,7 +78,7 @@ public class CompactWriter {
 	}
 	
 	public static String formatString(String str) {
-		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
 	}
 
 	private static void appendChar(StringBuilder builder, char ch) {
@@ -283,7 +283,7 @@ public class CompactWriter {
 				generator.generateFieldValue(compactBuilder, null, null, null,
 						arr[i], compType, paramCompType,
 						forKeys, forValues, depth + 1, codecs,
-						false, false, false, false);
+						false, false, false, false, false);
 			}
 		}
 		if (compactBuilder.length() > 100) return false;

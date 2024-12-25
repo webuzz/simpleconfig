@@ -57,9 +57,9 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		compactWriter = new CompactWriter();
 	}
 
-	protected abstract void generateNull(StringBuilder builder);
-	protected abstract void generateEmptyArray(StringBuilder builder);
-	protected abstract void generateEmptyObject(StringBuilder builder);
+	protected abstract void generateNull(StringBuilder builder, boolean hasNamePrefix);
+	protected abstract void generateEmptyArray(StringBuilder builder, boolean hasNamePrefix);
+	protected abstract void generateEmptyObject(StringBuilder builder, boolean hasNamePrefix);
 
 	protected abstract void generateString(StringBuilder builder, String v);
 	protected abstract boolean generateClass(StringBuilder builder, Class<?> v,
@@ -85,16 +85,12 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 	}
 	
-	public static String formatString(String str) {
-		return str.replaceAll("\\\\", "\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
-	}
-
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected boolean generateFieldValue(StringBuilder builder, Field f, String name, Object o,
 			Object v, Class<?> definedType, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping,
-			boolean compact, boolean topConfigClass) {
+			boolean compact, boolean hasNamePrefix, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
 		/*
@@ -136,7 +132,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 				if (f != null) paramType = f.getGenericType();
 				if (f != null) v = f.get(o);
 				if (v == null) {
-					generateNull(valueBuilder);
+					generateNull(valueBuilder, f != null || hasNamePrefix);
 				} else if (encode(valueBuilder, v, forKeys, forValues, depth, codecs)) {
 					// 
 				} else if (type == String.class) {
@@ -164,7 +160,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 								needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append("array");
-						generateEmptyArray(valueBuilder);
+						generateEmptyArray(valueBuilder, f != null || hasNamePrefix);
 					}
 				} else if (List.class.isAssignableFrom(type)
 						|| Set.class.isAssignableFrom(type)) {
@@ -198,7 +194,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 								needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append(List.class.isAssignableFrom(type) ? "list" : "set");
-						generateEmptyArray(valueBuilder); // A list or a set is like an array
+						generateEmptyArray(valueBuilder, f != null || hasNamePrefix); // A list or a set is like an array
 					}
 				} else if (Map.class.isAssignableFrom(type)) {
 					if (!needsTypeInfo) {
@@ -235,7 +231,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 								needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append("map");
-						generateEmptyObject(valueBuilder); // A map is like an object 
+						generateEmptyObject(valueBuilder, f != null || hasNamePrefix); // A map is like an object 
 					}
 				} else if (Annotation.class.isAssignableFrom(type)) {
 					boolean finalCompactMode = compact;
@@ -247,7 +243,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 							typeBuilder, definedType, paramType,
 							forKeys, forValues, depth, codecs,
 							needsTypeInfo, needsWrapping, finalCompactMode);
-					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder);
+					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder, f != null || hasNamePrefix);
 				} else {
 					boolean finalCompactMode = compact;
 					if (!compact && !readableObjectFormat && compactWriter.checkCompactness(this, v, definedType, paramType,
@@ -258,7 +254,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 							typeBuilder, definedType, paramType,
 							forKeys, forValues, depth, codecs,
 							needsTypeInfo, needsWrapping, finalCompactMode);
-					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder);
+					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder, f != null || hasNamePrefix);
 				}
 			}
 			if (compact) {
@@ -280,7 +276,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			Object v, Class<?> definedType, Type paramType,
 			boolean forKeys, boolean forValues, int depth, ConfigPreferredCodec[] codecs,
 			boolean needsTypeInfo, boolean needsWrapping,
-			boolean compact, boolean topConfigClass) {
+			boolean compact, boolean hasNamePrefix, boolean topConfigClass) {
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
 		/*
@@ -326,7 +322,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 				if (f != null) paramType = f.getGenericType();
 				if (f != null) v = f.get(o);
 				if (v == null) {
-					generateNull(valueBuilder);
+					generateNull(valueBuilder, f != null || hasNamePrefix);
 				} else if (encode(valueBuilder, v, forKeys, forValues, depth, codecs)) {
 					// 
 				} else if (type == String.class) {
@@ -354,7 +350,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 								needsTypeInfo, needsWrapping, finalCompactMode);
 					} else {
 						//if (typeBuilder != null) typeBuilder.append("array");
-						generateEmptyArray(valueBuilder);
+						generateEmptyArray(valueBuilder, f != null || hasNamePrefix);
 					}
 				} else { // if (Annotation.class.isAssignableFrom(type)) {
 					boolean finalCompactMode = compact;
@@ -366,7 +362,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 							typeBuilder, definedType, paramType,
 							forKeys, forValues, depth, codecs,
 							needsTypeInfo, needsWrapping, finalCompactMode);
-					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder);
+					if (valueBuilder.length() == 0) generateEmptyObject(valueBuilder, f != null || hasNamePrefix);
 				}
 			}
 			if (compact) {
@@ -630,7 +626,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			int oldLength = builder.length();
 			generateAnnotationFieldValue(builder, f, name, o, null, null, null,
 					false, false, 0, null, //f.getAnnotationsByType(ConfigPreferredCodec.class),
-					false, false, compact, false);
+					false, false, compact, true, false);
 			if (builder.length() > oldLength) {
 				separatorGenerated = false;
 				generated = true;
@@ -677,7 +673,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			int oldLength = builder.length();
 			generateFieldValue(builder, f, name, o, null, null, null,
 					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
-					false, false, compact, false);
+					false, false, compact, true, false);
 			if (builder.length() > oldLength) {
 				separatorGenerated = false;
 				generated = true;
@@ -711,7 +707,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		String prefix = k == null ? null : prefixedField(name, String.valueOf(k));;
 		generateFieldValue(builder, null, prefix, null, v, valueType, valueParamType,
 				false, true, depth + 1, codecs,
-				diffValueTypes, false, compact, false);
+				diffValueTypes, false, compact, true, false);
 	}
 
 	protected void appendMapEntry(StringBuilder builder, String kvPrefix, Object k, Object v,
@@ -724,7 +720,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		String prefix = prefixedField(kvPrefix, "key");
 		generateFieldValue(builder, null, prefix, null, k, keyType, keyParamType,
 				true, false, depth + 1, codecs,
-				diffKeyTypes, false, compact, false);
+				diffKeyTypes, false, compact, true, false);
 		compactWriter.appendLinebreak(builder);
 		boolean diffValueTypes = false;
 		//Class<?> targetValueType = null;
@@ -736,7 +732,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		prefix = prefixedField(kvPrefix, "value");
 		generateFieldValue(builder, null, prefix, null, v, valueType, valueParamType,
 				false, true, depth + 1, codecs,
-				diffValueTypes, false, compact, false);
+				diffValueTypes, false, compact, true, false);
 		compactWriter.appendLinebreak(builder);
 	}
 
@@ -822,7 +818,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 			int oldLength = builder.length();
 			generateFieldValue(builder, f, name, clz, null, null, null,
 					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
-					false, false, false, true);
+					false, false, false, true, true);
 			if (builder.length() > oldLength) {
 				compactWriter.appendLinebreak(builder);
 			}

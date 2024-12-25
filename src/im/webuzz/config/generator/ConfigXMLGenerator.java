@@ -211,18 +211,18 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 
 
 	@Override
-	protected void generateNull(StringBuilder builder) {
+	protected void generateNull(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("<null />");
 	}
 
 	@Override
-	protected void generateEmptyArray(StringBuilder builder) {
-		builder.append("<empty />");
+	protected void generateEmptyArray(StringBuilder builder, boolean hasNamePrefix) {
+		if (!hasNamePrefix) builder.append("<empty />");
 	}
 
 	@Override
-	protected void generateEmptyObject(StringBuilder builder) {
-		builder.append("<empty />");
+	protected void generateEmptyObject(StringBuilder builder, boolean hasNamePrefix) {
+		if (!hasNamePrefix) builder.append("<empty />");
 	}
 
 	@Override
@@ -317,7 +317,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
 				generateFieldValue(builder, null, null, null, v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
-						diffTypes, true, compact, false);
+						diffTypes, true, compact, false, false);
 			}
 			if (needsWrapping) builder.append("</").append(typeStr).append('>');
 			return;
@@ -385,7 +385,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 				generateFieldValue(builder, null, wrappingTag,
 								null, v, valueType, valueParamType,
 								forKeys, forValues, depth + 1, codecs,
-								diffTypes, wrapping, false, false);
+								diffTypes, wrapping, false, false, false);
 			}
 		}
 		if (multipleLines) compactWriter.decreaseIndent();
@@ -463,6 +463,12 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	protected StringBuilder assign(StringBuilder builder, String name, StringBuilder value, StringBuilder typeBuilder, boolean compact) {
 		if (compact) {
 			if (name == null || name.length() == 0) return builder.append(value);
+			if (GeneratorConfig.shortenEmptyObject && value.length() == 0) {
+				return builder.append('<').append(name).append(" />");
+			}
+			if (GeneratorConfig.shortenNullObject && "<null />".equals(value.toString())) {
+				return builder.append('<').append(name).append(" null=\"true\" />");
+			}
 			return builder.append('<').append(name).append('>')
 					.append(value)
 					.append("</").append(name).append('>');
@@ -482,6 +488,12 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		builder.append('<').append(name);
 		if (typeBuilder != null && typeBuilder.length() > 0) {
 			builder.append(" class=\"").append(typeBuilder).append('\"');
+		}
+		if (GeneratorConfig.shortenEmptyObject && value.length() == 0) {
+			return builder.append(" />");
+		}
+		if (GeneratorConfig.shortenNullObject && "<null />".equals(value.toString())) {
+			return builder.append(" null=\"true\" />");
 		}
 		builder.append('>');
 		boolean wrapping = length > 0 && (value.charAt(0) == '\t' || value.charAt(length - 1) == '\n');

@@ -1,5 +1,7 @@
 package im.webuzz.config.annotation;
 
+import java.util.Objects;
+
 public class AnnotationField {
 	String name;
 	Class<?> type;
@@ -87,4 +89,24 @@ public class AnnotationField {
 	public void set(Object owner, Object v) {
 		value = v;
 	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(name, type.getName(), value);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		AnnotationField other = (AnnotationField) obj;
+		return Objects.equals(name, other.name) && Objects.equals(type.getName(), other.type.getName())
+				&& Objects.equals(value, other.value);
+	}
+	
+	
 }

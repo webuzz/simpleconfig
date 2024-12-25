@@ -44,6 +44,10 @@ public class GeneratorConfig {
 
 	public static String[] preferredCodecOrders = null;
 	
+	@ConfigComment("For XML format, <xxx /> will present as the empty object, instead of <xxx></xxx> or <xxx><empty /></xxx>")
+	public static boolean shortenEmptyObject = true;
+	@ConfigComment("For XML format, <xxx null=\"true\" /> will present as the empty object, instead of <xxx><null /></xxx>")
+	public static boolean shortenNullObject = true;
 	@ConfigNotNull
 	@ConfigPattern("([a-zA-Z0-9]+)")
 	public static Map<String, Class<? extends ConfigGenerator<?>>> generatorExtensions = new ConcurrentHashMap<>();

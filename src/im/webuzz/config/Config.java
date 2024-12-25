@@ -430,6 +430,9 @@ public class Config {
 	public static String[] initialize(String[] args) {
 		allConfigs.put(Config.class.getName(), Config.class);
 		orderedConfigs.add(Config.class);
+		
+		registerClass(SecurityConfig.class);
+		
 		ConfigParser<String[], String[]> argumentsParser = null; 
 		String[] retArgs = args;
 		do {
@@ -451,8 +454,6 @@ public class Config {
 		configMainExtension = extBuilder.toString();
 		
 		initializeLoadingStrategy();
-		
-		registerClass(SecurityConfig.class);
 		
 		update(null);
 		
@@ -504,6 +505,7 @@ public class Config {
 							e.printStackTrace();
 						}
 					}
+				//} else if ("debugger".equals(actionStr)) {
 				} else {
 					System.out.println("[ERROR] Unknown action \"" + actionStr + "\"!");
 				}

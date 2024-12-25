@@ -202,21 +202,24 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	 * @return -1: Errors are detected, 0: No fields are updated, 1: Field is updated.
 	 */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private int parseAndUpdateField(String keyName, String p,
-			Object obj, Field f, int flag) {
+	private int parseAndUpdateField(String keyName, String p, Object obj, Field f, int flag) {
 		/*
-		if ("configurationClasses".equals(keyName)) {
+		if ("anyArr2".equals(keyName)) {
 			System.out.println("X parse");
 		} // */
 		Class<?> type = f.getType();
 		if (TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
-			Class<?> pType = recognizeObjectType(p);
-			if (type == Enum.class && pType == String.class) {
-				Object ret = parseEnumType(p, keyName);
-				if (ret == error) return -1;
-				pType = (Class<?>) ret;
+			if ($empty.equals(p)) {
+				if (type == Object.class) type = String.class; // else keep as the original type
+			} else {
+				Class<?> pType = recognizeObjectType(p);
+				if (type == Enum.class && pType == String.class) {
+					Object ret = parseEnumType(p, keyName);
+					if (ret == error) return -1;
+					pType = (Class<?>) ret;
+				}
+				if (pType != null && pType != Object.class) type = pType;
 			}
-			if (pType != null && pType != Object.class) type = pType;
 		}
 		Object newVal = null;
 		boolean changed = false;
@@ -460,21 +463,24 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private int parseAndUpdateAnnotationField(String keyName, String p,
-			Object obj, AnnotationField f) {
+	private int parseAndUpdateAnnotationField(String keyName, String p, Object obj, AnnotationField f) {
 		/*
 		if ("configurationClasses".equals(keyName)) {
 			System.out.println("X parse");
 		} // */
 		Class<?> type = f.getType();
 		if (TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
-			Class<?> pType = recognizeObjectType(p);
-			if (type == Enum.class && pType == String.class) {
-				Object ret = parseEnumType(p, keyName);
-				if (ret == error) return -1;
-				pType = (Class<?>) ret;
+			if ($empty.equals(p)) {
+				if (type == Object.class) type = String.class; // else keep as the original type
+			} else {
+				Class<?> pType = recognizeObjectType(p);
+				if (type == Enum.class && pType == String.class) {
+					Object ret = parseEnumType(p, keyName);
+					if (ret == error) return -1;
+					pType = (Class<?>) ret;
+				}
+				if (pType != null && pType != Object.class) type = pType;
 			}
-			if (pType != null && pType != Object.class) type = pType;
 		}
 		Object newVal = null;
 		boolean changed = false;
@@ -1246,14 +1252,18 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	private Object recognizeAndParseObject(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if (p == null || $null.equals(p)) return null;
 		if (type == null || TypeUtils.isObjectOrObjectArray(type) || TypeUtils.isAbstractClass(type)) {
-			Class<?> pType = recognizeObjectType(p);
-			if (type == Enum.class && pType == String.class) {
-				Object ret = parseEnumType(p, keyName);
-				if (ret == error) return error;
-				pType = (Class<?>) ret;
+			if ($empty.equals(p)) {
+				if (type == Object.class) type = String.class; // else keep as the original type
+			} else {
+				Class<?> pType = recognizeObjectType(p);
+				if (type == Enum.class && pType == String.class) {
+					Object ret = parseEnumType(p, keyName);
+					if (ret == error) return error;
+					pType = (Class<?>) ret;
+				}
+				if (pType != null && pType != Object.class) type = pType;
+				if (type == null) return new Object();
 			}
-			if (pType != null && pType != Object.class) type = pType;
-			if (type == null) return new Object();
 		}
 		int length = p.length();
 		if (length > 2 && p.charAt(0) == '[' && p.charAt(length - 1) == ']') {

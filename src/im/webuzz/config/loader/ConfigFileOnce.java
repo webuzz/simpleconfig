@@ -95,21 +95,21 @@ public class ConfigFileOnce implements ConfigLoader {
 			return;
 		}
 
-		Class<?> oldStrategy = Config.configurationLoader; // old strategy should be this class
-		for (Class<?> config : Config.getAllConfigurations()) {
-			if (parseConfig(defaultParser, config)) {
-				Config.recordConfigExtension(config, configExtension);
-				if (config == Config.class && oldStrategy != Config.configurationLoader) { // strategy changed!
-					return;
-				}
-			}
-		}
-		
 		String folder = Config.getConfigFolder();
 		if (folder == null || folder.length() == 0) {
 			folder = new File(configPath).getParent();
 		}
-		for (Class<?> clz : Config.getAllConfigurations()) { // configuration classes may be updated already 
+		Class<?> oldStrategy = Config.configurationLoader; // old strategy should be this class
+		if (parseConfig(defaultParser, Config.class)) {
+			Config.recordConfigExtension(Config.class, configExtension);
+			if (oldStrategy != Config.configurationLoader) { // strategy changed!
+				return;
+			}
+		}
+		for (Class<?> clz : Config.getAllConfigurations()) {
+			if (parseConfig(defaultParser, clz)) {
+				Config.recordConfigExtension(clz, configExtension);
+			}
 			String keyPrefix = Config.getKeyPrefix(clz);
 			if (keyPrefix == null || keyPrefix.length() == 0) continue;
 			keyPrefixClassMap.put(keyPrefix, clz);

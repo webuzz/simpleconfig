@@ -34,6 +34,8 @@ import im.webuzz.config.codec.ConfigCodec;
 
 public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 
+	public static boolean jsToINIDebugOutput = false;
+	
 	private static String convertJS = null;
 
 	private static Object jsEngine = null;
@@ -145,9 +147,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 			if (checkInitialize()) {
 				Object o = evalMethod.invoke(jsEngine,  builder.toString() + "new $imwebuzzconfigparser().convertToProperties($config);");
 				if (o instanceof String) {
-//					System.out.println(convertJS);
-//					System.out.println("js->ini");
-//					System.out.println(o);
+					if (jsToINIDebugOutput) System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
 			}
@@ -158,7 +158,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 			if (checkInitialize()) {
 				Object o = evalMethod.invoke(jsEngine, builder.toString() + convertJS + "\r\nnew $imwebuzzconfigparser().convertToProperties($config);");
 				if (o instanceof String) {
-					// System.out.println(o);
+					if (jsToINIDebugOutput) System.out.println(o);
 					return new ByteArrayInputStream(((String) o).getBytes(Config.configFileEncoding));
 				}
 			}

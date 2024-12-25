@@ -158,17 +158,18 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		builder.append('}');
 	}
 
-	protected void generateNull(StringBuilder builder) {
+	@Override
+	protected void generateNull(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("null");
 	}
 
 	@Override
-	protected void generateEmptyArray(StringBuilder builder) {
+	protected void generateEmptyArray(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("[]");
 	}
 
 	@Override
-	protected void generateEmptyObject(StringBuilder builder) {
+	protected void generateEmptyObject(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("{}");
 	}
 
@@ -183,7 +184,11 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			builder.append("\"\""); //$emptyString;
 			return;
 		}
-		builder.append('\"').append(formatString(v)).append('\"');
+		builder.append('\"').append(formatStringForJS(v)).append('\"');
+	}
+
+	public static String formatStringForJS(String str) {
+		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
 	}
 
 	@Override
@@ -275,7 +280,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
 				generateFieldValue(builder, null, null, null, v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
-						diffTypes, true, compact, false);
+						diffTypes, true, compact, false, false);
 			}
 			if (vsSize >= 1) builder.append(' ');
 			builder.append("]");
@@ -314,7 +319,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 				generateFieldValue(builder, null, null, null,
 						v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
-						diffTypes, true, singleLine, false);
+						diffTypes, true, singleLine, false, false);
 			}
 			if (singleLine && size > 1 && k != size - 1) builder.append(", ");
 			if (multipleLines) compactWriter.appendLinebreak(builder);
@@ -328,7 +333,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		}
 		int length = builder.length();
 		if (!moreIndents && length > 4 && builder.substring(length - 4, length).equals("},\r\n")) {
-			builder.delete(length - 3, length).append(']');
+			builder.delete(length - 3, length).append(needsTypeInfo ? " ] }" : " ]");
 			//builder.insert(length - 3, needsTypeInfo ? " ] }" : " ]");
 		} else {
 			builder.append("]");

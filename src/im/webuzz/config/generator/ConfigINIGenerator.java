@@ -98,17 +98,17 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	protected void generateNull(StringBuilder builder) {
+	protected void generateNull(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("[null]");
 	}
 	
 	@Override
-	protected void generateEmptyArray(StringBuilder builder) {
+	protected void generateEmptyArray(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("[empty]");
 	}
 
 	@Override
-	protected void generateEmptyObject(StringBuilder builder) {
+	protected void generateEmptyObject(StringBuilder builder, boolean hasNamePrefix) {
 		builder.append("[empty]");
 	}
 
@@ -123,7 +123,11 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			builder.append("[empty]");
 			return;
 		} 
-		builder.append(formatString(v));
+		builder.append(formatStringForProperties(v));
+	}
+
+	public static String formatStringForProperties(String str) {
+		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
 	}
 
 	@Override
@@ -203,7 +207,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 				boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
 				generateFieldValue(builder, null, null, null, v, valueType, valueParamType,
 						forKeys, forValues, depth + 1, codecs,
-						diffTypes, true, compact, false);
+						diffTypes, true, compact, false, false);
 			}
 			return;
 		}
@@ -241,7 +245,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			boolean diffTypes = v == null ? false : checkTypeDefinition(valueType, v.getClass());
 			generateFieldValue(builder, null, prefix, null, v, valueType, valueParamType,
 					forKeys, forValues, depth + 1, codecs,
-					diffTypes, true, compact, false);
+					diffTypes, true, compact, false, false);
 			compactWriter.appendLinebreak(builder);
 			index++;
 		}

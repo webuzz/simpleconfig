@@ -42,7 +42,9 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 
 	// To add comments to the *.ini format while converting .xml format to .ini format.
 	// This is to help comparing parsed .ini format with the original .ini format.
-	public static boolean addComments = false;
+	public static boolean xmlToINIAddComments = false;
+	
+	public static boolean xmlToINIDebugOutput = false;
 	
 	private static final Set<String> primitives = new HashSet<String>();
 	private static final Set<String> basicData = new HashSet<String>();
@@ -108,6 +110,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		arrayDirect,
 		listDirect,
 		setDirect,
+		annotation,
 		object,
 	};
 
@@ -152,6 +155,11 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		if (o == null) return NodeType.unknown;
 		NamedNodeMap attributes = o.getAttributes();
 		if (attributes != null && attributes.getLength() > 0) {
+			Node nullItem = attributes.getNamedItem("null");
+			if (nullItem != null) {
+				String nullValue = nullItem.getNodeValue();
+				if ("true".equals(nullValue)) return NodeType.nullValue;
+			}
 			// <xxx class="array"> ...
 			// <xxx class="array:..."> ...
 			// <xxx class="list:..."> ...
@@ -164,6 +172,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 					if (type.startsWith("list")) return NodeType.list;
 					if (type.startsWith("set")) return NodeType.set;
 					if (type.startsWith("object")) return NodeType.object;
+					if (type.charAt(0) == '@' || type.startsWith("annotation")) return NodeType.annotation;
 					if (type.startsWith("map")) {
 						Element[] children = getChildElements(o, true);
 						if (children.length == 0) return NodeType.mapGeneric;
@@ -174,6 +183,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			}
 		}
 		String typeName = o.getNodeName();
+		if ("annotation".equals(typeName)) return NodeType.annotation;
 		if ("map".equals(typeName)) return NodeType.mapDirect;
 		if ("list".equals(typeName)) return NodeType.listDirect;
 		if ("set".equals(typeName)) return NodeType.setDirect;
@@ -282,9 +292,6 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 	}
 
 	private Element[] getChildElements(Element o, boolean noInlineTexts) {
-		if ("configurationFilters".equals(o.getNodeName())) {
-			System.out.println("xxx");
-		}
 		NodeList childNodes = o.getChildNodes();
 		int length = childNodes.getLength();
 		List<Element> entries = new ArrayList<Element>();
@@ -341,9 +348,14 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		return true;
 	}
 	public void visit(StringBuilder builder, String prefix, Element o, NodeType containerType) {
+		/*
+		if ("includes".equals(o.getTagName()) && o.getChildNodes().getLength() == 0) {
+			System.out.println("..xx");
+		}
+		//*/
 		NodeType type = prefix == null ? NodeType.none : parseType(o, containerType);
 		if (type == NodeType.plain) {
-			assign(builder, prefix, null).append(getTextValue(o).trim()).append("\r\n");
+			assign(builder, prefix, null).append(ConfigINIGenerator.formatStringForProperties(getTextValue(o).trim())).append("\r\n");
 			return;
 		}
 		if (type == NodeType.nullValue) {
@@ -366,16 +378,16 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			return;
 		}
 		if (type == NodeType.emptyObject) {
-			assign(builder, prefix, null);
+			if ("empty".equals(o.getTagName())) return;
 			appendType(builder, prefix, o, "empty");
-			builder.append("\r\n");
+			return;
 		}
 		if (type == NodeType.basicDirect) {
 			String typeName = o.getNodeName();
 			String content = getTextValue(o);
 			assign(builder, prefix, null);
 			if ("String".equalsIgnoreCase(typeName)) {
-				builder.append(ConfigINIGenerator.formatString(content)).append("\r\n");;
+				builder.append(ConfigINIGenerator.formatStringForProperties(content)).append("\r\n");;
 			} else {
 				builder.append('[').append(typeName).append(':').append(content).append("]\r\n");
 			}
@@ -387,7 +399,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			assign(builder, prefix, null);
 			String content = getTextValue(first);
 			if ("String".equalsIgnoreCase(typeName)) {
-				builder.append(ConfigINIGenerator.formatString(content)).append("\r\n");;
+				builder.append(ConfigINIGenerator.formatStringForProperties(content)).append("\r\n");;
 			} else {
 				builder.append('[').append(typeName).append(':').append(content).append("]\r\n");
 			}
@@ -551,9 +563,9 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			return;
 		}
 		//*/
-		boolean generated = false;
 		NodeList childNodes = o.getChildNodes();
 		int length = childNodes.getLength();
+		boolean generated = false;
 		for (int i = 0; i < length; i++) {
 			Node item = childNodes.item(i);
 			short nodeType = item.getNodeType();
@@ -564,7 +576,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 				for (int j = 0; j < lines.length; j++) {
 					String commentLine = lines[j].trim();
 					if (j != 0 && j != lines.length - 1 || commentLine.length() != 0) {
-						if (addComments) builder.append("# ").append(commentLine).append("\r\n");
+						if (xmlToINIAddComments) builder.append("# ").append(commentLine).append("\r\n");
 					}
 				}
 			}
@@ -584,7 +596,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			Element el = (Element) item;
 			if (prefix == null) {
 				visit(builder, el.getNodeName(), el, type);
-				if (addComments) builder.append("\r\n");
+				if (xmlToINIAddComments) builder.append("\r\n");
 			} else {
 				if (!generated) {
 					appendType(builder, prefix, o, null);
@@ -593,6 +605,10 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 				String newPrefix = prefix + "." + el.getNodeName();
 				visit(builder, newPrefix, el, type);
 			}
+		}
+		if (!generated) {
+			appendType(builder, prefix, o, null);
+			return;
 		}
 	}
 
@@ -617,6 +633,8 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 				if (type != null && type.length() > 0) {
 					if ("object".equals(o.getNodeName()) && !type.startsWith("object:")) {
 						builder.append("object:");
+					} else if ("annotation".equals(o.getNodeName()) && !type.startsWith("annotation:")) {
+						builder.append("annotation:");
 					}
 					builder.append(type);
 				}
@@ -632,8 +650,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		dbf.setAttribute("http://xml.org/sax/features/namespaces", Boolean.TRUE);
 		StringBuilder builder = new StringBuilder();
 		visit(builder, null, dbf.newDocumentBuilder().parse(fis).getDocumentElement(), NodeType.none);
-		//System.out.println(builder.toString());
-		// System.out.println("==============");
+		if (xmlToINIDebugOutput) System.out.println(builder.toString());
 		return new ByteArrayInputStream(builder.toString().getBytes(Config.configFileEncoding));
 	}
 
