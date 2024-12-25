@@ -48,7 +48,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 		}
 		InputStream jsStream = ConfigJSParser.class.getResourceAsStream("ConfigJSToProps.js");
 		if (jsStream == null) {
-			System.out.println("[FATAL] Failed to read JS2Props.js from resource stream.");
+			System.out.println("[Config:FATAL] Failed to read JS2Props.js from resource stream.");
 			return false;
 		}
 		byte[] buffer = new byte[8096];
@@ -86,7 +86,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 			}
 		}
 		if (factoryName == null ) {
-			System.out.println("[INFO] Add maven dependency to your pom.xml for nashorn JavaScript engine:");
+			System.out.println("[Config:INFO] Add maven dependency to your pom.xml for nashorn JavaScript engine:");
 			System.out.println("		<!-- https://mvnrepository.com/artifact/org.openjdk.nashorn/nashorn-core -->\n"
 					+ "		<dependency>\n"
 					+ "			<groupId>org.openjdk.nashorn</groupId>\n"
@@ -94,7 +94,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 					+ "			<version>15.4</version>\n"
 					+ "		</dependency>\n"
 					+ "\n");
-			System.out.println("[FATAL] You need to include nashorn Javascript engine after Java 15!");
+			System.out.println("[Config:FATAL] You need to include nashorn Javascript engine after Java 15!");
 			return false;
 		}
 		if (factoryName.indexOf(".nashorn.") != -1) {

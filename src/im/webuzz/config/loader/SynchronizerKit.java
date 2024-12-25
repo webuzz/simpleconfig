@@ -17,7 +17,7 @@ public class SynchronizerKit {
 		
 		Config.register(SynchronizerKit.class);
 		Config.register(RemoteCCConfig.class);
-		System.out.println("[INFO] Config agent started.");
+		System.out.println("[Config:INFO] Configuration synchronizer started.");
 		while (agentRunning) {
 			try {
 				Thread.sleep(agentSleepInterval);
@@ -25,7 +25,7 @@ public class SynchronizerKit {
 				e.printStackTrace();
 			}
 		}
-		System.out.println("[INFO] Config agent stopped.");
+		System.out.println("[Config:INFO] Configuration synchronizer stopped.");
 	}
 
 }

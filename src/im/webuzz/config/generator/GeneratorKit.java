@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.util.FileUtils;
 import im.webuzz.config.util.TypeUtils;
 
@@ -89,10 +90,10 @@ public class GeneratorKit {
 				} else {
 					Class<? extends Object> globalBuilderType = globalBuilder.getClass();
 					if (globalBuilderType != rawType) {
-						System.out.println("[ERROR] Global generator " + globaleGenerator.getClass().getName()
+						System.out.println("[Config:ERROR] Global generator " + globaleGenerator.getClass().getName()
 								+ " can only process " + globalBuilderType.getName() + " builder. "
 								+ "But now the generator for " + clz.getName() + " is designed to process " + rawType.getName() + " builder.");
-						System.out.println("[ERROR] Configuration file " + keyPrefix + fileExt + " is not generated because of the above buidler confliction!");
+						System.out.println("[Config:ERROR] Configuration file " + keyPrefix + fileExt + " is not generated because of the above buidler confliction!");
 						return;
 					}
 				}
@@ -135,7 +136,7 @@ public class GeneratorKit {
 			if (baos.size() == 0) return;
 			newBytes = baos.toByteArray();
 		} else {
-			System.out.println("[ERROR] Failed to write object to file " + file.getName() + ": unsupported object type: " + obj.getClass().getName());
+			System.out.println("[Config:ERROR] Failed to write object to file " + file.getName() + ": unsupported object type: " + obj.getClass().getName());
 			return;
 		}
 		byte[] oldBytes = FileUtils.readFileBytes(file);
@@ -164,7 +165,7 @@ public class GeneratorKit {
 		String extension = targetExtension;
 		String prefix = Config.getKeyPrefix(lastClass);
 		if (prefix != null && prefix.length() > 0) {
-			extension = Config.getConfigExtension(lastClass);
+			extension = InternalConfigUtils.getConfigExtension(lastClass);
 		}
 		classExtensions.put(lastClass, extension);
 	}
@@ -181,7 +182,7 @@ public class GeneratorKit {
 		StringBuilder folderBuilder = new StringBuilder();
 		StringBuilder nameBuilder = new StringBuilder();
 		StringBuilder extBuilder = new StringBuilder();
-		indexOffset = Config.parseMainFile(args, indexOffset, folderBuilder, nameBuilder, extBuilder);
+		indexOffset = InternalConfigUtils.parseMainFile(args, indexOffset, folderBuilder, nameBuilder, extBuilder);
 		String configFolder = folderBuilder.toString();
 		String configMainName = nameBuilder.toString();
 		String configMainExtension = extBuilder.toString();

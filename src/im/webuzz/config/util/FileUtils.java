@@ -54,7 +54,7 @@ public class FileUtils {
 		for (int i = 0; i < segments.length; i++) {
 			count--;
 			if (count < 0) {
-				System.out.println("[ERROR] Failed to fix the URL: " + path);
+				System.out.println("[Config:ERROR] Failed to fix the URL: " + path);
 				break;
 			}
 			String segment = segments[i];

@@ -15,12 +15,14 @@ import java.nio.file.WatchService;
 import java.util.List;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 
 public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 
 	@Override
 	public boolean start() {
 		if (!super.start()) return false;
+		System.out.println("[Config:INFO] Starting local configuration file watcher");
 		Thread webThread = new Thread(this, "Local Configuration File Watcher");
 		webThread.setDaemon(true);
 		webThread.start();
@@ -51,7 +53,7 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 
 				for (WatchEvent<?> event : key.pollEvents()) {
 					WatchEvent.Kind<?> kind = event.kind();
-					System.out.println(kind);
+					//System.out.println(kind);
 					if (kind != ENTRY_MODIFY && kind != ENTRY_CREATE && kind != ENTRY_DELETE) continue;
 					Path filePath = (Path) event.context();
 					String newFileName = filePath.getFileName().toString();
@@ -65,7 +67,7 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 					// first available(or active) combination or not
 					// If not, print warning and continue
 					StringBuilder extBuilder = new StringBuilder();
-					File file = Config.getConfigFile(newKeyPrefix, extBuilder);
+					File file = InternalConfigUtils.getConfigFile(newKeyPrefix, extBuilder);
 					//System.out.println(file);
 					if (!file.exists()) {
 						// kind == ENTRY_DELETE may run into this branch
@@ -74,8 +76,8 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 						
 						// In this case, the given file is deleted, and no new configuration files are
 						// found, print warning, no need to update configurations.
-						System.out.println("[WARN] After " + newFileName + " being deleted, no replacment configuration files are found!");
-						System.out.println("[WARN] Application restarting may run with incorrect configurations!");
+						System.out.println("[Config:WARN] After " + newFileName + " being deleted, no replacment configuration files are found!");
+						System.out.println("[Config:WARN] Application restarting may run with incorrect configurations!");
 						continue;
 					}
 					// It should always be true for ENTRY_MODIFY and ENTRY_CREATE here
@@ -83,7 +85,7 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 					if (kind == ENTRY_MODIFY || kind == ENTRY_CREATE) {
 						if (!activeFileName.equals(newFileName)) {
 							// inactive configuration file for the extension
-							System.out.println("[WARN] The updated file " + newFileName + " is disabled for configurations. Current enabled file is " + activeFileName);
+							System.out.println("[Config:WARN] The updated file " + newFileName + " is disabled for configurations. Current enabled file is " + activeFileName);
 							continue;
 						} // else continue following logic codes
 					} else { // kind == ENTRY_DELETE
@@ -96,17 +98,17 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 						extension = extBuilder.toString();
 					}
 					Class<?> clz = keyPrefixClassMap.get(newKeyPrefix);
-					System.out.println("Yoho " + clz + " // " + newKeyPrefix + " xxx " + keyPrefixClassMap.size());
+					//System.out.println("Yoho " + clz + " // " + newKeyPrefix + " xxx " + keyPrefixClassMap.size());
 					if (clz != null) {
-						String oldExtension = Config.getConfigExtension(clz);
+						String oldExtension = InternalConfigUtils.getConfigExtension(clz);
 						if (oldExtension != null && !oldExtension.equals(extension)) {
-							System.out.println("[INFO] Configuration extension changed: switching from " + newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
+							System.out.println("[Config:INFO] Configuration extension changed: switching from " + newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
 						}
 						//Path fullPath = path.resolve(filePath);
 						updateSingleConfiguration(file, newKeyPrefix, extension, clz);
 					} else if (newKeyPrefix.equals(mainKeyPrefix)) {
 						if (mainExtension != null && !mainExtension.equals(extension)) {
-							System.out.println("[INFO] Configuration extension changed: switching from " + newKeyPrefix + mainExtension + " to " + newKeyPrefix + extension);
+							System.out.println("[Config:INFO] Configuration extension changed: switching from " + newKeyPrefix + mainExtension + " to " + newKeyPrefix + extension);
 						}
 						Config.updateConfigMainExtension(extension);
 						mainExtension = extension;
@@ -116,7 +118,7 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 
 				boolean valid = key.reset();
 				if (!valid) {
-					System.out.println("[ERROR] The watching key of the file system's WatchService is invalid!");
+					System.out.println("[Config:ERROR] The watching key of the file system's WatchService is invalid!");
 					//break;
 				}
 			}
@@ -133,13 +135,9 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				if (!running) {
-					break;
-				}
+				if (!running) break;
 			}
-			if (running) {
-				updateFromConfigurationFiles(Config.getConfigurationMainFile(), Config.getConfigurationMainExtension(), Config.getConfigurationFolder());
-			}
+			if (running) updateAllConfigurations(mainFolder, mainKeyPrefix, extension);
 		}
 		//*/
 	}

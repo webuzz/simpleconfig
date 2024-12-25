@@ -13,7 +13,8 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 	@Override
 	public boolean start() {
 		if (!super.start()) return false;
-		Thread webThread = new Thread(this, "Remote Web Configuration Watcher");
+		System.out.println("[Config:INFO] Starting remote web configuration center watcher");
+		Thread webThread = new Thread(this, "Remote Web Configuration Center Watcher");
 		webThread.setDaemon(true);
 		webThread.start();
 		return true;
@@ -55,6 +56,7 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 					}
 				}
 				fetchAllConfigurations();
+				fetchAllResourceFiles();
 				//refreshAll(false, WebConfig.webRequestTimeout);
 				if (!RemoteCCConfig.synchronizing) {
 					continue;

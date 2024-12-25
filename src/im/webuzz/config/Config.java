@@ -14,7 +14,6 @@
 
 package im.webuzz.config;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -24,25 +23,19 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.annotation.AnnotationScanner;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
-import im.webuzz.config.annotation.ConfigIgnored;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
 import im.webuzz.config.annotation.ConfigLength;
-import im.webuzz.config.annotation.ConfigLocalOnly;
 import im.webuzz.config.annotation.ConfigNotEmpty;
 import im.webuzz.config.annotation.ConfigNotNull;
-import im.webuzz.config.annotation.ConfigOverridden;
 import im.webuzz.config.annotation.ConfigPattern;
-import im.webuzz.config.annotation.Configurable;
 import im.webuzz.config.codec.AESCodec;
 import im.webuzz.config.codec.Base64Codec;
 import im.webuzz.config.codec.Bytes64Codec;
@@ -50,7 +43,7 @@ import im.webuzz.config.codec.BytesAESCodec;
 import im.webuzz.config.codec.CodecKit;
 import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.codec.SecretCodec;
-import im.webuzz.config.codec.SecurityConfig;
+import im.webuzz.config.codec.AESKeysConfig;
 import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.loader.ConfigFileWatcher;
 import im.webuzz.config.loader.ConfigMemoryFS;
@@ -75,9 +68,9 @@ public class Config {
 	private static final String keyPrefixFieldName = "configKeyPrefix";
 
 	//public static boolean configurationMultipleFiles = true;
-	private static String configFolder = null;
-	private static String configMainName = null;
-	private static String configMainExtension = null;
+	static String configFolder = null;
+	static String configMainName = null;
+	static String configMainExtension = null;
 	
 	@ConfigComment({
 		"Supporting multiple configuration formats. The scanning extension order will be used",
@@ -135,8 +128,7 @@ public class Config {
 	
 	@ConfigNotNull
 	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
-	private static ConfigLoader resourceLoader = null;
-	
+
 	@ConfigComment({
 		"Codec for some known data. Codec can be used for encrypting some sensitive value in configuration file.",
 		"As codec instance will be re-used over and over, codec implementation should be state-less."
@@ -165,19 +157,9 @@ public class Config {
 	public static boolean skipUpdatingWithInvalidItems = true;
 
 	
-	// ****** The following fields are internal, non-configurable ****** //
-	protected static volatile long initializedTime = 0;
-	protected static boolean initializationFinished = false;
-
 	private static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
 	private static List<Class<?>> orderedConfigs = new ArrayList<>();
-	private static Map<Class<?>, String> configExtensions = new ConcurrentHashMap<>();
-
-	private static volatile ClassLoader classLoader = null;
-	
-	// Keep not found classes, if next time trying to load these classes, do not print exceptions
-	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<>());
-	private static Map<String, Class<?>> loadedClasses = new ConcurrentHashMap<>(50);
+	static volatile ClassLoader classLoader = null;
 	
 	/*
 	 * In case configurations got updated from file, try to add class into configuration system
@@ -195,10 +177,7 @@ public class Config {
 				if (!allConfigs.containsKey(pkg)) register(pkg);
 			}
 		}
-		if (isInitializationFinished() && ((resourceLoader == null && configurationLoader != null)
-				|| resourceLoader.getClass() != configurationLoader)) {
-			initializeLoadingStrategy();
-		}
+		InternalConfigUtils.checkStrategyLoader();
 	}
 
 	/* Recommend using this method in other applications */
@@ -213,7 +192,7 @@ public class Config {
 				registerPackage(clazz);
 				return;
 			}
-			Class<?> clz = loadConfigurationClass(clazz);
+			Class<?> clz = InternalConfigUtils.loadConfigurationClass(clazz);
 			if (clz != null) {
 				registerClass(clz);
 			}
@@ -233,7 +212,7 @@ public class Config {
 			}
 			return;
 		}
-		System.out.println("[ERROR] Unknown configuration item " + cfg);
+		System.out.println("[Config:ERROR] Unknown configuration item " + cfg);
 	}
 	// For reflection only
 	public static void register(Object... cfgs) {
@@ -263,11 +242,11 @@ public class Config {
 		boolean updating = allConfigs.put(clazz.getName(), clazz) != clazz;
 		if (!updating) return;
 		orderedConfigs.add(clazz);
-		initializedTime = System.currentTimeMillis();
+		InternalConfigUtils.initializedTime = System.currentTimeMillis();
 		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE);
-		if (resourceLoader != null) resourceLoader.add(clazz);
+		if (InternalConfigUtils.resourceLoader != null) InternalConfigUtils.resourceLoader.add(clazz);
 		if (configurationLogging) {
-			System.out.println("[Config] Registering configuration class " + clazz.getName() + " done.");
+			System.out.println("[Config:INFO] Registering configuration class " + clazz.getName() + " done.");
 		}
 	}
 
@@ -276,26 +255,6 @@ public class Config {
 	@Deprecated
 	public static void registerUpdatingListener(Class<?> clazz) {
 		registerClass(clazz);
-	}
-	
-	/**
-	 * Record configuration class's existing file extension.
-	 * @param configClass
-	 * @param configExtension
-	 * @return whether file extension is changed or not.
-	 */
-	public static boolean recordConfigExtension(Class<?> configClass, String configExtension) {
-		String existedConfigExt = configExtensions.put(configClass, configExtension);
-		if (existedConfigExt != null && !existedConfigExt.equals(configExtension)) {
-			return true;
-		}
-		return false;
-	}
-	
-	public static String getConfigExtension(Class<?> configClass) {
-		String ext = configExtensions.get(configClass);
-		if (ext == null) ext = configMainExtension;
-		return ext;
 	}
 	
 	public static String getConfigFolder() {
@@ -317,121 +276,16 @@ public class Config {
 		return true;
 	}
 
-	public static File getConfigFile(String keyPrefix, StringBuilder extBuilder) {
-		String folder = getConfigFolder();
-		return getConfigFile(folder, keyPrefix, extBuilder);
-	}
-	
-	public static File getConfigFile(String folder, String keyPrefix, StringBuilder extBuilder) {
-		String firstExt = null;
-		for (String ext : Config.configurationScanningExtensions) {
-			if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
-				if (firstExt == null) firstExt = ext;
-				File file = new File(folder, FileUtils.parseFilePath(keyPrefix + ext));
-				if (file.exists()) {
-					if (extBuilder != null) extBuilder.append(ext);
-					return file;
-				}
-			}
-		}
-		if (extBuilder != null) extBuilder.append(firstExt);
-		return new File(folder, FileUtils.parseFilePath(keyPrefix + firstExt));
-	}
-	
 	@Deprecated
 	public static void initialize(String configPath) {
 		initialize(new String[] { configPath });
 	}
 
-	public static int parseMainFile(String[] args, int indexOffset,
-			StringBuilder folderBuilder, StringBuilder nameBuilder, StringBuilder extBuilder) {
-		String defaultConfigName = configMainName != null ? configMainName : "config"; 
-		String firstArg;
-		if (args != null && args.length > indexOffset
-				&& (firstArg = args[indexOffset]) != null && firstArg.length() > 0) {
-			File f = new File(firstArg);
-			if (f.exists()) {
-				int argsOffset = 1;
-				if (f.isDirectory()) {
-					String configFolderPath = f.getAbsolutePath();
-					if (args.length >= 2) {
-						String secondArg = args[indexOffset + 1];
-						if (secondArg != null && secondArg.length() > 0
-								&& secondArg.indexOf('/') == -1 && secondArg.indexOf('\\') == -1) { // just a single file name
-							// ./etc/ piled.ini
-							for (String ext : Config.configurationScanningExtensions) {
-								if (!secondArg.endsWith(ext)) continue;
-								if (secondArg.equals(ext)) {
-									f = new File(configFolderPath, defaultConfigName + ext);
-								} else {
-									f = new File(configFolderPath, secondArg);
-								}
-								argsOffset = 2;
-								break;
-							}
-						}
-					}
-					if (argsOffset == 1) { // The second argument is not a valid file name
-						// ./etc/ im.webuzz.config.Config ...
-						f = getConfigFile(configFolderPath, defaultConfigName, null);
-					}
-					folderBuilder.append(configFolderPath);
-				} else { // File
-					// ./etc/piled.ini
-					String folder = f.getParent();
-					if (folder == null) folder = ".";
-					folderBuilder.append(folder).append(File.separatorChar);;
-				}
-				String name = f.getName();
-				int idx = name.lastIndexOf('.');
-				if (idx != -1) {
-					// ./etc/config.js
-					nameBuilder.append(name.substring(0, idx));
-					extBuilder.append(name.substring(idx));
-					if (configurationScanningExtensions.contains(extBuilder.toString())) {
-						return indexOffset + argsOffset;
-					}
-					// else // ./file.tgz // not supporting .tgz file
-				}
-				// ./etc/config
-				System.out.println("[FATAL] Unknown configuration file extension for " + name);
-				System.exit(0);
-				return -1;
-			}
-			// ./etc/new.ini
-			// Configuration file does not exist! To check if it has a known configuration extension or not
-			for (String ext : configurationScanningExtensions) {
-				if (!firstArg.endsWith(ext)) continue;
-				if (firstArg.equals(ext)) {
-					folderBuilder.append(".").append(File.separatorChar);;
-					nameBuilder.append(defaultConfigName);
-					extBuilder.append(ext);
-					return indexOffset + 1;
-				}
-				String folder = f.getParent();
-				if (folder == null) folder = ".";
-				folderBuilder.append(folder).append(File.separatorChar);
-				String name = f.getName();
-				nameBuilder.append(name.substring(0, name.length() - ext.length()));
-				extBuilder.append(ext);
-				return indexOffset + 1;
-			}
-		}
-		// No main configuration file in the arguments!
-		folderBuilder.append(".").append(File.separatorChar);;
-		nameBuilder.append(defaultConfigName);
-		getConfigFile(folderBuilder.toString(), nameBuilder.toString(), extBuilder);
-		return indexOffset;
-	}
-	
 	/**
 	 * Need to set configurationFile and configurationExtraPath before calling this method.
 	 */
 	public static String[] initialize(String[] args) {
-		allConfigs.put(Config.class.getName(), Config.class);
-		orderedConfigs.add(Config.class);
-		
-		registerClass(SecurityConfig.class);
+		registerClass(AESKeysConfig.class);
 		
 		ConfigParser<String[], String[]> argumentsParser = null; 
 		String[] retArgs = args;
@@ -439,29 +293,28 @@ public class Config {
 			argumentsParser = commandLineParser;
 			retArgs = argumentsParser.loadResource(retArgs, true);
 			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE);
-			Class<?>[] configs = Config.getAllConfigurations();
-			for (int i = 0; i < configs.length; i++) {
-				argumentsParser.parseConfiguration(configs[i], ConfigParser.FLAG_UPDATE);
+			for (Class<?> config : orderedConfigs) {
+				argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
 			}
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
 		
 		StringBuilder folderBuilder = new StringBuilder();
 		StringBuilder nameBuilder = new StringBuilder();
 		StringBuilder extBuilder = new StringBuilder();
-		int indexOffset = parseMainFile(retArgs, 0, folderBuilder, nameBuilder, extBuilder);
+		int indexOffset = InternalConfigUtils.parseMainFile(retArgs, 0, folderBuilder, nameBuilder, extBuilder);
 		configFolder = folderBuilder.toString();
 		configMainName = nameBuilder.toString();
 		configMainExtension = extBuilder.toString();
 		
-		initializeLoadingStrategy();
+		InternalConfigUtils.initializeStrategyLoader();
 		
 		update(null);
 		
-		initializedTime = System.currentTimeMillis();
+		InternalConfigUtils.initializedTime = System.currentTimeMillis();
 		if (configurationLogging) {
-			System.out.println("[Config] Configuration initialized.");
+			System.out.println("[Config:INFO] Configuration initialized.");
 		}
-		initializationFinished = true;
+		InternalConfigUtils.initializationFinished = true;
 		
 		if (retArgs != null && retArgs.length > indexOffset) {
 			String actionStr = retArgs[indexOffset];
@@ -478,9 +331,9 @@ public class Config {
 					printUsage();
 				} else if ("validator".equals(actionStr)) {
 					if (ConfigMemoryFS.validate()) {
-						System.out.println("[INFO] Configuration files are OK.");
+						System.out.println("[Config:INFO] Configuration files are OK.");
 					} else {
-						System.out.println("[ERROR] Configuration validation failed!");
+						System.out.println("[Config:ERROR] Configuration validation failed!");
 					}
 				} else if ("synchronizer".equals(actionStr)) {
 					SynchronizerKit.run(retArgs, indexOffset);
@@ -499,7 +352,7 @@ public class Config {
 								System.arraycopy(retArgs, indexOffset, newRetArgs, 0, newRetArgs.length);
 								method.invoke(null, new Object[] { newRetArgs});
 							} else {
-								System.out.println("[ERROR] Class " + retArgs[1] + " must contains public static void main(String[] args) method!");
+								System.out.println("[Config:ERROR] Class " + retArgs[1] + " must contains public static void main(String[] args) method!");
 							}
 						} catch (Exception e) {
 							e.printStackTrace();
@@ -507,7 +360,7 @@ public class Config {
 					}
 				//} else if ("debugger".equals(actionStr)) {
 				} else {
-					System.out.println("[ERROR] Unknown action \"" + actionStr + "\"!");
+					System.out.println("[Config:ERROR] Unknown action \"" + actionStr + "\"!");
 				}
 				System.exit(0); // Stop
 				return null;
@@ -537,19 +390,15 @@ public class Config {
 		System.out.println("\t--run:wrapper <App class with #main(String[]) method>\tContinue to run the main class");
 	}
 
-	public static boolean isInitializationFinished() {
-		return initializationFinished && initializedTime > 0 && System.currentTimeMillis() - initializedTime > 3000;
-	}
-
 	public static boolean reportErrorToContinue(String msg) {
 		String[] msgs = msg.split("(\r\n|\n|\r)");
 		for (int i = 0; i < msgs.length; i++) {
-			System.out.println("[ERROR] " + msgs[i]);
+			System.out.println("[Config:ERROR] " + msgs[i]);
 		}
 		if (configurationAlarmer != null) {
 			// TODO: Use alarm to send an alert to the operator 
 		}
-		if (isInitializationFinished()) {
+		if (InternalConfigUtils.isInitializationFinished()) {
 			if (skipUpdatingWithInvalidItems) {
 				// Stop parsing all the left items
 				return false;
@@ -557,31 +406,13 @@ public class Config {
 			return true; // continue to parse other item
 		}
 		if (exitInitializingOnInvalidItems) {
-			System.out.println("[FATAL] Exit current configuration initialization!");
+			System.out.println("[Config:FATAL] Exit current configuration initialization!");
 			System.exit(0);
 			return false;
 		}
 		return true; // continue to parse other item
 	}
 	
-	public static void initializeLoadingStrategy() {
-		int loopLoadings = 5;
-		while ((resourceLoader == null || resourceLoader.getClass() != configurationLoader)) {
-			if (resourceLoader != null) resourceLoader.stop();
-			try {
-				resourceLoader = configurationLoader.newInstance();
-			} catch (Exception e) {
-				e.printStackTrace();
-				return;
-			}
-			resourceLoader.start();
-			if (loopLoadings-- <= 0) break;
-		}
-		if (loopLoadings <= 0 && configurationLogging) {
-			System.out.println("[Config] Loading watchman classes results in too many loops (5).");
-		}
-	}
-
 	/*
 	 * Will be invoked by watchman classes
 	 */
@@ -595,39 +426,6 @@ public class Config {
 
 	public static void setConfigurationClassLoader(ClassLoader classLoader) {
 		Config.classLoader = classLoader;
-	}
-
-	public static Class<?> loadConfigurationClass(String clazz) {
-		return loadConfigurationClass(clazz, null);
-	}
-	public static Class<?> loadConfigurationClass(String clazz, StringBuilder errBuilder) {
-		Class<?> clz = loadedClasses.get(clazz);
-		if (clz != null) return clz;
-		if (classLoader != null) {
-			try {
-				clz = classLoader.loadClass(clazz);
-			} catch (ClassNotFoundException e) {
-				if (!notFoundClasses.contains(clazz)) {
-					notFoundClasses.add(clazz);
-					//e.printStackTrace();
-					System.err.println("Class " + clazz + " not found!");
-				}
-			}
-		}
-		if (clz == null) {
-			try {
-				clz = Class.forName(clazz);
-			} catch (ClassNotFoundException e) {
-				if (errBuilder != null) errBuilder.append(e.getMessage());
-				if (!notFoundClasses.contains(clazz)) {
-					notFoundClasses.add(clazz);
-					//e.printStackTrace();
-					System.err.println("Class " + clazz + " not found!");
-				}
-			}
-		}
-		if (clz != null) loadedClasses.put(clazz, clz);
-		return clz;
 	}
 
 	public static String getKeyPrefix(Class<?> clz) {
@@ -664,65 +462,6 @@ public class Config {
 	}
 	
 	
-	/**
-	 * Check if given field is filtered/skipped or not.
-	 * @param modifiers
-	 * @param filterStatic
-	 * @return true, should be skipped; false, should not be skipped.
-	 */
-	public static boolean filterModifiers(int modifiers, boolean filterStatic) {
-		int filteringModifiers = Modifier.PUBLIC;
-		if ((filteringModifiers <= 0 ? false : (modifiers & filteringModifiers) == 0)
-				|| (modifiers & Modifier.FINAL) != 0) {
-			// Ignore final fields, ignore non-matched modifier
-			return true;
-		}
-		boolean staticField = (modifiers & Modifier.STATIC) != 0;
-		if (filterStatic) {
-			if (staticField) return true;
-		} else {
-			// not filter static fields
-			if (!staticField) return true;
-		}
-		return false;
-	}
-
-	public static boolean isFiltered(Field field, boolean filterStatic, Map<String, Annotation[]> fieldAnns, boolean filterLocalOnly) {
-		if (field == null) return true;
-		int modifiers = field.getModifiers();
-		if ((modifiers & Modifier.FINAL) != 0) return true;
-		boolean staticField = (modifiers & Modifier.STATIC) != 0;
-		if (filterStatic) {
-			if (staticField) return true;
-		} else {
-			// not filter static fields
-			if (!staticField) return true;
-		}
-		boolean annOverridden = false;
-		Annotation[] anns = fieldAnns == null ? null : fieldAnns.get(field.getName());
-		if (anns != null && anns.length > 0) {
-			// Check the first annotation to see if Annotation declared in the source
-			// file should be discarded or not 
-			annOverridden = anns[0] != null && anns[0] instanceof ConfigOverridden;
-		}
-		Class<ConfigIgnored> ignoringClass = ConfigIgnored.class;
-		if (!annOverridden && field.getAnnotation(ignoringClass) != null) return true;
-		int filteringModifiers = Modifier.PUBLIC;
-		if (anns != null) {
-			for (Annotation ann : anns) {
-				Class<? extends Annotation> annClass = ann.getClass();
-				if (annClass == ignoringClass) return true;
-				if (filterLocalOnly && annClass == ConfigLocalOnly.class) return true;
-				if (annClass == Configurable.class) {
-					if ((modifiers & Modifier.PUBLIC) == 0) field.setAccessible(true);
-					filteringModifiers = 0;
-				}
-			}
-		}
-		if (filteringModifiers > 0 && (modifiers & filteringModifiers) == 0) return true;
-		return false;
-	}
-
 	public static void main(String[] args) {
 		initialize(args);
 	}

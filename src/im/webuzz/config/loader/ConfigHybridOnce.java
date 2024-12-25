@@ -1,10 +1,5 @@
 package im.webuzz.config.loader;
 
-import java.io.File;
-
-import im.webuzz.config.Config;
-import im.webuzz.config.util.FileUtils;
-
 public class ConfigHybridOnce extends ConfigWebOnce {
 
 	protected ConfigFileOnce fileOnce = new ConfigFileOnce();
@@ -37,51 +32,16 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 		super.add(configClazz);
 	}
 
-	protected void fetchAllConfigurations() {
-		super.fetchAllConfigurations();
-		String[] extraFiles = RemoteCCConfig.extraResourceFiles;
-		if (RemoteCCConfig.extraTargetURLPattern != null && extraFiles != null) {
-			String[] extraExts = RemoteCCConfig.extraResourceExtensions;
-			for (String path : extraFiles) {
-				if (path == null || path.length() == 0) {
-					continue;
-				}
-				path = FileUtils.parseFilePath(path);
-				String filePath = null;
-				String fileName = null;
-				String fileExt = null;
-				if (extraExts != null && extraExts.length > 0) {
-					boolean matched = false;
-					for (String extraExt : extraExts) {
-						if (extraExt == null || extraExt.length() == 0) {
-							continue;
-						}
-						if (path.endsWith(extraExt)) {
-							matched = true;
-							fileExt = extraExt;
-							File f = new File(path);
-							String name = f.getName();
-							filePath = path.substring(0, path.length() - name.length());
-							fileName = name.substring(0, name.length() - fileExt.length());
-							break;
-						}
-					}
-					if (!matched) {
-						if (Config.configurationLogging) {
-							System.out.println("[Config] Resource file " + path + " is skipped as its extension is not permitted.");
-						}
-						continue;
-					}
-				}
-				ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(filePath, fileName, fileExt);
-				synchronizeFile(null, fileName, fileExt, file, false, path, -1);
-			}
-		}
-	}
-
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
-		if (file.loadFromWebResponse(responseBytes, lastModified)) {
-			ConfigMemoryFS.saveToLocalFS(file);
+		if (file.content == null) {
+			if (file.loadFromWebResponse(responseBytes, lastModified)) {
+				ConfigMemoryFS.saveToMemoryFS(file);
+				ConfigMemoryFS.saveToLocalFS(file);
+			}
+		} else {
+			if (file.loadFromWebResponse(responseBytes, lastModified)) {
+				ConfigMemoryFS.saveToLocalFS(file);
+			}
 		}
 	}
 

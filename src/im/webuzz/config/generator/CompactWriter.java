@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.util.TypeUtils;
 
@@ -235,7 +236,7 @@ public class CompactWriter {
 		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (Config.isFiltered(f, true, fieldAnns, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, true, fieldAnns, false)) continue;
 			Class<?> type = f.getType();
 			if (type == String.class || type.isPrimitive() || TypeUtils.isBasicDataType(type)) {
 				continue; // ignore

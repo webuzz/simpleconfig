@@ -35,15 +35,8 @@ public class SecretCodec implements ConfigCodec<String> {
 
 	private static Map<String, String> caches = new ConcurrentHashMap<String, String>(64);
 	
-	private static boolean initialized = false;
-
 	@Override
 	public String encode(String source) {
-		if (!initialized) {
-			initialized = true;
-			Config.register(SecurityConfig.class);
-		}
-		
 		if (source == null || source.length() == 0) {
 			return source;
 		}
@@ -57,7 +50,7 @@ public class SecretCodec implements ConfigCodec<String> {
 		int length = source.length();
 		for (int i = length - 1; i >= 0; i--) { // Mix and double password length
 			int base64Len = Base64.intToBase64.length;
-			int idx = SecurityConfig.generateRandomness ? (int) Math.floor(Math.random() * base64Len) : i % base64Len;
+			int idx = AESKeysConfig.generateRandomness ? (int) Math.floor(Math.random() * base64Len) : i % base64Len;
 			char c = Base64.intToBase64[idx];
 			builder.append(source.charAt(i)).append(c);
 		}
@@ -73,11 +66,6 @@ public class SecretCodec implements ConfigCodec<String> {
 
 	@Override
 	public String decode(String encodedString) {
-		if (!initialized) {
-			initialized = true;
-			Config.register(SecurityConfig.class);
-		}
-		
 		if (encodedString == null || encodedString.length() == 0) {
 			return encodedString;
 		}

@@ -50,7 +50,7 @@ public class ConfigArgumentsParser implements ConfigParser<String[], String[]> {
 			parsed = parseLine(arg, parsed, argList, args, i);
 		}
 		if (continueStdinReading) {
-			System.out.println("[INFO] Parsing stdin input, until \"--\" or EOF(Ctrl+D)...");
+			System.out.println("[Config:INFO] Parsing stdin input, until \"--\" or EOF(Ctrl+D)...");
 			// Reading key-value from stdin, especially for sensitive key-value, like password, token, etc.
 			// stdin input will be read as properties directly
 			StringBuilder builder = new StringBuilder();
@@ -74,7 +74,7 @@ public class ConfigArgumentsParser implements ConfigParser<String[], String[]> {
 					scanner.close();
 				}
 			}
-			System.out.println("[INFO] Done with stdin input.");
+			System.out.println("[Config:INFO] Done with stdin input.");
 		}
 		return !parsed ? args : argList.toArray(new String[argList.size()]);
 	}

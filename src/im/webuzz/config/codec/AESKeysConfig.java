@@ -29,9 +29,9 @@ import im.webuzz.config.annotation.ConfigComment;
 	"4: K0=B, k1=B, k2=null (t=+3d) // Use key B totally, and remove key A for ever",
 	"...",
 })
-public class SecurityConfig {
+public class AESKeysConfig {
 	
-	public static final String configKeyPrefix = "security";
+	public static final String configKeyPrefix = "aeskeys";
 			
 	@ConfigComment({
 		"The following key values MUST be updated to different keys in production servers:",
@@ -44,7 +44,7 @@ public class SecurityConfig {
 	public static String key2 = null;
 	
 	
-	@ConfigComment({ "Add randomness on encrypting given message or not."})
+	@ConfigComment({ "For [secret:xxxxx], add randomness on encrypting given message or not."})
 	public static boolean generateRandomness = true;
 	
 	public static void update(Properties prop) {

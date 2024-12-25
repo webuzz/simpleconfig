@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.annotation.AnnotationField;
@@ -663,7 +664,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(o.getClass());
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (Config.isFiltered(f, true, fieldAnns, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, true, fieldAnns, false)) continue;
 			if (!separatorGenerated) {
 				appendSeparator(builder, compact);
 				separatorGenerated = true;
@@ -792,8 +793,9 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 		compactWriter.increaseIndent();
 		if (GeneratorConfig.addTypeComment) {
+			if (builder.length() > 0) builder.append("\r\n");
 			startLineComment(builder);
-			builder.append(clz.getSimpleName());
+			builder.append(clz.getName());
 			endLineComment(builder); //.append("\r\n");
 		}
 		//boolean skipUnchangedLines = false;
@@ -805,14 +807,14 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (Config.isFiltered(f, false, fieldAnns, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, false, fieldAnns, false)) continue;
 			//if (keyPrefix != null) name = prefixedField(keyPrefix, name);
 			// To check if there are duplicate fields over multiple configuration classes, especially for
 			// those classes without stand-alone configuration files.
 			String name = f.getName();
 			String fullFieldName = clzName + "." + name;
 			if (allFields.containsKey(name) && !fullFieldName.equals(allFields.get(name))) {
-				System.out.println("[WARN] " + fullFieldName + " is duplicated with " + (allFields.get(name)));
+				System.out.println("[Config:WARN] " + fullFieldName + " is duplicated with " + (allFields.get(name)));
 			}
 			allFields.put(name, fullFieldName);
 			int oldLength = builder.length();

@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.AnnotationField;
 import im.webuzz.config.annotation.AnnotationProxy;
 import im.webuzz.config.annotation.AnnotationValidator;
@@ -97,9 +98,9 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		if (clz == null || props.size() == 0) {
 			if ((flag & FLAG_VALIDATE) != 0) {
 				if (combinedConfigs) {
-					System.out.println("[WARN] No combined configuration items!");
+					System.out.println("[Config:WARN] No combined configuration items!");
 				} else {
-					System.out.println("[WARN] No configuration items for class \"" + clz.getName() + "\"");
+					System.out.println("[Config:WARN] No configuration items for class \"" + clz.getName() + "\"");
 				}
 			}
 			return 0;
@@ -122,13 +123,13 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		boolean itemMatched = false;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (Config.isFiltered(f, false, fieldAnns, (flag & ConfigParser.FLAG_REMOTE) != 0)) continue;
+			if (InternalConfigUtils.isFiltered(f, false, fieldAnns, (flag & ConfigParser.FLAG_REMOTE) != 0)) continue;
 			String name = f.getName();
 			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
 			String p = props.getProperty(keyName);
 			if (p == null) {
 				if ((flag & FLAG_VALIDATE) != 0 && (!combinedConfigs || keyPrefix == null)) {
-					System.out.println("[WARN] Missing \"" + keyName + "\" configuration for class \"" + clz.getName() + "\"");
+					System.out.println("[Config:WARN] Missing \"" + keyName + "\" configuration for class \"" + clz.getName() + "\"");
 				}
 				continue; // given key does not exist
 			}
@@ -139,8 +140,8 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			//if (p.length() == 0) continue;
 			int result = parseAndUpdateField(keyName, p, clz, f, flag);
 			if (result == -1) return -1;
-			if (result == 1 && (flag & FLAG_UPDATE) != 0 && Config.configurationLogging && Config.isInitializationFinished()) {
-				System.out.println("[Config] Configuration " + clz.getName() + "#" + name + " updated.");
+			if (result == 1 && (flag & FLAG_UPDATE) != 0 && Config.configurationLogging && InternalConfigUtils.isInitializationFinished()) {
+				System.out.println("[Config:INFO] Configuration " + clz.getName() + "#" + name + " updated.");
 			}
 		}
 		if (itemMatched && (flag & FLAG_UPDATE) != 0) {
@@ -181,7 +182,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		}
 		String typeStr = suffix.substring(0, nameIdx).trim();
 		StringBuilder err = new StringBuilder();
-		Class<?> pType = Config.loadConfigurationClass(typeStr, err);
+		Class<?> pType = InternalConfigUtils.loadConfigurationClass(typeStr, err);
 		if (pType == null) {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Invalid value for field \"").append(keyName)
@@ -381,7 +382,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
 					if (nvStr != null && nvStr.length() > 0 && nv == null) {
 						StringBuilder err = new StringBuilder();
-						nv = Config.loadConfigurationClass(nvStr, err);
+						nv = InternalConfigUtils.loadConfigurationClass(nvStr, err);
 						if (nv == null) {
 							StringBuilder errMsg = new StringBuilder();
 							errMsg.append("Invalid value for field \"").append(keyName)
@@ -567,7 +568,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if ((nvStr == null && ov != null) || (nvStr != null && !nvStr.equals(ovStr))) {
 					if (nvStr != null && nvStr.length() > 0 && nv == null) {
 						StringBuilder err = new StringBuilder();
-						nv = Config.loadConfigurationClass(nvStr, err);
+						nv = InternalConfigUtils.loadConfigurationClass(nvStr, err);
 						if (nv == null) {
 							StringBuilder errMsg = new StringBuilder();
 							errMsg.append("Invalid value for field \"").append(keyName)
@@ -1140,7 +1141,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				String pp = props.getProperty(fieldKeyName);
 				if (pp == null) {
 					if ((flag & FLAG_VALIDATE) != 0) {
-						System.out.println("[WARN] Missing \"" + fieldKeyName + "\" configuration for \"" + type.getName() + "\" object");
+						System.out.println("[Config:WARN] Missing \"" + fieldKeyName + "\" configuration for \"" + type.getName() + "\" object");
 					}
 					continue;
 				}
@@ -1161,7 +1162,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			String k = kv[0].trim();
 			AnnotationField f = obj.getDeclaredField(k);
 			if (f == null) {
-				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
+				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[Config:WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
 				continue;
 			}
 			String pp = kv[1].trim();
@@ -1197,12 +1198,12 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (Config.isFiltered(f, true, fieldAnns, false)) continue;
+				if (InternalConfigUtils.isFiltered(f, true, fieldAnns, false)) continue;
 				String fieldKeyName = prefix + f.getName();
 				String pp = props.getProperty(fieldKeyName);
 				if (pp == null) {
 					if ((flag & FLAG_VALIDATE) != 0) {
-						System.out.println("[WARN] Missing \"" + fieldKeyName + "\" configuration for \"" + type.getName() + "\" object");
+						System.out.println("[Config:WARN] Missing \"" + fieldKeyName + "\" configuration for \"" + type.getName() + "\" object");
 					}
 					continue;
 				}
@@ -1229,10 +1230,10 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				continue;
 			}
 			if (f == null) {
-				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
+				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[Config:WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
 				continue;
 			}
-			if (Config.isFiltered(f, true, fieldAnns, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, true, fieldAnns, false)) continue;
 			String v = kv[1].trim();
 			if (parseAndUpdateField(prefix + k, v, obj, f, FLAG_UPDATE) == -1) return error;
 		}
@@ -1300,7 +1301,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		if (type == Class.class) {
 			if (p.length() == 0) return null;
 			StringBuilder err = new StringBuilder();
-			Class<?> clazz = Config.loadConfigurationClass(p, err);
+			Class<?> clazz = InternalConfigUtils.loadConfigurationClass(p, err);
 			if (clazz == null) {
 				StringBuilder errMsg = new StringBuilder();
 				errMsg.append("Invalid value for field \"").append(keyName)
@@ -1342,7 +1343,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if ($annotation.equals(p)) return Annotation.class;
 				if ($object.equals(p)) return Object.class;
 				String rawType = p.substring(1, length - 1);
-				return Config.loadConfigurationClass(rawType);
+				return InternalConfigUtils.loadConfigurationClass(rawType);
 			}
 			String prefix = p.substring(0, idx);
 			
@@ -1390,12 +1391,12 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 					//*/
 					suffix = "im.webuzz.config.annotation." + suffix;
 				}
-				Class<?> type = Config.loadConfigurationClass(suffix);
+				Class<?> type = InternalConfigUtils.loadConfigurationClass(suffix);
 				if (type == null) type = Object.class;
 				return type;
 			}
 			if ($object.startsWith(prefix)) {
-				Class<?> type = Config.loadConfigurationClass(suffix);
+				Class<?> type = InternalConfigUtils.loadConfigurationClass(suffix);
 				if (type == null) type = Object.class;
 				return type;
 			}
@@ -1403,7 +1404,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				int nameIdx = suffix.lastIndexOf('.');
 				if (nameIdx == -1) return Enum.class;
 				String rawType = suffix.substring(0, nameIdx);
-				return Config.loadConfigurationClass(rawType);
+				return InternalConfigUtils.loadConfigurationClass(rawType);
 			}
 			String rawType = prefix.substring(1); // e.g. "[im.webuzz.config.####
 			Class<?> type = recognizeRawType(rawType);
@@ -1440,7 +1441,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	private static Class<?> recognizeRawType(String rawType) {
 		Class<?> c = knownTypes.get(rawType);
 		if (c != null) return c;
-		return Config.loadConfigurationClass(rawType);
+		return InternalConfigUtils.loadConfigurationClass(rawType);
 	}
 
 	public Set<String> unusedConfigurationItems() {

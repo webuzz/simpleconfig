@@ -99,24 +99,24 @@ public class CodecKit {
 				value = field + "=" + value;
 				extension = ".ini";
 			} else {
-				if (decoder) System.out.println("[WARN] Unknown data format!");
+				if (decoder) System.out.println("[Config:WARN] Unknown data format!");
 				//extension = "raw";
 				if (codecRaw(value, decoder)) return;
 				if (decoder) {
-					System.out.println("[ERROR] Failed to decode the given raw value, all existed codecs tried.");
+					System.out.println("[Config:ERROR] Failed to decode the given raw value, all existed codecs tried.");
 				} else {
-					System.out.println("[ERROR] Failed to encode the value, all existed codecs tried.");
+					System.out.println("[Config:ERROR] Failed to encode the value, all existed codecs tried.");
 				}
 				return;
 			}
 		}
 		if (decoder) {
 			if (!decodec(value, extension)) {
-				System.out.println("[ERROR] Failed to decode the given value as extension \"" + extension + "\".");
+				System.out.println("[Config:ERROR] Failed to decode the given value as extension \"" + extension + "\".");
 			}
 		} else {
 			if (!encode(value, extension)) {
-				System.out.println("[ERROR] Failed to encode the value as extension \"" + extension + "\".");
+				System.out.println("[Config:ERROR] Failed to encode the value as extension \"" + extension + "\".");
 			}
 		}
 	}

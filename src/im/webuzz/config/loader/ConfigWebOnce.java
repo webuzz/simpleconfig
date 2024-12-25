@@ -1,5 +1,6 @@
 package im.webuzz.config.loader;
 
+import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,8 +13,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
+import im.webuzz.config.util.FileUtils;
 import im.webuzz.config.util.HttpRequest;
 
 public class ConfigWebOnce implements ConfigLoader {
@@ -94,6 +97,7 @@ public class ConfigWebOnce implements ConfigLoader {
 		Config.register(RemoteCCConfig.class);
 
 		fetchAllConfigurations();
+		fetchAllResourceFiles();
 		// Wait until all classes' configuration files are loaded & parsed
 		running = true;
 		
@@ -108,7 +112,7 @@ public class ConfigWebOnce implements ConfigLoader {
 			}
 			//System.out.println(".." + inQueueRequests.size() + "..");
 		}
-		System.out.println("[INFO] Started.");
+		System.out.println("[Config:INFO] Finished loading configurations and resources from remote configuration center.");
 		return true;
 	}
 
@@ -139,6 +143,47 @@ public class ConfigWebOnce implements ConfigLoader {
 		}
 	}
 	
+	protected void fetchAllResourceFiles() {
+		String[] extraFiles = RemoteCCConfig.extraResourceFiles;
+		if (RemoteCCConfig.extraTargetURLPattern != null && extraFiles != null) {
+			String[] extraExts = RemoteCCConfig.extraResourceExtensions;
+			for (String path : extraFiles) {
+				if (path == null || path.length() == 0) {
+					continue;
+				}
+				path = FileUtils.parseFilePath(path);
+				String filePath = null;
+				String fileName = null;
+				String fileExt = null;
+				if (extraExts != null && extraExts.length > 0) {
+					boolean matched = false;
+					for (String extraExt : extraExts) {
+						if (extraExt == null || extraExt.length() == 0) {
+							continue;
+						}
+						if (path.endsWith(extraExt)) {
+							matched = true;
+							fileExt = extraExt;
+							File f = new File(path);
+							String name = f.getName();
+							filePath = path.substring(0, path.length() - name.length());
+							fileName = name.substring(0, name.length() - fileExt.length());
+							break;
+						}
+					}
+					if (!matched) {
+						if (Config.configurationLogging) {
+							System.out.println("[Config:INFO] Resource file " + path + " is skipped as its extension is not permitted.");
+						}
+						continue;
+					}
+				}
+				ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(filePath, fileName, fileExt);
+				synchronizeFile(null, fileName, fileExt, file, false, path, -1);
+			}
+		}
+	}
+
 	protected void synchronizeClass(Class<?> clz, long timeout) {
 		String keyPrefix = Config.getKeyPrefix(clz);
 		if (keyPrefix == null || keyPrefix.length() == 0) {
@@ -207,7 +252,7 @@ public class ConfigWebOnce implements ConfigLoader {
 						if (!Arrays.equals(responseBytes, localBytes)) {
 							saveResponseToFile(file, responseBytes, lastModified);
 							if (RemoteCCConfig.synchronizing) {
-								System.out.println("[Config] Configuration file " + keyPrefix + fileExtension + " content synchronized remotely.");
+								System.out.println("[Config:INFO] Configuration file " + keyPrefix + fileExtension + " content synchronized remotely.");
 							}
 							processQueue(currentQueueKey, buildParserCallback(clz, file));
 							inQueueRequests.remove(requestURL);
@@ -219,12 +264,12 @@ public class ConfigWebOnce implements ConfigLoader {
 						}
 					} else {
 						if (Config.configurationLogging) {
-							System.out.println("[Config] Fetching configuration file " + keyPrefix + fileExtension + " has no content.");
+							System.out.println("[Config:INFO] Fetching configuration file " + keyPrefix + fileExtension + " has no content.");
 						}
 					}
 				} else if (responseCode != 304) {
 					if (Config.configurationLogging) {
-						System.out.println("[Config] Fetching configuration file " + keyPrefix + fileExtension+ " code=" + responseCode + ".");
+						System.out.println("[Config:INFO] Fetching configuration file " + keyPrefix + fileExtension+ " code=" + responseCode + ".");
 					}
 				}
 				processQueue(currentQueueKey, null);
@@ -255,7 +300,7 @@ public class ConfigWebOnce implements ConfigLoader {
 	protected boolean processNoResponseError(final String requestURL, int responseCode, ConfigMemoryFile file,
 			final long waitingTime, final WebCallback thisCallback) {
 		if (Config.configurationLogging) {
-			System.out.println("[Config] Fetching configuration file " + file.name + file.extension+ " code=" + responseCode + ".");
+			System.out.println("[Config:INFO] Fetching configuration file " + file.name + file.extension+ " code=" + responseCode + ".");
 		}
 		AtomicInteger count = inQueueRequests.get(requestURL);
 		if (count == null || (count != null && count.intValue() > 3)) {
@@ -285,24 +330,46 @@ public class ConfigWebOnce implements ConfigLoader {
 	protected Callable<Object> buildParserCallback(final Class<?> clz, final ConfigMemoryFile webFile) {
 		return new Callable<Object>() {
 			public Object call() throws Exception {
-				System.out.println("========== " + webFile.name + webFile.extension);
+				System.out.println("[Config:INFO] === " + webFile.name + webFile.extension + " ===");
 				ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(webFile.extension, webFile.content, false);
 				if (parser == null) return null;
 				if (clz == null) {
 					defaultParser = parser;
+					Class<?> oldLoader = Config.configurationLoader; // old loader should be this class
+					parser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
+					//InternalConfigUtils.recordConfigExtension(Config.class, webFile.extension);
+					/*
 					for (Class<?> configClazz : Config.getAllConfigurations()) {
 						parser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 					}
+					//*/
 					if (Config.configurationLogging) {
-						System.out.println("[Config] Configuration " + webFile.name + webFile.extension + " loaded.");
+						System.out.println("[Config:INFO] Configuration " + webFile.name + webFile.extension + " remotely loaded.");
+					}
+					if (oldLoader != Config.configurationLoader) { // loader changed!
+						System.out.println("[Config:INFO] Switching configuration loader from " + oldLoader.getName() + " to " + Config.configurationLoader.getName());
+						InternalConfigUtils.checkStrategyLoader();
 					}
 					return null;
 				}
-				Config.recordConfigExtension(clz, webFile.extension); // always update the configuration class' file extension
+				InternalConfigUtils.recordConfigExtension(clz, webFile.extension); // always update the configuration class' file extension
+				if (defaultParser != null) defaultParser.parseConfiguration(clz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 				//if (ignoringFilters != null) System.out.println(ignoringFilters.size());
 				parser.parseConfiguration(clz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 				if (Config.configurationLogging) {
-					System.out.println("[Config] Configuration " + clz.getName() + "/" + webFile.name + webFile.extension + " loaded.");
+					System.out.println("[Config:INFO] Configuration " + clz.getName() + "/" + webFile.name + webFile.extension + " loaded.");
+				}
+				if (defaultParser == null) return null;
+				boolean got = false;
+				for (Class<?> configClazz : Config.getAllConfigurations()) {
+					if (!got) {
+						if (configClazz == clz) got = true;
+						continue;
+					}
+					// after current clz
+					String keyPrefix = Config.getKeyPrefix(configClazz);
+					if (keyPrefix != null && keyPrefix.length() > 0) break; // Other web call back will continue to deal with this
+					defaultParser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE | ConfigParser.FLAG_REMOTE);
 				}
 				return null;
 			}
@@ -337,7 +404,7 @@ public class ConfigWebOnce implements ConfigLoader {
 		String reqClass = RemoteCCConfig.webRequestClient;
 		if (reqClass != null && reqClass.length() > 0) {
 			// Other class may be used to request remote configuration file besides HTTP client
-			Class<?> clz = Config.loadConfigurationClass(reqClass);
+			Class<?> clz = InternalConfigUtils.loadConfigurationClass(reqClass);
 			if (clz != null) {
 				try {
 					Method m = clz.getMethod("asyncWebRequest", 
@@ -363,7 +430,13 @@ public class ConfigWebOnce implements ConfigLoader {
 	}
 
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
-		file.loadFromWebResponse(responseBytes, lastModified);
+		if (file.content == null) {
+			if (file.loadFromWebResponse(responseBytes, lastModified)) {
+				ConfigMemoryFS.saveToMemoryFS(file);
+			}
+		} else {
+			file.loadFromWebResponse(responseBytes, lastModified);
+		}
 	}
 
 	/*

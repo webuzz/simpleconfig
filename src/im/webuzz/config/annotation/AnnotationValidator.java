@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import im.webuzz.config.Config;
+import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.generator.AnnotationWriter;
 import im.webuzz.config.util.TypeUtils;
 
@@ -342,7 +343,7 @@ public class AnnotationValidator {
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (Config.isFiltered(f, false, fieldAnns, false)) continue;
+				if (InternalConfigUtils.isFiltered(f, false, fieldAnns, false)) continue;
 				Class<?> fieldType = f.getType();
 				try {
 					if (fieldType.isPrimitive()) {
