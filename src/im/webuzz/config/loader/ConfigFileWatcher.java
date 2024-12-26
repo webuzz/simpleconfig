@@ -51,13 +51,17 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 		Path path = Paths.get(mainFolder);
 		try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
 			WatchKey watchKey;
-			try {
-				// SensitivityWatchEventModifier.HIGH); // Private SUN API
-				@SuppressWarnings({ "unchecked", "rawtypes" })
-				Enum modifier = Enum.valueOf((Class<? extends Enum>) Class.forName("com.sun.nio.file.SensitivityWatchEventModifier"), "HIGH");
-				watchKey = path.register(watchService, new WatchEvent.Kind[]{ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE}, (WatchEvent.Modifier) modifier);
-			} catch (Throwable e) {
-				// e.printStackTrace();
+			if (LocalFSConfig.enablePrivateHighWatcherSensitivity) {
+				try {
+					// SensitivityWatchEventModifier.HIGH); // Private SUN API
+					@SuppressWarnings({ "unchecked", "rawtypes" })
+					Enum modifier = Enum.valueOf((Class<? extends Enum>) Class.forName("com.sun.nio.file.SensitivityWatchEventModifier"), "HIGH");
+					watchKey = path.register(watchService, new WatchEvent.Kind[]{ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE}, (WatchEvent.Modifier) modifier);
+				} catch (Throwable e) {
+					// e.printStackTrace();
+					watchKey = path.register(watchService, new WatchEvent.Kind[]{ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE});
+				}
+			} else {
 				watchKey = path.register(watchService, new WatchEvent.Kind[]{ENTRY_MODIFY, ENTRY_CREATE, ENTRY_DELETE});
 			}
 
