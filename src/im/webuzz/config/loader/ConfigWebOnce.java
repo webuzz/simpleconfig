@@ -147,42 +147,35 @@ public class ConfigWebOnce implements ConfigLoader {
 	
 	protected void fetchAllResourceFiles() {
 		String[] extraFiles = RemoteCCConfig.extraResourceFiles;
-		if (RemoteCCConfig.extraTargetURLPattern != null && extraFiles != null) {
-			String[] extraExts = RemoteCCConfig.extraResourceExtensions;
-			for (String path : extraFiles) {
-				if (path == null || path.length() == 0) {
-					continue;
+		if (extraFiles == null || extraFiles.length == 0) return;
+		String[] extraExts = RemoteCCConfig.extraResourceExtensions;
+		String configFolder = Config.getConfigFolder();
+		for (String path : extraFiles) {
+			path = FileUtils.parseFilePath(path);
+			File f = new File(configFolder, path);
+			String folder = f.getParent();
+			if (folder == null) folder = ".";
+			String filePath = folder + File.separatorChar;
+			String name = f.getName();
+			String fileName = null;
+			String fileExt = null;
+			boolean matched = false;
+			for (String extraExt : extraExts) {
+				if (path.endsWith(extraExt)) {
+					matched = true;
+					fileName = name.substring(0, name.length() - extraExt.length());
+					fileExt = extraExt;
+					break;
 				}
-				path = FileUtils.parseFilePath(path);
-				String filePath = null;
-				String fileName = null;
-				String fileExt = null;
-				if (extraExts != null && extraExts.length > 0) {
-					boolean matched = false;
-					for (String extraExt : extraExts) {
-						if (extraExt == null || extraExt.length() == 0) {
-							continue;
-						}
-						if (path.endsWith(extraExt)) {
-							matched = true;
-							fileExt = extraExt;
-							File f = new File(path);
-							String name = f.getName();
-							filePath = path.substring(0, path.length() - name.length());
-							fileName = name.substring(0, name.length() - fileExt.length());
-							break;
-						}
-					}
-					if (!matched) {
-						if (Config.configurationLogging) {
-							System.out.println("[Config:INFO] Resource file " + path + " is skipped as its extension is not permitted.");
-						}
-						continue;
-					}
-				}
-				ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(filePath, fileName, fileExt);
-				synchronizeFile(null, fileName, fileExt, file, false, path, -1);
 			}
+			if (!matched) {
+				if (Config.configurationLogging) {
+					System.out.println("[Config:INFO] Resource file " + path + " is skipped as its extension is not permitted.");
+				}
+				continue;
+			}
+			ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(filePath, fileName, fileExt);
+			synchronizeFile(null, fileName, fileExt, file, false, path, -1);
 		}
 	}
 

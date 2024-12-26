@@ -35,7 +35,7 @@ public class FileUtils {
 
 	public static boolean writeFileBytes(File file, byte[] bytes, long lastModified) {
 		File folderFile = file.getParentFile();
-		if (!folderFile.exists()) {
+		if (folderFile != null && !folderFile.exists()) {
 			folderFile.mkdirs();
 		}
 		FileOutputStream fos = null;

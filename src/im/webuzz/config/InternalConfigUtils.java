@@ -120,7 +120,7 @@ public class InternalConfigUtils {
 					// ./etc/piled.ini
 					String folder = f.getParent();
 					if (folder == null) folder = ".";
-					folderBuilder.append(folder).append(File.separatorChar);;
+					folderBuilder.append(folder).append(File.separatorChar);
 				}
 				String name = f.getName();
 				int idx = name.lastIndexOf('.');

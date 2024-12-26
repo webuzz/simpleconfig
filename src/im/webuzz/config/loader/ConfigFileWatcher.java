@@ -34,7 +34,20 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 		String mainKeyPrefix = Config.getConfigMainName();
 		String mainExtension = Config.getConfigMainExtension();
 		String mainFolder = Config.getConfigFolder();
-		//System.out.println("Main folder:" + mainFolder);
+		if (!LocalFSConfig.folderWatcherMode) {
+			while (running) {
+				for (int i = 0; i < LocalFSConfig.loopSleepInterval; i++) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					if (!running) break;
+				}
+				if (running) updateAllConfigurations(mainFolder, mainKeyPrefix, mainExtension);
+			}
+			return;
+		}
 		Path path = Paths.get(mainFolder);
 		try (WatchService watchService = FileSystems.getDefault().newWatchService()) {
 			WatchKey watchKey;
@@ -129,18 +142,5 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
 		}
-		/*
-		while (running) {
-			for (int i = 0; i < 10; i++) {
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				if (!running) break;
-			}
-			if (running) updateAllConfigurations(mainFolder, mainKeyPrefix, extension);
-		}
-		//*/
 	}
 }

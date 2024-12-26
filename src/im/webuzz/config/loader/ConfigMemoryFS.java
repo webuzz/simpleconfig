@@ -102,12 +102,6 @@ public class ConfigMemoryFS {
 				}
 			}
 		}
-		/*
-		String folder = configFolder;
-		if (folder == null || folder.length() == 0) {
-			folder = new File(configPath).getParent();
-		}
-		//*/
 		for (Class<?> clz : Config.getAllConfigurations()) { // configuration classes may be updated already 
 			String keyPrefix = Config.getKeyPrefix(clz);
 			if (keyPrefix == null || keyPrefix.length() == 0) continue;

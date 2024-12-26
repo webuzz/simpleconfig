@@ -67,8 +67,8 @@ public class RemoteCCConfig {
 
 	@ConfigComment("Allowed file extensions for synchronized resources. Blocks harmful extensions like .exe or .sh.")
 	@ConfigNotNull
-	@ConfigNotNull(depth = 1)
 	@ConfigNotEmpty
+	@ConfigNotNull(depth = 1)
 	@ConfigPattern("(\\.[a-zA-Z0-9]+)")
 	public static String[] extraResourceExtensions = new String[] {
 		".xml", ".properties", ".props", ".ini", ".txt", ".config", ".conf", ".cfg", ".js", ".json",
@@ -77,6 +77,8 @@ public class RemoteCCConfig {
 	};
 
 	@ConfigComment("Additional resource files to synchronize from the remote server.")
+	@ConfigNotNull(depth = 1)
+	@ConfigNotEmpty(depth = 1)
 	public static String[] extraResourceFiles = null;
 
 	@ConfigComment("Template for generating target URLs for extra resource files.")

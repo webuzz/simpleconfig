@@ -48,7 +48,6 @@ import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.loader.ConfigFileWatcher;
 import im.webuzz.config.loader.ConfigMemoryFS;
 import im.webuzz.config.loader.ConfigLoader;
-import im.webuzz.config.loader.SynchronizerKit;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
 import im.webuzz.config.parser.ConfigJSParser;
@@ -315,6 +314,9 @@ public class Config {
 	
 	private static void handleAction(String actionStr, String[] retArgs, int indexOffset) {
 		switch (actionStr) {
+			case "usage":
+				printUsage();
+				break;
 			case "generator":
 				GeneratorKit.run(retArgs, indexOffset);
 				break;
@@ -324,9 +326,6 @@ public class Config {
 			case "decoder":
 				CodecKit.run(retArgs, indexOffset, true);
 				break;
-			case "usage":
-				printUsage();
-				break;
 			case "validator":
 				if (ConfigMemoryFS.validate()) {
 					System.out.println("[Config:INFO] Configuration validation succeeded.");
@@ -335,7 +334,7 @@ public class Config {
 				}
 				break;
 			case "synchronizer":
-				SynchronizerKit.run(retArgs, indexOffset);
+				runSynchronizer(retArgs, indexOffset);
 				break;
 			case "wrapper":
 				runWrapper(retArgs, indexOffset);
@@ -344,6 +343,21 @@ public class Config {
 				System.out.println("[Config:ERROR] Unknown action: \"" + actionStr + "\".");
 				break;
 		}
+	}
+
+	static volatile boolean agentRunning = true;
+	static volatile long agentSleepInterval = 10000;
+
+	private static void runSynchronizer(String[] args, int indexOffset) {
+		System.out.println("[Config:INFO] Configuration synchronizer started.");
+		while (agentRunning) {
+			try {
+				Thread.sleep(agentSleepInterval);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		System.out.println("[Config:INFO] Configuration synchronizer stopped.");
 	}
 
 	private static void runWrapper(String[] retArgs, int indexOffset) {

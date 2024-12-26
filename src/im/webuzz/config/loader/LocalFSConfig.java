@@ -7,17 +7,14 @@ import im.webuzz.config.annotation.ConfigLocalOnly;
 
 @ConfigClass
 @ConfigLocalOnly
-@ConfigComment({
-	"This configuration file is used to configure local configuration file watchman.",
-	"It will control how the file watchman keep eyes on local files."
-})
+@ConfigComment("Configuration settings for managing local file updates.")
 @ConfigKeyPrefix("localfs")
 public class LocalFSConfig {
 
-	public static boolean watching = true;
-	
-	public static long loopingInterval = 10000; // 10s
-	
-	public static boolean detectingChanges = true;
-	
+	@ConfigComment("Enable folder watcher mode. If false, loop checking mode will be used instead.")
+	public static boolean folderWatcherMode = true;
+
+	@ConfigComment("Interval (in seconds) between checks in loop checking mode.")
+	public static long loopSleepInterval = 100; // Default: 10s
+
 }
