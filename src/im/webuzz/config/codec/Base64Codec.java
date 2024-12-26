@@ -14,4 +14,16 @@ public class Base64Codec implements ConfigCodec<String> {
 		byte[] bytes = Base64.base64ToByteArray(encodedString);
 		return new String(bytes, Config.configFileEncoding);
 	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof Base64Codec) return true;
+		return false;
+	}
+	
+	@Override
+	public int hashCode() {
+		return this.getClass().getName().hashCode();
+	}
+
 }

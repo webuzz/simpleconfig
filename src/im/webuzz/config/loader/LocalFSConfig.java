@@ -15,7 +15,7 @@ public class LocalFSConfig {
 	public static boolean enableFileWatcher = true;
 
 	@ConfigComment("Interval (in seconds) between checks in periodic polling mode.")
-	public static long pollingIntervalSeconds = 10; // Default: 10s
+	public static int pollingIntervalSeconds = 10; // Default: 10s
 
 	@ConfigComment("Enable high-sensitivity file watching using SUN's private API (macOS only).")
 	public static boolean enablePrivateHighWatcherSensitivity = true;

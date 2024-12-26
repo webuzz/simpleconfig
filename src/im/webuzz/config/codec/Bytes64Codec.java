@@ -12,4 +12,16 @@ public class Bytes64Codec implements ConfigCodec<byte[]> {
 	public byte[] decode(String encodedString) {
 		return Base64.base64ToByteArray(encodedString);
 	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof Bytes64Codec) return true;
+		return false;
+	}
+	
+	@Override
+	public int hashCode() {
+		return this.getClass().getName().hashCode();
+	}
+
 }

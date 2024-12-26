@@ -117,4 +117,16 @@ public class SecretCodec implements ConfigCodec<String> {
 		}
 		return null;
 	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof SecretCodec) return true;
+		return false;
+	}
+	
+	@Override
+	public int hashCode() {
+		return this.getClass().getName().hashCode();
+	}
+
 }

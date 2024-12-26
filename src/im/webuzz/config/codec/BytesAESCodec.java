@@ -10,4 +10,16 @@ public class BytesAESCodec implements ConfigCodec<byte[]> {
 	public byte[] decode(String encodedString) {
 		return SimpleAES.b64DecryptBytes(encodedString);
 	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof BytesAESCodec) return true;
+		return false;
+	}
+	
+	@Override
+	public int hashCode() {
+		return this.getClass().getName().hashCode();
+	}
+
 }

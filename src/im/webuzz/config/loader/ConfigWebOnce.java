@@ -243,8 +243,7 @@ public class ConfigWebOnce implements ConfigLoader {
 				if (responseCode == 200) { // && (lastModified < 0 || requestTime == currentRequestTime)) { // HTTP OK
 					if (responseBytes != null && responseBytes.length > 0) {
 						//System.out.println("GOOOOOOOOOOOOOOT " + currentQueueKey);
-						byte[] localBytes = file.content; // readContent(keyPrefix, fileExtension);
-						if (!Arrays.equals(responseBytes, localBytes)) {
+						if (!Arrays.equals(responseBytes, file.content) || file.modified != lastModified) {
 							saveResponseToFile(file, responseBytes, lastModified);
 							if (Config.configurationLogging) {
 								System.out.println("[Config:INFO] Configuration file " + keyPrefix + fileExtension + " content synchronized remotely.");
