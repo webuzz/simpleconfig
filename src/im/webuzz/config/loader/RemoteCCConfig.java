@@ -18,94 +18,54 @@ import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
+import im.webuzz.config.annotation.ConfigNonNegative;
 import im.webuzz.config.annotation.ConfigNotEmpty;
 import im.webuzz.config.annotation.ConfigNotNull;
 import im.webuzz.config.annotation.ConfigPattern;
 
 @ConfigClass
-@ConfigComment({
-	"This configuration file is used to be configured for synchronization between",
-	"local and remote server. The remote server is considered as configuration center.",
-})
+@ConfigComment("Configuration for synchronizing local and remote servers. The remote server acts as the configuration center.")
 @ConfigKeyPrefix("remotecc")
 public class RemoteCCConfig {
 
-	@ConfigComment({
-		"Global configuration center URL.",
-		"Marked as ${server.url.prefix} in {@link #targetURLPattern}. Usually it is", 
-		"an HTTP server URL.",
-	})
-	public static String globalServerURLPrefix = null; 
-	
-	@ConfigComment({
-		"Global configuration center should always be protected with user authorization.",
-		"Marked as ${server.auth.user} in {@value #targetURLPattern}",
-	})
+	@ConfigComment("Base URL of the global configuration center (e.g., HTTP server URL).")
+	public static String globalServerURLPrefix = null;
+
+	@ConfigComment("Username for accessing the global configuration center.")
 	public static String globalServerAuthUser = null;
-	
-	@ConfigComment({
-		"Marked as ${server.auth.password} in {@link #targetURLPattern}",
-	})
+
+	@ConfigComment("Password for accessing the global configuration center. Encrypted by default.")
 	@ConfigPreferredCodec(value = {"secret", "aes"})
 	public static String globalServerAuthPassword = null;
 
-	@ConfigComment({
-		"Local server name which is used to tell configuration center who is requesting configurations.",
-		"Marked as ${local.server.name} in {@link WebConfig#targetURLPattern}",
-	})
+	@ConfigComment("Local server name for identifying requests at the configuration center.")
 	@ConfigNotNull
 	@ConfigNotEmpty
 	public static String localServerName = "app";
 
-	@ConfigComment({
-		"Local server port which is used to identifier different server session.",
-	})
+
+	@ConfigComment("Port number of the local server.")
 	public static int localServerPort = 0;
-	
-	@ConfigComment({
-		"Target URL with template support.",
-		"",
-		"Static file pattern: \"${server.url.prefix}/configs/${local.server.name}/${config.key.prefix}.ini\"",
-		"Static file pattern: \"${server.url.prefix}/configs/${local.server.name}/${config.key.prefix}${config.file.extension}\"",
-		"Dynamic URL pattern: \"${server.url.prefix}/config?server=${local.server.name}&prefix=${config.key.prefix}\"",
-		"Server authorization pattern: \"${server.auth.user}:${server.auth.password}\"",
-	})
+
+	@ConfigComment("Template for generating the target configuration URL.")
 	@ConfigNotNull
 	@ConfigNotEmpty
 	public static String targetURLPattern = "${server.url.prefix}/${local.server.name}/${config.key.prefix}${config.file.extension}";
-	
-	@ConfigComment({
-		"Web request client is a class with static method asyncWebRequest(String url, String user, String password,",
-		"long lastModified, Object callback). Object callback has a method got(int responseCode, byte[] responseBytes).",
-		"Object callback is an instance of interface WebCallback.",
-		"",
-		"Client class is provided to override the default HTTP request client. In such ways, other clients (like",
-		"FTP client, HTTP 2.0 client or other socket client) can be used to fetch remote configuration file.",
-	})
+
+	@ConfigComment("Class providing a custom web request client (e.g., for HTTP, FTP, or other protocols).")
 	public static String webRequestClient = null;
 
-	@ConfigComment({
-		"Try to request configuration one by one only put request to background if timeout is reached.",
-		"By default, wait at least 2s before moving to next request.",
-	})
+
+	@ConfigComment("Timeout (in milliseconds) for each configuration request.")
 	public static long webRequestTimeout = 2000;
 
-	@ConfigComment({
-		"Interval of checking web remote server for configuration file update.",
-		"Time unit is millisecond."
-	})
+	@ConfigComment("Interval (in milliseconds) between checks for remote configuration updates.")
 	public static long webRequestInterval = 10000;
 
-	@ConfigComment({
-		"Supports MD5 ETag for HTTP request or not.",
-	})
+	@ConfigComment("Enable MD5-based ETag support for HTTP requests.")
 	public static boolean webRequestSupportsMD5ETag = true;
 
-	@ConfigComment({
-		"Only allows specified extensions. Ignore others extension file.",
-		"Be careful of those file extensions that may be harmful to the OS,",
-		"like .sh, .bashprofile, .bat, .exe, ..."
-	})
+	@ConfigComment("Allowed file extensions for synchronized resources. Blocks harmful extensions like .exe or .sh.")
 	@ConfigNotNull
 	@ConfigNotNull(depth = 1)
 	@ConfigNotEmpty
@@ -116,38 +76,22 @@ public class RemoteCCConfig {
 		".html", ".htm", ".css", // web pages
 	};
 
-	@ConfigComment({
-		"Try to synchronize other resource files from remote server.",
-	})
+	@ConfigComment("Additional resource files to synchronize from the remote server.")
 	public static String[] extraResourceFiles = null;
 
-	@ConfigComment({
-		"Target URL with template support.",
-		"",
-		"Static file pattern: \"${server.url.prefix}/configs/${local.server.name}/${extra.file.path}\"",
-		"Dynamic URL pattern: \"${server.url.prefix}/config?server=${local.server.name}&path=${extra.file.path}\"",
-		"Server authorization pattern: \"${server.auth.user}:${server.auth.password}\"",
-	})
+	@ConfigComment("Template for generating target URLs for extra resource files.")
+	@ConfigNotNull
+	@ConfigNotEmpty
 	public static String extraTargetURLPattern = "${server.url.prefix}/${local.server.name}/${extra.file.path}";
 
-	@ConfigComment({
-		"Block #startWatchman until local files are considered as synchronized.",
-		"If local files are synchronized, there will be a *.timestamp file contains the last synchronized timestamp.",
-	})
+	@ConfigComment("Block execution until local files are synchronized (based on *.timestamp).")
 	public static boolean blockingBeforeSynchronized = false;
 
-	@ConfigComment({
-		"If local files are older than synchronizedExpringInterval, and blockingBeforeSynchronized is true, then",
-		"#startWatchman will be blocked until being synchronized.",
-	})
+	@ConfigComment("Interval (in milliseconds) to consider local files outdated. Requires synchronization if expired.")
+	@ConfigNonNegative
 	public static long synchronizedExpiringInterval = 8 * 3600 * 1000; // 8 hours
 
-	@ConfigComment({
-		"Whether start synchronizing configuration files from remote server or not.",
-		"Synchronization can be turned on or off at any time by updating local file.",
-		"This configuration item is here to avoid being changed from true to false by",
-		"remote configuration server after unintended updates."
-	})
+	@ConfigComment("Enable or disable synchronization with the remote server.")
 	public static boolean synchronizing = false;
 
 }

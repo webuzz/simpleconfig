@@ -22,7 +22,7 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 	@Override
 	public boolean start() {
 		if (!super.start()) return false;
-		System.out.println("[Config:INFO] Starting local configuration file watcher");
+		if (Config.configurationLogging) System.out.println("[Config:INFO] Starting local configuration file watcher");
 		Thread webThread = new Thread(this, "Local Configuration File Watcher");
 		webThread.setDaemon(true);
 		webThread.start();
@@ -102,13 +102,15 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 					if (clz != null) {
 						String oldExtension = InternalConfigUtils.getConfigExtension(clz);
 						if (oldExtension != null && !oldExtension.equals(extension)) {
-							System.out.println("[Config:INFO] Configuration extension changed: switching from " + newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
+							if (Config.configurationLogging) System.out.println("[Config:INFO] Configuration extension changed: switching from "
+									+ newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
 						}
 						//Path fullPath = path.resolve(filePath);
 						updateSingleConfiguration(file, newKeyPrefix, extension, clz);
 					} else if (newKeyPrefix.equals(mainKeyPrefix)) {
 						if (mainExtension != null && !mainExtension.equals(extension)) {
-							System.out.println("[Config:INFO] Configuration extension changed: switching from " + newKeyPrefix + mainExtension + " to " + newKeyPrefix + extension);
+							if (Config.configurationLogging) System.out.println("[Config:INFO] Configuration extension changed: switching from "
+									+ newKeyPrefix + mainExtension + " to " + newKeyPrefix + extension);
 						}
 						Config.updateConfigMainExtension(extension);
 						mainExtension = extension;

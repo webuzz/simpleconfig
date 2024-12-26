@@ -223,7 +223,11 @@ public class InternalConfigUtils {
 		int loopLoadings = 5;
 		while ((InternalConfigUtils.resourceLoader == null || InternalConfigUtils.resourceLoader.getClass() != Config.configurationLoader)) {
 			if (InternalConfigUtils.resourceLoader != null) {
-				System.out.println("[Config:INFO] Switching configuration loader from " + InternalConfigUtils.resourceLoader.getClass().getName() + " to " + Config.configurationLoader.getName());
+				if (Config.configurationLogging) {
+					System.out.println("[Config:INFO] Switching configuration loader from "
+							+ InternalConfigUtils.resourceLoader.getClass().getName() + " to "
+							+ Config.configurationLoader.getName());
+				}
 				InternalConfigUtils.resourceLoader.stop();
 			}
 			try {

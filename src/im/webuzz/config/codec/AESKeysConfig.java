@@ -18,33 +18,30 @@ import java.util.Properties;
 
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
 
 @ConfigClass
 @ConfigComment({
-	"To update key A to new key B, following these steps:",
-	"0: k0=A, k1=A, k2=null (t=0) // Default",
-	"1: k0=A, k1=A, k2=A (t=+1m) // Start updating keys, adding key 2, but still the key A",
-	"2: k0=A, k1=B, k2=A (t=+3m) // Add key B as first decrypt key, wait until all servers synchronize key B",
-	"3: k0=B, k1=B, k2=A (t=+1d) // Use key B as encrypt key, wait until all servers no longer get session encrypted by key A",
-	"4: K0=B, k1=B, k2=null (t=+3d) // Use key B totally, and remove key A for ever",
-	"...",
+	"Key rotation process for updating AES encryption keys:",
+	"Step 0: k0=A, k1=A, k2=null (default state)",
+	"Step 1: k0=A, k1=A, k2=A (add k2 but keep A as active key)",
+	"Step 2: k0=A, k1=B, k2=A (introduce B for decryption, wait for sync)",
+	"Step 3: k0=B, k1=B, k2=A (switch to B for encryption, retain A temporarily)",
+	"Step 4: k0=B, k1=B, k2=null (fully migrate to B, remove A)",
 })
+@ConfigKeyPrefix("aeskeys")
 public class AESKeysConfig {
 	
-	public static final String configKeyPrefix = "aeskeys";
-			
-	@ConfigComment({
-		"The following key values MUST be updated to different keys in production servers:",
-		"encrypt key"
-	})
+	@ConfigComment("Primary encryption key (update in production)")
 	public static String key0 = "5c57deef93c0ffc41837f5aa704a4c78";
-	@ConfigComment("decrypt key, same as encrypt key by default")
+
+	@ConfigComment("Primary decryption key (defaults to same as key0)")
 	public static String key1 = "5c57deef93c0ffc41837f5aa704a4c78";
-	@ConfigComment("another decrypt key, or to be new encrypt/decrypt key")
+
+	@ConfigComment("Secondary decryption key or candidate for new key")
 	public static String key2 = null;
 	
-	
-	@ConfigComment({ "For [secret:xxxxx], add randomness on encrypting given message or not."})
+	@ConfigComment("Add randomness to encrypted messages ([secret:xxxxx])")
 	public static boolean generateRandomness = true;
 	
 	public static void update(Properties prop) {

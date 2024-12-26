@@ -16,7 +16,6 @@ package im.webuzz.config.codec;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.Config;
 import im.webuzz.config.util.Base64;
 
 /**

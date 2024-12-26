@@ -1,8 +1,10 @@
 package im.webuzz.config.util;
 
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
 import im.webuzz.config.annotation.ConfigRange;
 
+@ConfigKeyPrefix("httppool")
 public class HttpConnectionConfig {
 
 	@ConfigRange(min = 0, max = 64)

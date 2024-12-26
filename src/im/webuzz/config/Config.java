@@ -57,10 +57,7 @@ import im.webuzz.config.parser.ConfigXMLParser;
 import im.webuzz.config.util.FileUtils;
 
 @ConfigClass
-@ConfigComment({
-	"All configurations here are to control the class Config's behaviors.",
-	"The configurations are considered as the entry of all other configurations."
-})
+@ConfigComment("Configuration class controlling the behavior of the Config system, serving as the entry point for all configurations.")
 public class Config {
 	
 	public static final Charset configFileEncoding = Charset.forName("UTF-8");
@@ -72,42 +69,22 @@ public class Config {
 	static String configMainName = null;
 	static String configMainExtension = null;
 	
-	@ConfigComment({
-		"Supporting multiple configuration formats. The scanning extension order will be used",
-		"to find configuration file and will decide the priority of which file will be used.",
-		"The first extension will be the default file extension."
-	})
+	@ConfigComment("Supported configuration file formats, scanned in order of priority. The first extension is the default.")
 	@ConfigNotNull
 	@ConfigNotEmpty
 	@ConfigPattern("(\\.[a-zA-Z0-9]+)")
-	public static List<String> configurationScanningExtensions = Arrays.asList(new String[] {
-			".ini", // default file extension
-			".js", //".json",
-			//".conf", ".config", ".cfg",
-			//".props", ".properties",
-			".xml",
-			//".txt"
-		});
+	public static List<String> configurationScanningExtensions = Arrays.asList(
+			new String[] { ".ini", ".js", ".xml" });
 	
-	@ConfigComment({
-		"Array of configuration class names, listing all classes which are to be configured via files.",
-		"e.g im.webuzz.config.Config;im.webuzz.config.web.WebConfig"
-	})
-	@ConfigNotNull(depth = 1)
-	public static Class<?>[] configurationClasses = null;
+	@ConfigComment("List of classes to be configured via files, e.g., im.webuzz.config.Config.")
+	public static List<Class<?>> configurationClasses = null;
 
-	@ConfigComment({
-		"Array of configuration package names, listing all classes which are to be configured via files.",
-		"e.g im.webuzz.config.*;im.webuzz.config.generator.*"
-	})
+	@ConfigComment("List of package names containing configuration classes, e.g., im.webuzz.config.*.")
 	@ConfigNotNull(depth = 1)
 	@ConfigPattern("[a-zA-Z]([a-zA-Z0-9_\\$]+\\.)*\\*$")
-	public static String[] configurationPackages = null;
+	public static List<String> configurationPackages = null;
 	
-	@ConfigComment({
-		"Parsers for different configuration file extensions. Each configuration file will have a parser",
-		"instance for itself."
-	})
+	@ConfigComment("Parsers for different configuration file extensions. Each file uses a corresponding parser.")
 	@ConfigNotNull
 	@ConfigNotEmpty
 	@ConfigPattern("([a-zA-Z0-9]+)")
@@ -115,29 +92,24 @@ public class Config {
 	// so we can instantiate many parser instances.
 	public static Map<String, Class<? extends ConfigParser<?, ?>>> configurationParsers = new ConcurrentHashMap<>();
 	
-	@ConfigComment({
-		"Singleton for parsing command line arguments into configuration clases.",
-		"Default parser is im.webuzz.config.parser.ConfigCommandArgumentParser.",
-		"If other parser is provided, #hashCode & #equals method should be overrided."
-	})
+	@ConfigComment("Singleton parser for command line arguments. Default: ConfigArgumentsParser.")
 	@ConfigNotNull
 	// The command line argument parser is a singleton, configure parser object directly.
 	public static ConfigParser<String[], String[]> commandLineParser = new ConfigArgumentsParser();
 
 	public static Map<Class<?>, Map<String, Annotation[]>> configurationAnnotations = new ConcurrentHashMap<>();
 	
+	@ConfigComment("Loader for managing configuration files. Default: ConfigFileWatcher.")
 	@ConfigNotNull
 	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
 
-	@ConfigComment({
-		"Codec for some known data. Codec can be used for encrypting some sensitive value in configuration file.",
-		"As codec instance will be re-used over and over, codec implementation should be state-less."
-	})
+	@ConfigComment("Codecs for encrypting sensitive configuration values. Codecs must be stateless.")
 	@ConfigNotNull
 	@ConfigLength(min = 3, max = 32, depth = 1)
 	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
 	public static Map<String, ConfigCodec<?>> configurationCodecs = new ConcurrentHashMap<>();
 	
+	// Static block initializing parsers and codecs
 	static {
 		configurationParsers.put("ini", ConfigINIParser.class);
 		configurationParsers.put("js", ConfigJSParser.class);
@@ -150,6 +122,7 @@ public class Config {
 		configurationCodecs.put("bytes64", new Bytes64Codec());
 	}
 	
+	@ConfigComment("Enable or disable configuration logging.")
 	public static boolean configurationLogging = true;
 	
 	public static Class<?> configurationAlarmer = null;
@@ -165,13 +138,13 @@ public class Config {
 	 * In case configurations got updated from file, try to add class into configuration system
 	 */
 	public static void update(Properties prop) {
-		Class<?>[] configClasses = configurationClasses;
+		List<Class<?>> configClasses = configurationClasses;
 		if (configClasses != null) {
 			for (Class<?> clazz : configClasses) {
 				if (!allConfigs.containsValue(clazz)) registerClass(clazz);
 			}
 		}
-		String[] configPakages = configurationPackages;
+		List<String> configPakages = configurationPackages;
 		if (configPakages != null) {
 			for (String pkg : configPakages) {
 				if (!allConfigs.containsKey(pkg)) register(pkg);
@@ -281,27 +254,31 @@ public class Config {
 		initialize(new String[] { configPath });
 	}
 
-	/**
-	 * Need to set configurationFile and configurationExtraPath before calling this method.
-	 */
 	public static String[] initialize(String[] args) {
-		registerClass(AESKeysConfig.class);
-		
 		ConfigParser<String[], String[]> argumentsParser = null; 
 		String[] retArgs = args;
 		do {
 			argumentsParser = commandLineParser;
 			retArgs = argumentsParser.loadResource(retArgs, true);
 			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE);
-			for (Class<?> config : orderedConfigs) {
-				argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
-			}
+//			for (Class<?> config : orderedConfigs) {
+//				argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
+//			}
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
+		
+		registerClass(AESKeysConfig.class);
+		for (Class<?> config : orderedConfigs) {
+			argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
+		}
 		
 		StringBuilder folderBuilder = new StringBuilder();
 		StringBuilder nameBuilder = new StringBuilder();
 		StringBuilder extBuilder = new StringBuilder();
 		int indexOffset = InternalConfigUtils.parseMainFile(retArgs, 0, folderBuilder, nameBuilder, extBuilder);
+		if (retArgs != null && retArgs.length > indexOffset && "--run:usage".equals(retArgs[indexOffset])) {
+			printUsage(); // Just print usage without initializing anything
+			return null;
+		}
 		configFolder = folderBuilder.toString();
 		configMainName = nameBuilder.toString();
 		configMainExtension = extBuilder.toString();
@@ -312,7 +289,7 @@ public class Config {
 		
 		InternalConfigUtils.initializedTime = System.currentTimeMillis();
 		if (configurationLogging) {
-			System.out.println("[Config:INFO] Configuration initialized.");
+			System.out.println("[Config:INFO] Configuration initialized successfully.");
 		}
 		InternalConfigUtils.initializationFinished = true;
 		
@@ -321,73 +298,86 @@ public class Config {
 			if (actionStr.startsWith("--run:")) {
 				indexOffset++;
 				actionStr = actionStr.substring(6);
-				if ("generator".equals(actionStr)) {
-					GeneratorKit.run(retArgs, indexOffset);
-				} else if ("encoder".equals(actionStr)) {
-					CodecKit.run(retArgs, indexOffset, false);
-				} else if ("decoder".equals(actionStr)) {
-					CodecKit.run(retArgs, indexOffset, true);
-				} else if ("usage".equals(actionStr)) {
-					printUsage();
-				} else if ("validator".equals(actionStr)) {
-					if (ConfigMemoryFS.validate()) {
-						System.out.println("[Config:INFO] Configuration files are OK.");
-					} else {
-						System.out.println("[Config:ERROR] Configuration validation failed!");
-					}
-				} else if ("synchronizer".equals(actionStr)) {
-					SynchronizerKit.run(retArgs, indexOffset);
-				} else if ("wrapper".equals(actionStr)) {
-					// --run:class xxx.xxxxx.XXX 
-					// By this way, we make all public configuration classes with public static fields configurable
-					// without modifying the original sources or jars.
-					if (retArgs.length == indexOffset || retArgs[indexOffset] == null || retArgs[indexOffset].length() == 0) {
-						printUsage();
-					} else {
-						try {
-							Class<?> clazz = Class.forName(retArgs[1]);
-							Method method = clazz.getMethod("main", new Class[] { String[].class });
-							if (method != null && (method.getModifiers() & Modifier.STATIC) != 0) { //
-								String[] newRetArgs = new String[retArgs.length - indexOffset];
-								System.arraycopy(retArgs, indexOffset, newRetArgs, 0, newRetArgs.length);
-								method.invoke(null, new Object[] { newRetArgs});
-							} else {
-								System.out.println("[Config:ERROR] Class " + retArgs[1] + " must contains public static void main(String[] args) method!");
-							}
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
-					}
-				//} else if ("debugger".equals(actionStr)) {
-				} else {
-					System.out.println("[Config:ERROR] Unknown action \"" + actionStr + "\"!");
-				}
-				System.exit(0); // Stop
+				handleAction(actionStr, retArgs, indexOffset);
+				System.exit(0); // Stop execution after handling the action.
 				return null;
 			}
 		}
 		return retArgs;
 	}
 	
+	private static void handleAction(String actionStr, String[] retArgs, int indexOffset) {
+		switch (actionStr) {
+			case "generator":
+				GeneratorKit.run(retArgs, indexOffset);
+				break;
+			case "encoder":
+				CodecKit.run(retArgs, indexOffset, false);
+				break;
+			case "decoder":
+				CodecKit.run(retArgs, indexOffset, true);
+				break;
+			case "usage":
+				printUsage();
+				break;
+			case "validator":
+				if (ConfigMemoryFS.validate()) {
+					System.out.println("[Config:INFO] Configuration validation succeeded.");
+				} else {
+					System.out.println("[Config:ERROR] Configuration validation failed.");
+				}
+				break;
+			case "synchronizer":
+				SynchronizerKit.run(retArgs, indexOffset);
+				break;
+			case "wrapper":
+				runWrapper(retArgs, indexOffset);
+				break;
+			default:
+				System.out.println("[Config:ERROR] Unknown action: \"" + actionStr + "\".");
+				break;
+		}
+	}
+
+	private static void runWrapper(String[] retArgs, int indexOffset) {
+		if (retArgs.length <= indexOffset || retArgs[indexOffset] == null || retArgs[indexOffset].length() == 0) {
+			printUsage();
+			return;
+		}
+		try {
+			Class<?> clazz = Class.forName(retArgs[indexOffset]);
+			Method method = clazz.getMethod("main", String[].class);
+			if (method != null && Modifier.isStatic(method.getModifiers())) {
+				String[] newArgs = new String[retArgs.length - indexOffset];
+				System.arraycopy(retArgs, indexOffset, newArgs, 0, newArgs.length);
+				method.invoke(null, (Object) newArgs);
+			} else {
+				System.out.println("[Config:ERROR] The specified class must contain a public static void main(String[] args) method.");
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
 	private static void printUsage() {
 		System.out.println("Usage:");
-		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini>"
+		System.out.println("\tjava (vm arguments, classpath...) " + Config.class.getName() + " [--c:xxx=### ...] <config file (e.g., config.ini)>"
 				+ " [--run:<usage | generator | encoder | decoder | validator | synchronizer | wrapper>] [...]");
 		System.out.println();
-		System.out.println("For argument --c:xxx=###, the following formats are supported:");
+		System.out.println("For arguments like --c:xxx=###, supported formats include:");
 		System.out.println("\t--c:port=6173");
 		System.out.println("\t--config:port=6173");
 		System.out.println("\t--c-port=6173");
 		System.out.println("\t--config-port=6173");
 		System.out.println();
-		System.out.println("For argument --run:xxx, the following actions are supported:");
-		System.out.println("\t--run:usage\tPrint this usage");
-		System.out.println("\t--run:generator\tTo generate configuration files");
-		System.out.println("\t--run:encoder\tTo encode a password or a sensitive string");
-		System.out.println("\t--run:decoder\tTo decode an encoded string back to original value");
-		System.out.println("\t--run:validator\tTo verify configuration files");
-		System.out.println("\t--run:synchronizer\tTo synchronize local configuration files from remote server");
-		System.out.println("\t--run:wrapper <App class with #main(String[]) method>\tContinue to run the main class");
+		System.out.println("Supported actions for --run:xxx:");
+		System.out.println("\t--run:usage\t\tDisplays this usage guide.");
+		System.out.println("\t--run:generator\t\tGenerates configuration files.");
+		System.out.println("\t--run:encoder\t\tEncodes a password or sensitive string.");
+		System.out.println("\t--run:decoder\t\tDecodes an encoded string to its original value.");
+		System.out.println("\t--run:validator\t\tValidates configuration files.");
+		System.out.println("\t--run:synchronizer\tSynchronizes local configurations with a remote server.");
+		System.out.println("\t--run:wrapper <class>\tExecutes the main method of the specified class.");
 	}
 
 	public static boolean reportErrorToContinue(String msg) {
