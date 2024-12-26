@@ -106,7 +106,7 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 									+ newKeyPrefix + oldExtension + " to " + newKeyPrefix + extension);
 						}
 						//Path fullPath = path.resolve(filePath);
-						updateSingleConfiguration(file, newKeyPrefix, extension, clz);
+						updateSingleConfiguration(file, mainFolder, newKeyPrefix, extension, clz);
 					} else if (newKeyPrefix.equals(mainKeyPrefix)) {
 						if (mainExtension != null && !mainExtension.equals(extension)) {
 							if (Config.configurationLogging) System.out.println("[Config:INFO] Configuration extension changed: switching from "

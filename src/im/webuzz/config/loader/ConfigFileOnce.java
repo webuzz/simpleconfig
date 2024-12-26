@@ -45,12 +45,7 @@ public class ConfigFileOnce implements ConfigLoader {
 		if (!file.exists()) return;
 		String extension = extBuilder.toString();
 		ConfigMemoryFile memFile = ConfigMemoryFS.checkAndPrepareFile(Config.getConfigFolder(), keyPrefix, extension);
-		if (memFile.content == null) {
-			memFile.loadFromFile(file);
-			ConfigMemoryFS.saveToMemoryFS(memFile);
-		} else {
-			memFile.loadFromFile(file);
-		}
+		memFile.synchronizeWithLocal(file, false);
 		long lastUpdated = 0;
 		try {
 			ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(extension, memFile.content, false);
@@ -87,12 +82,7 @@ public class ConfigFileOnce implements ConfigLoader {
 			//return;
 		} else if (file.lastModified() != mainFileLastUpdated) {
 			ConfigMemoryFile memFile = ConfigMemoryFS.checkAndPrepareFile(configFolder, configName, configExtension);
-			if (memFile.content == null) {
-				memFile.loadFromFile(file);
-				ConfigMemoryFS.saveToMemoryFS(memFile);
-			} else {
-				memFile.loadFromFile(file);
-			}
+			memFile.synchronizeWithLocal(file, false);
 			if (Config.configurationLogging && mainFileLastUpdated > 0) {
 				System.out.println("[Config:INFO] Configuration file " + configPath + " updated.");
 			}
@@ -107,10 +97,6 @@ public class ConfigFileOnce implements ConfigLoader {
 				e.printStackTrace();
 				//return;
 			}
-		}
-		String folder = Config.getConfigFolder();
-		if (folder == null || folder.length() == 0) {
-			folder = new File(configPath).getParent();
 		}
 		Class<?> oldLoader = Config.configurationLoader; // old loader should be this class
 		if (defaultParser != null && parseConfig(defaultParser, Config.class)) {
@@ -133,13 +119,13 @@ public class ConfigFileOnce implements ConfigLoader {
 			if (keyPrefix == null || keyPrefix.length() == 0) continue;
 			keyPrefixClassMap.put(keyPrefix, clz);
 			StringBuilder extBuilder = new StringBuilder();
-			file = InternalConfigUtils.getConfigFile(keyPrefix, extBuilder);
+			file = InternalConfigUtils.getConfigFile(configFolder, keyPrefix, extBuilder);
 			if (!file.exists()) continue;
-			updateSingleConfiguration(file, keyPrefix, extBuilder.toString(), clz);
+			updateSingleConfiguration(file, configFolder, keyPrefix, extBuilder.toString(), clz);
 		}
 	}
 
-	protected void updateSingleConfiguration(File file, String filePrefix, String extension, Class<?> clz) {
+	protected void updateSingleConfiguration(File file, String filePath, String filePrefix, String extension, Class<?> clz) {
 		String fileName = filePrefix + extension;
 		long lastUpdated = 0;
 		Long v = fileLastUpdateds.get(fileName);
@@ -147,13 +133,9 @@ public class ConfigFileOnce implements ConfigLoader {
 			lastUpdated = v.longValue();
 		}
 		if (file.lastModified() == lastUpdated) return;
-		ConfigMemoryFile memFile = ConfigMemoryFS.checkAndPrepareFile(file.getParent(), filePrefix, extension);
-		if (memFile.content == null) {
-			memFile.loadFromFile(file);
-			ConfigMemoryFS.saveToMemoryFS(memFile);
-		} else {
-			memFile.loadFromFile(file);
-		}
+		ConfigMemoryFile memFile = ConfigMemoryFS.checkAndPrepareFile(filePath, filePrefix, extension);
+		memFile.synchronizeWithLocal(file, false); // file.exists() == true, see call hierarchy
+		
 		if (Config.configurationLogging && lastUpdated > 0) {
 			System.out.println("[Config:INFO] Configuration " + clz.getName() + " at " + file.getAbsolutePath() + " updated.");
 		}

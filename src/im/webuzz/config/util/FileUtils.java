@@ -3,6 +3,7 @@ package im.webuzz.config.util;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 
 public class FileUtils {
@@ -32,6 +33,32 @@ public class FileUtils {
 		return baos.toByteArray();
 	}
 
+	public static boolean writeFileBytes(File file, byte[] bytes, long lastModified) {
+		File folderFile = file.getParentFile();
+		if (!folderFile.exists()) {
+			folderFile.mkdirs();
+		}
+		FileOutputStream fos = null;
+		try {
+			fos = new FileOutputStream(file);
+			fos.write(bytes);
+			return true;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return false;
+		} finally {
+			if (fos != null) {
+				try {
+					fos.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				fos = null;
+				if (lastModified > 0) file.setLastModified(lastModified);
+			}
+		}
+	}
+	
 	/**
 	 * Remove "/../" or "/./" in path.
 	 * 

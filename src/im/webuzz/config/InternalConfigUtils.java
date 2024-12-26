@@ -113,7 +113,7 @@ public class InternalConfigUtils {
 					}
 					if (argsOffset == 1) { // The second argument is not a valid file name
 						// ./etc/ im.webuzz.config.Config ...
-						f = InternalConfigUtils.getConfigFile(configFolderPath, defaultConfigName, null);
+						f = getConfigFile(configFolderPath, defaultConfigName, null);
 					}
 					folderBuilder.append(configFolderPath);
 				} else { // File
@@ -160,7 +160,7 @@ public class InternalConfigUtils {
 		// No main configuration file in the arguments!
 		folderBuilder.append(".").append(File.separatorChar);;
 		nameBuilder.append(defaultConfigName);
-		InternalConfigUtils.getConfigFile(folderBuilder.toString(), nameBuilder.toString(), extBuilder);
+		getConfigFile(folderBuilder.toString(), nameBuilder.toString(), extBuilder);
 		return indexOffset;
 	}
 
@@ -221,22 +221,22 @@ public class InternalConfigUtils {
 
 	protected static void initializeStrategyLoader() {
 		int loopLoadings = 5;
-		while ((InternalConfigUtils.strategyLoader == null || InternalConfigUtils.strategyLoader.getClass() != Config.configurationLoader)) {
-			if (InternalConfigUtils.strategyLoader != null) {
+		while ((strategyLoader == null || strategyLoader.getClass() != Config.configurationLoader)) {
+			if (strategyLoader != null) {
 				if (Config.configurationLogging) {
 					System.out.println("[Config:INFO] Switching configuration loader from "
-							+ InternalConfigUtils.strategyLoader.getClass().getName() + " to "
+							+ strategyLoader.getClass().getName() + " to "
 							+ Config.configurationLoader.getName());
 				}
-				InternalConfigUtils.strategyLoader.stop();
+				strategyLoader.stop();
 			}
 			try {
-				InternalConfigUtils.strategyLoader = Config.configurationLoader.newInstance();
+				strategyLoader = Config.configurationLoader.newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				return;
 			}
-			InternalConfigUtils.strategyLoader.start();
+			strategyLoader.start();
 			if (loopLoadings-- <= 0) break;
 		}
 		if (loopLoadings <= 0) {
@@ -245,7 +245,7 @@ public class InternalConfigUtils {
 	}
 
 	public static void checkStrategyLoader() {
-		if (InternalConfigUtils.isInitializationFinished() && ((strategyLoader == null && Config.configurationLoader != null)
+		if (isInitializationFinished() && ((strategyLoader == null && Config.configurationLoader != null)
 				|| strategyLoader.getClass() != Config.configurationLoader)) {
 			initializeStrategyLoader();
 		}

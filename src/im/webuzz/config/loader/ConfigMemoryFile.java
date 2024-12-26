@@ -20,35 +20,54 @@ public class ConfigMemoryFile {
 	public boolean localExisted; // Existed in local file system or not
 	public boolean remoteExisted; // Existed in remote configuration center or not
 	
-	public boolean loadFromFile(File f) {
-		if (!f.exists()) {
-			localExisted = false;
-			return false;
+	// File f.exists() is true, while force saving is false
+	public void synchronizeWithLocal(File f, boolean forceSaving) {
+		if (forceSaving && !f.exists()) {
+			if (FileUtils.writeFileBytes(f, content, modified)) {
+				// saved to local file system
+				localExisted = true;
+			}
+			return;
 		}
 		localExisted = true;
-		if (modified > f.lastModified()) {
-			return false;
-		}
-		modified = f.lastModified();
 		byte[] bytes = FileUtils.readFileBytes(f);
+		long lastModified = f.lastModified();
 		if (Arrays.equals(bytes, content)) {
-			return true;
+			if (modified > lastModified) f.setLastModified(modified);
+			return;
 		}
-		content = bytes;
-		return false;
+		if (modified > lastModified) {
+			// The file in memory is the latest copy, save the content to local file system
+			FileUtils.writeFileBytes(f, content, modified);
+			return;
+		}
+		modified = lastModified;
+		md5ETag = null;
+		if (content == null) { // This ConfigMemoryFile is not in ConfigMemoryFS yet
+			content = bytes;
+			ConfigMemoryFS.saveToMemoryFS(this); // save to memory
+		} else {
+			content = bytes;
+		}
 	}
 	
-	public boolean loadFromWebResponse(byte[] responseBytes, long lastModified) {
-		if (responseBytes == null) return false;
+	public void synchronizeWithRemote(byte[] responseBytes, long lastModified) {
+		if (responseBytes == null) return;
+		if (lastModified <= 0) lastModified = System.currentTimeMillis();
 		remoteExisted = true;
 		if (Arrays.equals(responseBytes, content)) {
+			if (modified < lastModified) modified = lastModified;
+		} else if (content == null) { // This ConfigMemoryFile is not in ConfigMemoryFS yet
+			content = responseBytes;
+			md5ETag = null;
 			modified = lastModified;
-			return true;
+			ConfigMemoryFS.saveToMemoryFS(this); // save to memory
+		} else if (lastModified >= modified) {
+			content = responseBytes;
+			md5ETag = null;
+			modified = lastModified;
+		//} else { // The memory copy is the latest copy, do nothing
 		}
-		content = responseBytes;
-		md5ETag = null;
-		modified = lastModified;
-		return true;
 	}
 	
 }

@@ -433,13 +433,7 @@ public class ConfigWebOnce implements ConfigLoader {
 	}
 
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
-		if (file.content == null) {
-			if (file.loadFromWebResponse(responseBytes, lastModified)) {
-				ConfigMemoryFS.saveToMemoryFS(file);
-			}
-		} else {
-			file.loadFromWebResponse(responseBytes, lastModified);
-		}
+		file.synchronizeWithRemote(responseBytes, lastModified);
 	}
 
 	/*

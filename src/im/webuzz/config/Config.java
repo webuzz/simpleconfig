@@ -99,7 +99,15 @@ public class Config {
 
 	public static Map<Class<?>, Map<String, Annotation[]>> configurationAnnotations = new ConcurrentHashMap<>();
 	
-	@ConfigComment("Loader for managing configuration files. Default: ConfigFileWatcher.")
+	@ConfigComment({
+		"Loader for managing configuration files. Available loaders:",
+		"- ConfigFileWatcher: Watches a local folder for configuration updates (default).",
+		"- ConfigFileOnce: Loads configuration files once without watching for updates.",
+		"- ConfigWebWatcher: Fetches configurations from a remote server and checks for updates periodically.",
+		"- ConfigWebOnce: Fetches configurations from a remote server once without watching for updates.",
+		"- ConfigHybridWatcher: Checks both local folder and remote server for updates.",
+		"- ConfigHybridOnce: Loads from local folder and remote server once without watching for updates."
+	})
 	@ConfigNotNull
 	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
 
@@ -255,6 +263,7 @@ public class Config {
 	}
 
 	public static String[] initialize(String[] args) {
+		long before = System.currentTimeMillis();
 		allConfigs.put(AESKeysConfig.class.getName(), AESKeysConfig.class);
 		orderedConfigs.add(AESKeysConfig.class);
 		ConfigParser<String[], String[]> argumentsParser = null; 
@@ -287,7 +296,7 @@ public class Config {
 		
 		InternalConfigUtils.initializedTime = System.currentTimeMillis();
 		if (configurationLogging) {
-			System.out.println("[Config:INFO] Configuration initialized successfully.");
+			System.out.println("[Config:INFO] Configuration initialized successfully, cost=" + (System.currentTimeMillis() - before) + "ms.");
 		}
 		InternalConfigUtils.initializationFinished = true;
 		

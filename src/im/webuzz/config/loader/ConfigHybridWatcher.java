@@ -1,5 +1,7 @@
 package im.webuzz.config.loader;
 
+import java.io.File;
+
 public class ConfigHybridWatcher extends ConfigWebWatcher {
 
 	private ConfigFileWatcher fileWatcher = new ConfigFileWatcher();
@@ -32,15 +34,7 @@ public class ConfigHybridWatcher extends ConfigWebWatcher {
 	}
 
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
-		if (file.content == null) {
-			if (file.loadFromWebResponse(responseBytes, lastModified)) {
-				ConfigMemoryFS.saveToMemoryFS(file);
-				ConfigMemoryFS.saveToLocalFS(file);
-			}
-		} else {
-			if (file.loadFromWebResponse(responseBytes, lastModified)) {
-				ConfigMemoryFS.saveToLocalFS(file);
-			}
-		}
+		file.synchronizeWithRemote(responseBytes, lastModified); // sync data to memory
+		file.synchronizeWithLocal(new File(file.path + file.name + file.extension), true); // sync data to local file system
 	}
 }
