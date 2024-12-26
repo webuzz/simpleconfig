@@ -11,10 +11,10 @@ import im.webuzz.config.annotation.ConfigLocalOnly;
 @ConfigKeyPrefix("localfs")
 public class LocalFSConfig {
 
-	@ConfigComment("Enable folder watcher mode. If false, loop checking mode will be used instead.")
-	public static boolean folderWatcherMode = true;
+	@ConfigComment("Enable file system watcher mode. If false, periodic polling mode will be used instead.")
+	public static boolean enableFileWatcher = true;
 
-	@ConfigComment("Interval (in seconds) between checks in loop checking mode.")
-	public static long loopSleepInterval = 100; // Default: 10s
+	@ConfigComment("Interval (in seconds) between checks in periodic polling mode.")
+	public static long pollingIntervalSeconds = 10; // Default: 10s
 
 }

@@ -34,9 +34,9 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 		String mainKeyPrefix = Config.getConfigMainName();
 		String mainExtension = Config.getConfigMainExtension();
 		String mainFolder = Config.getConfigFolder();
-		if (!LocalFSConfig.folderWatcherMode) {
+		if (!LocalFSConfig.enableFileWatcher) {
 			while (running) {
-				for (int i = 0; i < LocalFSConfig.loopSleepInterval; i++) {
+				for (int i = 0; i < LocalFSConfig.pollingIntervalSeconds; i++) {
 					try {
 						Thread.sleep(1000);
 					} catch (InterruptedException e) {
