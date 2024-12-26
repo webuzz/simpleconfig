@@ -116,7 +116,9 @@ public class ConfigFileOnce implements ConfigLoader {
 		if (defaultParser != null && parseConfig(defaultParser, Config.class)) {
 			//InternalConfigUtils.recordConfigExtension(Config.class, configExtension);
 			if (oldLoader != Config.configurationLoader) { // loader changed!
-				System.out.println("[Config:INFO] Switching configuration loader from " + oldLoader.getName() + " to " + Config.configurationLoader.getName());
+				if (Config.configurationLogging) {
+					System.out.println("[Config:INFO] Switching configuration loader from " + oldLoader.getName() + " to " + Config.configurationLoader.getName());
+				}
 				InternalConfigUtils.checkStrategyLoader();
 				return;
 			}

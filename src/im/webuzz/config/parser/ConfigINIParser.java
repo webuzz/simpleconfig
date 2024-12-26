@@ -140,7 +140,8 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			//if (p.length() == 0) continue;
 			int result = parseAndUpdateField(keyName, p, clz, f, flag);
 			if (result == -1) return -1;
-			if (result == 1 && (flag & FLAG_UPDATE) != 0 && Config.configurationLogging && InternalConfigUtils.isInitializationFinished()) {
+			if (result == 1 && (flag & FLAG_UPDATE) != 0
+					&& Config.configurationLogging && InternalConfigUtils.isInitializationFinished()) {
 				System.out.println("[Config:INFO] Configuration " + clz.getName() + "#" + name + " updated.");
 			}
 		}
@@ -817,7 +818,8 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				arrayLength = filteredNames.size();
 				if (arrayLength > 0 && parsedKeys != null) parsedKeys.addAll(filteredNames);
 				keyNames = filteredNames.toArray(new String[arrayLength]);
-				if (isArray || List.class.isAssignableFrom(type)) Arrays.sort(keyNames); // keep array's order
+				//if (isArray || List.class.isAssignableFrom(type))
+				Arrays.sort(keyNames); // keep original order
 			} else {
 				// singleLine = true;
 				ss = new String[1];

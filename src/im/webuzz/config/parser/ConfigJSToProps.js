@@ -110,6 +110,7 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 		var length = o.length;
 		if (length == 0) {
 			builder[builder.length] = prefix + "=[empty]";
+		//*
 		} else if (oClass == null && this.isPlainArray(o, prefix)) {
 			var objBuilder = [];
 			for (var i = 0; i < length; i++) {
@@ -122,6 +123,7 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 				objBuilder[objBuilder.length] = pv;
 			}
 			builder[builder.length] = prefix + "=" + (objBuilder.length == 0 ? "[empty]" : objBuilder.join(";"));
+		//*/
 		} else {
 			// Map "entries" is an array which needs to skip its "[array] or []".
 			// It is defined in last map's key-value line.

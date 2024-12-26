@@ -112,7 +112,9 @@ public class ConfigWebOnce implements ConfigLoader {
 			}
 			//System.out.println(".." + inQueueRequests.size() + "..");
 		}
-		System.out.println("[Config:INFO] Finished loading configurations and resources from remote configuration center.");
+		if (Config.configurationLogging) {
+			System.out.println("[Config:INFO] Finished loading from remote configuration center, strategy=" + this.getClass().getName());
+		}
 		return true;
 	}
 
@@ -251,7 +253,7 @@ public class ConfigWebOnce implements ConfigLoader {
 						byte[] localBytes = file.content; // readContent(keyPrefix, fileExtension);
 						if (!Arrays.equals(responseBytes, localBytes)) {
 							saveResponseToFile(file, responseBytes, lastModified);
-							if (RemoteCCConfig.synchronizing) {
+							if (Config.configurationLogging) {
 								System.out.println("[Config:INFO] Configuration file " + keyPrefix + fileExtension + " content synchronized remotely.");
 							}
 							processQueue(currentQueueKey, buildParserCallback(clz, file));
@@ -304,10 +306,10 @@ public class ConfigWebOnce implements ConfigLoader {
 		}
 		AtomicInteger count = inQueueRequests.get(requestURL);
 		if (count == null || (count != null && count.intValue() > 3)) {
-			System.out.println("Failed to load " + requestURL + " for " + (count == null ? 0 : count.intValue()) + " times.");
+			System.out.println("[Config:ERROR] Failed to load " + requestURL + " for " + (count == null ? 0 : count.intValue()) + " times.");
 			return true;
 		}
-		System.out.println("Failed to load " + requestURL + " for " + count.intValue() + " times.");
+		System.out.println("[Config:WARN] Failed to load " + requestURL + " for " + count.intValue() + " times.");
 		long now = System.currentTimeMillis();
 		if (now - waitingTime > RemoteCCConfig.webRequestTimeout * 2 / 3) {
 			// TODO: There is no enough time left
@@ -330,7 +332,9 @@ public class ConfigWebOnce implements ConfigLoader {
 	protected Callable<Object> buildParserCallback(final Class<?> clz, final ConfigMemoryFile webFile) {
 		return new Callable<Object>() {
 			public Object call() throws Exception {
-				System.out.println("[Config:INFO] === " + webFile.name + webFile.extension + " ===");
+				if (Config.configurationLogging) {
+					System.out.println("[Config:INFO] === " + webFile.name + webFile.extension + " ===");
+				}
 				ConfigParser<?, ?> parser = ConfigParserBuilder.prepareParser(webFile.extension, webFile.content, false);
 				if (parser == null) return null;
 				if (clz == null) {
@@ -347,7 +351,6 @@ public class ConfigWebOnce implements ConfigLoader {
 						System.out.println("[Config:INFO] Configuration " + webFile.name + webFile.extension + " remotely loaded.");
 					}
 					if (oldLoader != Config.configurationLoader) { // loader changed!
-						System.out.println("[Config:INFO] Switching configuration loader from " + oldLoader.getName() + " to " + Config.configurationLoader.getName());
 						InternalConfigUtils.checkStrategyLoader();
 					}
 					return null;

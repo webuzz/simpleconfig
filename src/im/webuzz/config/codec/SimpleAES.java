@@ -37,7 +37,7 @@ public class SimpleAES {
 	// This method is considered as single-threaded
 	public static void updateKeys(String key0, String key1, String key2) {
 		if (!testKeys(key0, key1, key2)) {
-			System.out.println("[Security] Invalid AES Keys!!!");
+			System.out.println("[Config:ERROR] Invalid AES keys!!!");
 			return;
 		}
 		

@@ -18,7 +18,7 @@ import im.webuzz.config.util.FileUtils;
 
 public class InternalConfigUtils {
 	
-	static ConfigLoader resourceLoader = null;
+	static ConfigLoader strategyLoader = null;
 
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -221,32 +221,32 @@ public class InternalConfigUtils {
 
 	protected static void initializeStrategyLoader() {
 		int loopLoadings = 5;
-		while ((InternalConfigUtils.resourceLoader == null || InternalConfigUtils.resourceLoader.getClass() != Config.configurationLoader)) {
-			if (InternalConfigUtils.resourceLoader != null) {
+		while ((InternalConfigUtils.strategyLoader == null || InternalConfigUtils.strategyLoader.getClass() != Config.configurationLoader)) {
+			if (InternalConfigUtils.strategyLoader != null) {
 				if (Config.configurationLogging) {
 					System.out.println("[Config:INFO] Switching configuration loader from "
-							+ InternalConfigUtils.resourceLoader.getClass().getName() + " to "
+							+ InternalConfigUtils.strategyLoader.getClass().getName() + " to "
 							+ Config.configurationLoader.getName());
 				}
-				InternalConfigUtils.resourceLoader.stop();
+				InternalConfigUtils.strategyLoader.stop();
 			}
 			try {
-				InternalConfigUtils.resourceLoader = Config.configurationLoader.newInstance();
+				InternalConfigUtils.strategyLoader = Config.configurationLoader.newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				return;
 			}
-			InternalConfigUtils.resourceLoader.start();
+			InternalConfigUtils.strategyLoader.start();
 			if (loopLoadings-- <= 0) break;
 		}
-		if (loopLoadings <= 0 && Config.configurationLogging) {
-			System.out.println("[Config:INFO] Loading watchman classes results in too many loops (5).");
+		if (loopLoadings <= 0) {
+			System.out.println("[ERROR] Switching configuration loader results in too many loops (5).");
 		}
 	}
 
 	public static void checkStrategyLoader() {
-		if (InternalConfigUtils.isInitializationFinished() && ((resourceLoader == null && Config.configurationLoader != null)
-				|| resourceLoader.getClass() != Config.configurationLoader)) {
+		if (InternalConfigUtils.isInitializationFinished() && ((strategyLoader == null && Config.configurationLoader != null)
+				|| strategyLoader.getClass() != Config.configurationLoader)) {
 			initializeStrategyLoader();
 		}
 	}

@@ -52,7 +52,7 @@ public class AESKeysConfig {
 			SimpleAES.updateKeys(key0, key1, key2);
 		} catch (Exception e){
 			// for example, keys contains non-hex characters
-			System.out.println("[Security] AES Keys Initialization Error!!!");
+			System.out.println("[Config:ERROR] Failed to initialize AES keys!");
 			e.printStackTrace();
 		}
 	}

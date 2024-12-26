@@ -217,7 +217,7 @@ public class Config {
 		orderedConfigs.add(clazz);
 		InternalConfigUtils.initializedTime = System.currentTimeMillis();
 		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE);
-		if (InternalConfigUtils.resourceLoader != null) InternalConfigUtils.resourceLoader.add(clazz);
+		if (InternalConfigUtils.strategyLoader != null) InternalConfigUtils.strategyLoader.add(clazz);
 		if (configurationLogging) {
 			System.out.println("[Config:INFO] Registering configuration class " + clazz.getName() + " done.");
 		}
@@ -255,22 +255,20 @@ public class Config {
 	}
 
 	public static String[] initialize(String[] args) {
+		allConfigs.put(AESKeysConfig.class.getName(), AESKeysConfig.class);
+		orderedConfigs.add(AESKeysConfig.class);
 		ConfigParser<String[], String[]> argumentsParser = null; 
 		String[] retArgs = args;
 		do {
 			argumentsParser = commandLineParser;
 			retArgs = argumentsParser.loadResource(retArgs, true);
 			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE);
-//			for (Class<?> config : orderedConfigs) {
-//				argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
-//			}
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
 		
-		registerClass(AESKeysConfig.class);
 		for (Class<?> config : orderedConfigs) {
 			argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
 		}
-		
+
 		StringBuilder folderBuilder = new StringBuilder();
 		StringBuilder nameBuilder = new StringBuilder();
 		StringBuilder extBuilder = new StringBuilder();

@@ -13,7 +13,9 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 	@Override
 	public boolean start() {
 		if (!super.start()) return false;
-		System.out.println("[Config:INFO] Starting remote web configuration center watcher");
+		if (Config.configurationLogging) {
+			System.out.println("[Config:INFO] Starting remote web configuration center watcher");
+		}
 		Thread webThread = new Thread(this, "Remote Web Configuration Center Watcher");
 		webThread.setDaemon(true);
 		webThread.start();
