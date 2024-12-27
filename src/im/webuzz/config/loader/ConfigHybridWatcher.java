@@ -10,12 +10,12 @@ public class ConfigHybridWatcher extends ConfigWebWatcher {
 	@Override
 	public boolean start() {
 		if (running) return false;
+		running = true;
 		if (!fileWatcher.start()) return false;
 		if (!super.start()) {
 			fileWatcher.stop();
 			return false;
 		}
-		running = true;
 		return true;
 	}
 	
@@ -35,6 +35,9 @@ public class ConfigHybridWatcher extends ConfigWebWatcher {
 
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
 		file.synchronizeWithRemote(responseBytes, lastModified); // sync data to memory
+		// Need to check if there are @ConfigLocalOnly fields and update responseBytes accordingly.
+		ConfigHybridOnce.checkAndMergeFields(file, fileWatcher.keyPrefixClassMap);
 		file.synchronizeWithLocal(new File(file.path + file.name + file.extension), true); // sync data to local file system
 	}
+
 }

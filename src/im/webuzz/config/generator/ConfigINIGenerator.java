@@ -16,13 +16,20 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.parser.ConfigFieldProxy;
+import im.webuzz.config.util.BytesHelper;
 import im.webuzz.config.util.FieldUtils;
 import im.webuzz.config.util.TypeUtils;
 
@@ -312,4 +319,98 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		return builder.append(name).append(compact ? '>' : '=').append(value);
 	}
 
+	@Override
+	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields) {
+		byte[] content = originalContent;
+		for (Field f : fields) {
+			int contentLength = content.length;
+			ByteArrayOutputStream baos = new ByteArrayOutputStream(contentLength + fields.size() * 32);
+			String name = f.getName();
+			byte[] nameBytes = name.getBytes();
+			int nameLength = nameBytes.length;
+			int lastIdx = 0;
+			int startIdx = 0;
+			do {
+				int idx = BytesHelper.indexOf(content, 0, contentLength, nameBytes, 0, nameLength, startIdx); 
+				if (idx == -1) break;
+				int nextIdx = idx + nameLength;
+				if (checkPrefix(content, idx, clz)) {
+					byte next = content[nextIdx];
+					if (next == '=' || next == '.' || next == ' ' || next == '\t' || next == ':') {
+						if (lastIdx == 0) {
+							baos.write(content, lastIdx, idx - lastIdx);
+							lastIdx = idx;
+						}
+						nextIdx++;
+						do {
+							if (nextIdx == contentLength) break;
+						} while (content[nextIdx++] != '\n');
+					} 
+				}
+				startIdx = nextIdx;
+			} while (true);
+			if (lastIdx == 0) continue; // not matched
+			StringBuilder builder = new StringBuilder();
+			generateFieldValue(builder, new ConfigFieldProxy(f), name, clz, null, null, null,
+					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
+					false, false, false, true, true);
+			if (builder.length() > 0) {
+				byte[] bytes = builder.toString().getBytes(Config.configFileEncoding);
+				int localStartIdx = 0;
+				int localLastIdx = 0;
+				int byteLength = bytes.length;
+				do {
+					int idx = BytesHelper.indexOf(bytes, 0, byteLength, nameBytes, 0, nameLength, localStartIdx); 
+					if (idx == -1) break;
+					if (checkPrefix(bytes, idx, clz)) {
+						localLastIdx = idx;
+						break;
+					}
+					localStartIdx = idx + nameLength;
+				} while (true);
+				String original = new String(content, lastIdx, startIdx - lastIdx).trim();
+				String update = new String(bytes, localLastIdx, byteLength - localLastIdx).trim();
+				if (original.equals(update)) continue; // No update!
+				/*
+				System.out.println("============");
+				System.out.println(original);
+				System.out.println("=====vs=====");
+				System.out.println(update);
+				System.out.println("============");
+				// */
+				try {
+					baos.write(bytes, localLastIdx, byteLength - localLastIdx);
+					if (bytes[byteLength - 1] != '\n') {
+						baos.write("\r\n".getBytes());
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			if (contentLength > startIdx) {
+				baos.write(content, startIdx, contentLength - startIdx);
+			}
+			byte[] newContent = baos.toByteArray();
+			//System.out.println(new String(newContent, Config.configFileEncoding));
+			content = newContent;
+		}
+		return content;
+	}
+
+	protected boolean checkPrefix(byte[] originalContent, int idx, Class<?> clz) {
+		if (idx == 0) return true;
+		byte prev = originalContent[idx - 1];
+		if (prev == '\n' || prev == ' ' || prev == '\t') return true;
+		if (prev == '.') {
+			int prevIdx = idx;
+			do {
+				prevIdx--;
+				if (prevIdx <= 0) break;
+			} while (originalContent[prevIdx] != '\n');
+			String prefix = new String(originalContent, prevIdx, idx - 1).trim();
+			if (prefix.equals(Config.getKeyPrefix(clz))) return true;
+		}
+		return false;
+	}
+	
 }

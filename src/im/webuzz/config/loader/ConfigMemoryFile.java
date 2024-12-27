@@ -15,6 +15,9 @@ public class ConfigMemoryFile {
 
 	public byte[] content; // OK for small files
 	
+	// if content is merged with local field values, this field will keep the unmodified content
+	public byte[] originalWebContent; 
+	
 	public String md5ETag;
 	
 	public boolean localExisted; // Existed in local file system or not

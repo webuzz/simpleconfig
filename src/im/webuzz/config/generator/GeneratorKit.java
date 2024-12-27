@@ -121,24 +121,13 @@ public class GeneratorKit {
 		}
 	}
 
-	private static void writeObjectToFile(Object obj, File file) {
-		byte[] newBytes = null;
-		if (obj instanceof StringBuilder) {
-			StringBuilder builder = (StringBuilder) obj;
-			if (builder.length() == 0) return;
-			newBytes = builder.toString().getBytes(Config.configFileEncoding);
-		} else if (obj instanceof StringBuffer) {
-			StringBuffer buffer = (StringBuffer) obj;
-			if (buffer.length() == 0) return;
-			newBytes = buffer.toString().getBytes(Config.configFileEncoding);
-		} else if (obj instanceof ByteArrayOutputStream) {
-			ByteArrayOutputStream baos = (ByteArrayOutputStream) obj;
-			if (baos.size() == 0) return;
-			newBytes = baos.toByteArray();
-		} else {
+	
+	public static void writeObjectToFile(Object obj, File file) {
+		byte[] newBytes = convertBuilderToBytes(obj);
+		if (newBytes == null) {
 			System.out.println("[Config:ERROR] Failed to write object to file " + file.getName() + ": unsupported object type: " + obj.getClass().getName());
 			return;
-		}
+		} else if (newBytes.length == 0) return; // empty
 		byte[] oldBytes = FileUtils.readFileBytes(file);
 		if (Arrays.equals(newBytes, oldBytes)) return; // unchanged
 		System.out.println(((oldBytes == null || oldBytes.length == 0) ? "Write " : "Update ") + file.getAbsolutePath());
@@ -157,6 +146,25 @@ public class GeneratorKit {
 				}
 			}
 		}
+	}
+
+	private static byte[] emptyBytes = new byte[0];
+	public static byte[] convertBuilderToBytes(Object obj) {
+		byte[] newBytes = null;
+		if (obj instanceof StringBuilder) {
+			StringBuilder builder = (StringBuilder) obj;
+			if (builder.length() == 0) return emptyBytes;
+			newBytes = builder.toString().getBytes(Config.configFileEncoding);
+		} else if (obj instanceof StringBuffer) {
+			StringBuffer buffer = (StringBuffer) obj;
+			if (buffer.length() == 0) return emptyBytes;
+			newBytes = buffer.toString().getBytes(Config.configFileEncoding);
+		} else if (obj instanceof ByteArrayOutputStream) {
+			ByteArrayOutputStream baos = (ByteArrayOutputStream) obj;
+			if (baos.size() == 0) return emptyBytes;
+			newBytes = baos.toByteArray();
+		}
+		return newBytes;
 	}
 
 

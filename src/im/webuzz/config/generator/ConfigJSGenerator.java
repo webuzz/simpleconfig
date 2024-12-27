@@ -16,6 +16,7 @@ package im.webuzz.config.generator;
 
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -442,6 +443,12 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 			compactWriter.appendIndents(builder);
 		}
 		return builder.append(value);
+	}
+
+
+	@Override
+	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields) {
+		return null;
 	}
 
 }

@@ -47,7 +47,8 @@ public class InternalConfigUtils {
 		return false;
 	}
 
-	public static boolean isFiltered(Field field, boolean filterStatic, Map<String, Annotation[]> fieldAnns, boolean filterLocalOnly) {
+	public static boolean isFiltered(Field field, Map<String, Annotation[]> fieldAnns,
+			boolean filterStatic, boolean filterIgnored, boolean filterLocalOnly) {
 		if (field == null) return true;
 		int modifiers = field.getModifiers();
 		if ((modifiers & Modifier.FINAL) != 0) return true;
@@ -58,6 +59,7 @@ public class InternalConfigUtils {
 			// not filter static fields
 			if (!staticField) return true;
 		}
+		int filteringModifiers = Modifier.PUBLIC;
 		boolean annOverridden = false;
 		Annotation[] anns = fieldAnns == null ? null : fieldAnns.get(field.getName());
 		if (anns != null && anns.length > 0) {
@@ -65,15 +67,24 @@ public class InternalConfigUtils {
 			// file should be discarded or not 
 			annOverridden = anns[0] != null && anns[0] instanceof ConfigOverridden;
 		}
-		Class<ConfigIgnored> ignoringClass = ConfigIgnored.class;
-		if (!annOverridden && field.getAnnotation(ignoringClass) != null) return true;
-		int filteringModifiers = Modifier.PUBLIC;
+		if (!annOverridden) {
+			if (field.getAnnotation(ConfigIgnored.class) != null
+					|| (filterLocalOnly && field.getAnnotation(ConfigLocalOnly.class) != null)) {
+				return true;
+			}
+			if (field.getAnnotation(Configurable.class) != null) {
+				if ((modifiers & Modifier.PUBLIC) == 0) field.setAccessible(true);
+				filteringModifiers = 0;
+			}
+		}
 		if (anns != null) {
 			for (Annotation ann : anns) {
 				Class<? extends Annotation> annClass = ann.getClass();
-				if (annClass == ignoringClass) return true;
-				if (filterLocalOnly && annClass == ConfigLocalOnly.class) return true;
-				if (annClass == Configurable.class) {
+				if (ConfigIgnored.class.isAssignableFrom(annClass)
+						|| (filterLocalOnly && ConfigLocalOnly.class.isAssignableFrom(annClass))) {
+					return true;
+				}
+				if (Configurable.class.isAssignableFrom(annClass)) {
 					if ((modifiers & Modifier.PUBLIC) == 0) field.setAccessible(true);
 					filteringModifiers = 0;
 				}
@@ -115,7 +126,7 @@ public class InternalConfigUtils {
 						// ./etc/ im.webuzz.config.Config ...
 						f = getConfigFile(configFolderPath, defaultConfigName, null);
 					}
-					folderBuilder.append(configFolderPath);
+					folderBuilder.append(configFolderPath).append(File.separatorChar);
 				} else { // File
 					// ./etc/piled.ini
 					String folder = f.getParent();

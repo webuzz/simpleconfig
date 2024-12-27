@@ -1,30 +1,22 @@
-package im.webuzz.config.annotation;
+package im.webuzz.config.parser;
 
+import java.lang.reflect.Field;
 import java.util.Objects;
 
-public class AnnotationField {
+public class AnnotationField implements ConfigField {
 	String name;
 	Class<?> type;
 	Object value;
-	/*
-	Integer intValue;
-	Long longValue;
-	Float floatValue;
-	Double doubleValue;
-	Byte byteValue;
-	Short shortValue;
-	Boolean booleanValue;
-	Character charValue;
-	String stringValue;
-	Enum<?> enumValue;
-	Class<?> classValue;
-	Annotation annotationValue;
-	//*/
+	
+	@Override
+	public Field getField() {
+		return null;
+	}
 	
 	public Class<?> getType() {
 		return type;
 	}
-	
+
 	public Class<?> getGenericType() {
 		return null;
 	}
@@ -107,6 +99,5 @@ public class AnnotationField {
 		return Objects.equals(name, other.name) && Objects.equals(type.getName(), other.type.getName())
 				&& Objects.equals(value, other.value);
 	}
-	
 	
 }

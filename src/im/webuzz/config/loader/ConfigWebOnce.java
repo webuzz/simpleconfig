@@ -434,6 +434,7 @@ public class ConfigWebOnce implements ConfigLoader {
 	public static void asyncWebRequest(String url, String user, String password, long lastModified, String eTag, final Object callback) {
 		final HttpRequest req = new HttpRequest();
 		req.open("GET", url, true, user, password);
+		// if (Config.configurationLogging) System.out.println("[Config:INFO] Requesting " + url);
 		req.registerOnLoaded(new Callable<Object>() {
 			@Override
 			public Object call() throws Exception {

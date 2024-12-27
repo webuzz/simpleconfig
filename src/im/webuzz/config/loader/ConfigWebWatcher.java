@@ -26,9 +26,7 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 	public void add(Class<?> configClazz) {
 		if (!running) return; // Not started yet
 		String keyPrefix = Config.getKeyPrefix(configClazz);
-		if (keyPrefix == null || keyPrefix.length() == 0) {
-			return;
-		}
+		if (keyPrefix == null || keyPrefix.length() == 0) return;
 		try {
 			queue.put(configClazz);
 		} catch (InterruptedException e) {

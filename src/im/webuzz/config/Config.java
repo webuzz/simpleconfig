@@ -441,37 +441,30 @@ public class Config {
 
 	public static String getKeyPrefix(Class<?> clz) {
 		String keyPrefix = null;
-		try {
-			Field f = clz.getDeclaredField(keyPrefixFieldName);
-			if (f != null) {
-				int modifiers = f.getModifiers();
-				if (/*(modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) != 0
-						&& */(modifiers & Modifier.STATIC) != 0
-						&& (modifiers & Modifier.FINAL) != 0
-						&& f.getType() == String.class) {
-					if ((modifiers & Modifier.PUBLIC) == 0) {
-						f.setAccessible(true);
-					}
-					keyPrefix = (String) f.get(clz);
-				}
-			} // else continue to check annotation
-		} catch (Throwable e) {
-		}
+		ConfigKeyPrefix prefixAnn = clz.getAnnotation(ConfigKeyPrefix.class);
+		if (prefixAnn != null) keyPrefix = prefixAnn.value();
 		if (keyPrefix == null || keyPrefix.length() == 0) {
-			ConfigKeyPrefix prefixAnn = clz.getAnnotation(ConfigKeyPrefix.class);
-			if (prefixAnn != null) {
-				keyPrefix = prefixAnn.value();
+			try {
+				Field f = clz.getDeclaredField(keyPrefixFieldName);
+				if (f != null) {
+					int modifiers = f.getModifiers();
+					if (/*(modifiers & (Modifier.PUBLIC | Modifier.PROTECTED)) != 0
+							&& */(modifiers & Modifier.STATIC) != 0
+							&& (modifiers & Modifier.FINAL) != 0
+							&& f.getType() == String.class) {
+						if ((modifiers & Modifier.PUBLIC) == 0) f.setAccessible(true);
+						keyPrefix = (String) f.get(clz);
+					}
+				} // else continue to check annotation
+			} catch (Throwable e) {
 			}
 		}
 		if (keyPrefix != null) {
 			keyPrefix = keyPrefix.trim();
-			if (keyPrefix.length() != 0) {
-				return FileUtils.parseFilePath(keyPrefix);
-			}
+			if (keyPrefix.length() != 0) return FileUtils.parseFilePath(keyPrefix);
 		}
 		return null;
 	}
-	
 	
 	public static void main(String[] args) {
 		initialize(args);

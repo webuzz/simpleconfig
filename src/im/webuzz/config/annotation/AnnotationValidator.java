@@ -82,7 +82,7 @@ public class AnnotationValidator {
 		}
 	}
 	
-	public int validatePrimitive(Field f, double num, int depth, String keyName) {
+	public int validatePrimitive(Field f, double num, String keyName) {
 		List<Annotation> numberAnnotations = new ArrayList<Annotation>();
 		List<Annotation> stringAnnotations = new ArrayList<Annotation>();
 		List<Annotation> collectionAnnotations = new ArrayList<Annotation>();
@@ -105,7 +105,7 @@ public class AnnotationValidator {
 		return result ? 1 : 0;
 	}
 	
-	public int validateObject(Field f, Object obj, int depth, String keyName) {
+	public int validateObject(Field f, Object obj, String keyName) {
 		List<Annotation> numberAnnotations = new ArrayList<Annotation>();
 		List<Annotation> stringAnnotations = new ArrayList<Annotation>();
 		List<Annotation> collectionAnnotations = new ArrayList<Annotation>();
@@ -343,7 +343,7 @@ public class AnnotationValidator {
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (InternalConfigUtils.isFiltered(f, false, fieldAnns, false)) continue;
+				if (InternalConfigUtils.isFiltered(f, fieldAnns, false, true, false)) continue;
 				Class<?> fieldType = f.getType();
 				try {
 					if (fieldType.isPrimitive()) {

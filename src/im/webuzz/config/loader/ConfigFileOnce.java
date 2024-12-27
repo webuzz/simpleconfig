@@ -37,9 +37,7 @@ public class ConfigFileOnce implements ConfigLoader {
 		if (!running) return; // Not started yet
 		if (defaultParser != null) defaultParser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE);
 		String keyPrefix = Config.getKeyPrefix(configClazz);
-		if (keyPrefix == null || keyPrefix.length() == 0) {
-			return;
-		}
+		if (keyPrefix == null || keyPrefix.length() == 0) return;
 		StringBuilder extBuilder = new StringBuilder();
 		File file = InternalConfigUtils.getConfigFile(keyPrefix, extBuilder);
 		if (!file.exists()) return;

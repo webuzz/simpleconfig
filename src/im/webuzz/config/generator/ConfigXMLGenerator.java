@@ -20,6 +20,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -502,6 +503,11 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		if (wrapping) compactWriter.appendIndents(builder);
 		builder.append("</").append(name).append('>');
 		return builder;
+	}
+
+	@Override
+	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields) {
+		return null;
 	}
 
 }

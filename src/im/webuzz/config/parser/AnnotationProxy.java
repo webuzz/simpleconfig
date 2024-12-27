@@ -1,4 +1,4 @@
-package im.webuzz.config.annotation;
+package im.webuzz.config.parser;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
@@ -29,20 +29,6 @@ public class AnnotationProxy {
 			}
 			AnnotationField f = annotationFields.get(name);
 			if (f == null) return null;
-			/*
-			if (f.fieldType == int.class) return f.intValue;
-			if (f.fieldType == long.class) return f.longValue;
-			if (f.fieldType == float.class) return f.floatValue;
-			if (f.fieldType == double.class) return f.doubleValue;
-			if (f.fieldType == byte.class) return f.byteValue;
-			if (f.fieldType == short.class) return f.shortValue;
-			if (f.fieldType == boolean.class) return f.booleanValue;
-			if (f.fieldType == char.class) return f.charValue;
-			if (f.fieldType == String.class) return f.stringValue;
-			if (Enum.class.isAssignableFrom(f.fieldType)) return f.enumValue;
-			if (f.fieldType == Class.class) return f.classValue;
-			if (Annotation.class.isAssignableFrom(f.fieldType)) return f.annotationValue;
-			//*/
 			return f.value;
 		}
 	}
@@ -63,20 +49,6 @@ public class AnnotationProxy {
 			AnnotationField f = new AnnotationField();
 			f.name = name;
 			f.type = method.getReturnType();
-			/*
-			if (f.fieldType == int.class) f.intValue = (Integer) method.getDefaultValue();
-			if (f.fieldType == long.class) f.longValue = (Long) method.getDefaultValue();
-			if (f.fieldType == float.class) f.floatValue = (Float) method.getDefaultValue();
-			if (f.fieldType == double.class) f.doubleValue = (Double) method.getDefaultValue();
-			if (f.fieldType == byte.class) f.byteValue = (Byte) method.getDefaultValue();
-			if (f.fieldType == short.class) f.shortValue = (Short) method.getDefaultValue();
-			if (f.fieldType == boolean.class) f.booleanValue = (Boolean) method.getDefaultValue();
-			if (f.fieldType == char.class) f.charValue = (Character) method.getDefaultValue();
-			if (f.fieldType == String.class) f.stringValue = (String) method.getDefaultValue();
-			if (Enum.class.isAssignableFrom(f.fieldType)) f.enumValue = (Enum<?>) method.getDefaultValue();
-			if (f.fieldType == Class.class) f.classValue = (Class<?>) method.getDefaultValue();
-			if (Annotation.class.isAssignableFrom(f.fieldType)) f.annotationValue = (Annotation) method.getDefaultValue();
-			//*/
 			if (ann == null) {
 				f.value = method.getDefaultValue();
 			} else {
@@ -87,11 +59,6 @@ public class AnnotationProxy {
 				}
 			}
 			annotationFields.put(name, f);
-//			Field field = (Field) Proxy.newProxyInstance(
-//					Field.class.getClassLoader(),
-//					new Class<?>[]{Field.class},
-//					new FieldInvocationHandler(name, f.fieldType)
-//				);
 			cachedFieldMap.put(name, f);
 			fields.add(f);
 		}
