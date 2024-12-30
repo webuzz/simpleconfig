@@ -90,6 +90,7 @@ public class ConfigMemoryFS {
 				return false;
 			}
 		
+			if (defaultParser.parseConfiguration(Config.class, ConfigParser.FLAG_VALIDATE) == -1) return false;
 			for (Class<?> config : Config.getAllConfigurations()) {
 				if (defaultParser.parseConfiguration(config, ConfigParser.FLAG_VALIDATE) == -1) return false;
 			}

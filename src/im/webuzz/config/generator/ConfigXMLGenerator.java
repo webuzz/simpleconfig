@@ -16,6 +16,7 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
@@ -25,7 +26,10 @@ import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.parser.ConfigFieldProxy;
+import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.util.BytesHelper;
 import im.webuzz.config.util.FieldUtils;
 import im.webuzz.config.util.TypeUtils;
 
@@ -506,8 +510,179 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields) {
-		return null;
+	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields, List<Field> nextFields) {
+		byte[] content = originalContent;
+		int size = fields.size();
+		for (int i = 0; i < size; i++) {
+			Field f = fields.get(i);
+			Field nextField = nextFields.get(i);
+			int contentLength = content.length;
+			String name = f.getName();
+			String prefixedName = "<" + name;
+			byte[] nameBytes = prefixedName.getBytes();
+			int nameLength = nameBytes.length;
+			int lastIdx = -1;
+			int startIdx = 0;
+			do {
+				int idx = BytesHelper.indexOf(content, 0, contentLength, nameBytes, 0, nameLength, startIdx); 
+				if (idx == -1) break;
+				int nextIdx = idx + nameLength;
+				if (checkPrefix(content, contentLength, idx, nameLength) != -1) {
+					int suffixIdx = checkSuffix(content, contentLength, (byte) '>', nextIdx, nameLength, nextField, (byte) '<');
+					if (suffixIdx != -1) {
+						if (lastIdx == -1) lastIdx = idx;
+						nextIdx = suffixIdx;
+					}
+				}
+				startIdx = nextIdx;
+			} while (true);
+			if (lastIdx < 0) continue; // not matched
+			ByteArrayOutputStream baos = new ByteArrayOutputStream(contentLength + 64); // 64 extra size for potential modification 
+			if (lastIdx > 0) baos.write(content, 0, lastIdx);
+			StringBuilder builder = new StringBuilder();
+			compactWriter.increaseIndent();
+			generateFieldValue(builder, new ConfigFieldProxy(f), name, clz, null, null, null,
+					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
+					false, false, false, true, true);
+			compactWriter.decreaseIndent();
+			if (builder.length() > 0) {
+				byte[] bytes = builder.toString().getBytes(Config.configFileEncoding);
+				int localStartIdx = 0;
+				int localLastIdx = -1;
+				int byteLength = bytes.length;
+				do {
+					int idx = BytesHelper.indexOf(bytes, 0, byteLength, nameBytes, 0, nameLength, localStartIdx); 
+					if (idx == -1) break;
+					int nextIdx = idx + nameLength;
+					if (checkPrefix(bytes, byteLength, idx, nameLength) != -1) {
+						int suffixIdx = checkSuffix(bytes, byteLength, (byte) '>', nextIdx, nameLength, null, (byte) -1);
+						if (suffixIdx != -1) {
+							if (localLastIdx == -1) localLastIdx = idx;
+							nextIdx = suffixIdx;
+						}
+					}
+					localStartIdx = nextIdx;
+				} while (true);
+				String originalStr = new String(content, lastIdx, startIdx - lastIdx).trim();
+				String localStr = new String(bytes, localLastIdx, localStartIdx - localLastIdx).trim();
+				if (originalStr.equals(localStr)) continue; // No update!
+				/*
+				System.out.println("============");
+				System.out.println(originalStr);
+				System.out.println("=====vs=====");
+				System.out.println(localStr);
+				System.out.println("============");
+				// */
+				baos.write(bytes, localLastIdx, byteLength - localLastIdx);
+			}
+			if (contentLength > startIdx) {
+				baos.write(content, startIdx, contentLength - startIdx);
+			}
+			byte[] newContent = baos.toByteArray();
+			//System.out.println(new String(newContent, Config.configFileEncoding));
+			content = newContent;
+		}
+		return content;
+	}
+
+	protected int checkSuffix(byte[] content, int contentLength, byte keyChar, int nextIdx, int nameLength, Field nextField, byte lastChar) {
+		byte next = content[nextIdx];
+		if (next != '>' && next != ' ' && next != '\t' && next != '/' && next != '\r' && next != '\n') return -1;
+		//int startIdx = nextIdx;
+		boolean gap = false;
+	    while (nextIdx < contentLength && (next == ' ' || next == '\t' || next == '\r' || next == '\n')) {
+	    	next = content[++nextIdx];
+	    	gap = true;
+	    }
+	    if (!gap && next != '/' && next != '>') return -1;
+	    if (next == '/') {
+	    	// search '>'
+		    while (nextIdx < contentLength - 1 && next != '>') {
+		    	next = content[++nextIdx];
+		    }
+		    if (next != '>') return -1;
+		    return nextIdx + 1;
+	    }
+	    if (next != '>') {
+	    	// search '>'
+		    while (nextIdx < contentLength - 1 && next != '>') {
+		    	next = content[++nextIdx];
+		    }
+		    if (next != '>') return -1;
+		    int lastIdx = nextIdx + 1;
+		    while (nextIdx > 0 && (next == ' ' || next == '\t' || next == '\r' || next == '\n')) {
+		    	next = content[--nextIdx];
+		    }
+	    	// backward search '/'
+		    if (next == '/') return lastIdx;
+	    }
+    	nextIdx++;
+    	next = content[nextIdx];
+    	// continue to search closing tag
+    	if (nextField != null) {
+			// search backward from the next field, ignoring all blank lines and comments
+			String nextName = "<" + nextField.getName();
+			byte[] nextNameBytes = nextName.getBytes();
+			int nextNameLength = nextNameBytes.length;
+			int lastIdx = -1;
+			int startIdx = nextIdx;
+			do {
+				int idx = BytesHelper.indexOf(content, 0, contentLength, nextNameBytes, 0, nextNameLength, startIdx); 
+				if (idx == -1) break;
+				int prevPrefix = checkPrefix(content, contentLength, idx, nextNameLength);
+				if (prevPrefix != -1) {
+					lastIdx = prevPrefix;
+					break;
+				}
+				startIdx = idx + nextNameLength;
+			} while (true);
+			if (lastIdx != -1) {
+				// matched next field, to search backward ">"
+				int idx = lastIdx;
+				while (idx > 0) {
+					byte prev = content[--idx];
+					if (prev == '>' && !isCommentTag(content, contentLength, idx)) {
+						return idx + 1;
+					}
+				}
+			}
+    	}
+    	if (lastChar == -1) {
+    		int prevIdx = contentLength;
+    		byte prev = content[--prevIdx];
+    	    while (prevIdx >= nextIdx && prev != '>') {
+    	    	prev = content[--prevIdx];
+    	    }
+    		return prevIdx + 1;
+    	}
+    	// !!! Should parse paired < and >
+	    while (nextIdx < contentLength - 1 && next != '>') {
+	    	next = content[++nextIdx];
+	    }
+	    if (next != '>') return -1;
+    	return nextIdx + 1;
+	}
+	
+	protected int checkPrefix(byte[] content, int contentLength, int idx, int nameLength) {
+		if (idx == 0) return idx;
+		byte prev = content[--idx];
+		if (prev == '\n') return idx;
+		if (prev == '>' && !isCommentTag(content, contentLength, idx)) return idx;
+		if (prev == ' ' || prev == '\t') {
+			while (idx > 0) {
+				prev = content[--idx];
+				if (prev == '\n') return idx;
+				if (prev == '>' && !isCommentTag(content, contentLength, idx)) return idx;
+				if (prev != ' ' && prev != '\t') return -1;
+			}
+			if (idx == 0) return idx;
+		}
+		return -1;
+	}
+
+	// Helper method to handle ',' processing
+	private boolean isCommentTag(byte[] content, int contentLength, int idx) {
+		return idx >= 2 && content[idx - 1] == '-' && content[idx - 2] == '-';
 	}
 
 }

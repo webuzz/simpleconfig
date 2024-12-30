@@ -157,6 +157,7 @@ public class HttpRequest {
 	 * @return String the response header value.
 	 */
 	public String getResponseHeader(String key) {
+		if (connection == null) return null;
 		Map<String, List<String>> headerFields = connection.getHeaderFields();
 		List<String> list = headerFields.get(key);
 		if (list == null) {

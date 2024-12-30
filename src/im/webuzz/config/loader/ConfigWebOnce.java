@@ -35,7 +35,10 @@ public class ConfigWebOnce implements ConfigLoader {
 		List<Callable<Object>> tasks = null;
 		synchronized (queueTaskMutex) {
 			String first = clazzQueue.peek();
-			if (first.equals(currentQueueKey)) {
+			if (first == null) {
+				System.out.println("XXX");
+			}
+			if (currentQueueKey.equals(first)) {
 				if (currentTask != null) {
 					tasks = new ArrayList<Callable<Object>>();
 					tasks.add(currentTask);
@@ -86,27 +89,27 @@ public class ConfigWebOnce implements ConfigLoader {
 	
 	protected String getFileMD5ETag(ConfigMemoryFile file) {
 		if (file == null || !RemoteCCConfig.webRequestSupportsMD5ETag) return null;
-		return HttpRequest.calculateMD5ETag(file.content);
+		return HttpRequest.calculateMD5ETag(file.originalWebContent != null ? file.originalWebContent : file.content);
 	}
 
+	@Override
+	public Class<?>[] prerequisites() {
+		return new Class<?>[] { RemoteCCConfig.class };
+	}
 
 	@Override
 	public boolean start() {
 		if (running) return false;
 		
-		Config.register(RemoteCCConfig.class);
-
 		fetchAllConfigurations();
 		fetchAllResourceFiles();
 		// Wait until all classes' configuration files are loaded & parsed
 		running = true;
 		
-		int refreshedCount = 1;
-		//int checkCount = 0;
 		//System.out.println("Start with size=" + inQueueRequests.size());
 		while (inQueueRequests.size() > 0) {
 			try {
-				Thread.sleep(RemoteCCConfig.webRequestTimeout * refreshedCount / 10);
+				Thread.sleep(RemoteCCConfig.webRequestTimeout / 10);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -121,6 +124,17 @@ public class ConfigWebOnce implements ConfigLoader {
 	@Override
 	public void stop() {
 		// do nothing, there is no watchers which need to be stopped
+		if (!running) return;
+		long before = System.currentTimeMillis();
+		while (inQueueRequests.size() > 0) {
+			try {
+				Thread.sleep(RemoteCCConfig.webRequestTimeout / 10);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			//System.out.println(".." + inQueueRequests.size() + "..");
+			if (System.currentTimeMillis() - before > RemoteCCConfig.webRequestInterval * 3) break;
+		}
 		running = false;
 	}
 
@@ -185,26 +199,33 @@ public class ConfigWebOnce implements ConfigLoader {
 			// Given class is already updated by default or command line parser
 			return;
 		}
+		String configFolder = Config.getConfigFolder();
+		String extension = InternalConfigUtils.getConfigExtension(clz);
+		if (extension != null) {
+			ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(configFolder, keyPrefix, extension);
+			if (file.content != null) { // already cached
+				synchronizeFile(clz, keyPrefix, extension, file, false, null, timeout);
+				return;
+			}
+			return;
+		}
 		List<String> exts = Config.configurationScanningExtensions;
 		if (exts == null || exts.size() == 0) {
 			exts = Arrays.asList(new String[] { ".ini" });
 		}
-		String configFolder = Config.getConfigFolder();
 		for (String ext : exts) {
-			if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
-				//WebFile file = load(keyPrefix, ext);
+			if (ext != null && ext.length() > 0 && ext.charAt(0) == '.' && !ext.equals(extension)) {
 				ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(configFolder, keyPrefix, ext);
-				if (file != null) { // already cached
+				if (file.content != null) { // already cached
 					synchronizeFile(clz, keyPrefix, ext, file, false, null, timeout);
 					return;
 				}
 			}
 		}
-		// Scan all extensions
+		// Scan all extensions from remote web to see which exists.
 		for (String ext : exts) {
 			if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
 				ConfigMemoryFile file = ConfigMemoryFS.checkAndPrepareFile(configFolder, keyPrefix, ext);
-				//WebFile file = new WebFile(keyPrefix, ext, null, -1, null);
 				synchronizeFile(clz, keyPrefix, ext, file, false, null, timeout);
 			}
 		}
@@ -221,7 +242,7 @@ public class ConfigWebOnce implements ConfigLoader {
 		} else {
 			count.incrementAndGet();
 		}
-		final String currentQueueKey = (clz == null ? "*" : clz.getName()) + ":" + fileExtension;
+		final String currentQueueKey = (extraPath != null ? extraPath : (clz == null ? "*" : clz.getName())) + ":" + fileExtension;
 		synchronized (queueTaskMutex) {
 			clazzQueue.add(currentQueueKey);
 		}

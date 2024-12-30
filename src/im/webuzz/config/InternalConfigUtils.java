@@ -181,10 +181,17 @@ public class InternalConfigUtils {
 	}
 
 	public static File getConfigFile(String folder, String keyPrefix, StringBuilder extBuilder) {
+		String mainExt = Config.configMainExtension;
+		File fileMainExt = new File(folder, FileUtils.parseFilePath(keyPrefix + mainExt));
+		if (fileMainExt.exists()) {
+			if (extBuilder != null) extBuilder.append(mainExt);
+			return fileMainExt;
+		}
 		String firstExt = null;
 		for (String ext : Config.configurationScanningExtensions) {
 			if (ext != null && ext.length() > 0 && ext.charAt(0) == '.') {
 				if (firstExt == null) firstExt = ext;
+				if (ext.equals(mainExt)) continue;
 				File file = new File(folder, FileUtils.parseFilePath(keyPrefix + ext));
 				if (file.exists()) {
 					if (extBuilder != null) extBuilder.append(ext);
@@ -233,20 +240,28 @@ public class InternalConfigUtils {
 	protected static void initializeStrategyLoader() {
 		int loopLoadings = 5;
 		while ((strategyLoader == null || strategyLoader.getClass() != Config.configurationLoader)) {
-			if (strategyLoader != null) {
-				if (Config.configurationLogging) {
-					System.out.println("[Config:INFO] Switching configuration loader from "
-							+ strategyLoader.getClass().getName() + " to "
-							+ Config.configurationLoader.getName());
-				}
-				strategyLoader.stop();
-			}
+			ConfigLoader newLoader = null;
 			try {
-				strategyLoader = Config.configurationLoader.newInstance();
+				newLoader = Config.configurationLoader.newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				return;
 			}
+			ConfigLoader oldLoader = strategyLoader;
+			if (oldLoader != null && Config.configurationLogging) {
+				System.out.println("[Config:INFO] Switching configuration loader from "
+						+ oldLoader.getClass().getName() + " to "
+						+ newLoader.getClass().getName());
+			}
+			Class<?>[] configClasses = newLoader.prerequisites();
+			if (configClasses != null && configClasses.length > 0) {
+				// Here will trigger loading new configuration loader's prerequisites via old configuration loader
+				for (Class<?> clz : configClasses) {
+					Config.registerClass(clz);
+				}
+			}
+			if (oldLoader != null) oldLoader.stop();
+			strategyLoader = newLoader;
 			strategyLoader.start();
 			if (loopLoadings-- <= 0) break;
 		}

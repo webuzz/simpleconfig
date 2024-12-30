@@ -8,6 +8,7 @@ import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
+import im.webuzz.config.util.FileUtils;
 
 public class ConfigFileOnce implements ConfigLoader {
 
@@ -19,12 +20,16 @@ public class ConfigFileOnce implements ConfigLoader {
 	private ConfigParser<?, ?> defaultParser = null;
 
 	@Override
+	public Class<?>[] prerequisites() {
+		return new Class<?>[] { LocalFSConfig.class };
+	}
+
+	@Override
 	public boolean start() {
 		if (running) return false;
-		Config.register(LocalFSConfig.class);
 		updateAllConfigurations(Config.getConfigFolder(), Config.getConfigMainName(), Config.getConfigMainExtension());
 		running = true;
-		return true;
+		return running;
 	}
 
 	@Override
@@ -60,7 +65,41 @@ public class ConfigFileOnce implements ConfigLoader {
 			e.printStackTrace();
 		}
 	}
-	
+
+	protected void loadAllResourceFiles() {
+		String[] extraFiles = RemoteCCConfig.extraResourceFiles;
+		if (extraFiles == null || extraFiles.length == 0) return;
+		String[] extraExts = RemoteCCConfig.extraResourceExtensions;
+		String configFolder = Config.getConfigFolder();
+		for (String path : extraFiles) {
+			path = FileUtils.parseFilePath(path);
+			File f = new File(configFolder, path);
+			String folder = f.getParent();
+			if (folder == null) folder = ".";
+			String filePath = folder + File.separatorChar;
+			String name = f.getName();
+			String fileName = null;
+			String fileExt = null;
+			boolean matched = false;
+			for (String extraExt : extraExts) {
+				if (path.endsWith(extraExt)) {
+					matched = true;
+					fileName = name.substring(0, name.length() - extraExt.length());
+					fileExt = extraExt;
+					break;
+				}
+			}
+			if (!matched) {
+				if (Config.configurationLogging) {
+					System.out.println("[Config:INFO] Resource file " + path + " is skipped as its extension is not permitted.");
+				}
+				continue;
+			}
+			ConfigMemoryFile memFile = ConfigMemoryFS.checkAndPrepareFile(filePath, fileName, fileExt);
+			memFile.synchronizeWithLocal(f, false);
+		}
+	}
+
 	private boolean parseConfig(ConfigParser<?, ?> parser, Class<?> config) {
 		if (Config.skipUpdatingWithInvalidItems) {
 			if (parser.parseConfiguration(config, ConfigParser.FLAG_CHECK) != -1) { // checking
@@ -100,11 +139,7 @@ public class ConfigFileOnce implements ConfigLoader {
 		if (defaultParser != null && parseConfig(defaultParser, Config.class)) {
 			//InternalConfigUtils.recordConfigExtension(Config.class, configExtension);
 			if (oldLoader != Config.configurationLoader) { // loader changed!
-				if (Config.configurationLogging) {
-					System.out.println("[Config:INFO] Switching configuration loader from " + oldLoader.getName() + " to " + Config.configurationLoader.getName());
-				}
 				InternalConfigUtils.checkStrategyLoader();
-				return;
 			}
 		}
 		for (Class<?> clz : Config.getAllConfigurations()) {

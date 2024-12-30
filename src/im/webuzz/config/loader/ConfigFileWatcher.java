@@ -21,7 +21,9 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 
 	@Override
 	public boolean start() {
+		Class<? extends ConfigLoader> oldLoaderClass = Config.configurationLoader;
 		if (!super.start()) return false;
+		if (oldLoaderClass != Config.configurationLoader) return false;
 		if (Config.configurationLogging) System.out.println("[Config:INFO] Starting local configuration file watcher");
 		Thread webThread = new Thread(this, "Local Configuration File Watcher");
 		webThread.setDaemon(true);
@@ -146,5 +148,6 @@ public class ConfigFileWatcher extends ConfigFileOnce implements Runnable {
 		} catch (IOException | InterruptedException e) {
 			e.printStackTrace();
 		}
+		if (Config.configurationLogging) System.out.println("[Config:INFO] Local configuration file watcher stopped.");
 	}
 }

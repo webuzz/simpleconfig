@@ -46,7 +46,7 @@ public class GeneratorKit {
 		ConfigGenerator<?> generator = generators.get(extension);
 		if (generator != null) return generator;
 		try {
-			Class<?> clazz = GeneratorConfig.generatorExtensions.get(extension);
+			Class<?> clazz = GeneratorConfig.generatorExtensions.get(extension.substring(1));
 			if (clazz != null) {
 				Object instance = clazz.newInstance();
 				if (instance instanceof ConfigGenerator) {
@@ -81,7 +81,8 @@ public class GeneratorKit {
 			String keyPrefix = Config.getKeyPrefix(clz);
 			boolean globalConfig = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
 			String fileExt = classWithExtensions.get(clz);
-			ConfigGenerator generator = getConfigurationGenerator(fileExt.substring(1));
+			if (fileExt == null) fileExt = fileExtension;
+			ConfigGenerator generator = getConfigurationGenerator(fileExt);
 			Class<?> rawType = TypeUtils.getInterfaceParamType(generator.getClass(), ConfigGenerator.class);
 			Object builder = null;
 			if (globalConfig) {
@@ -103,13 +104,16 @@ public class GeneratorKit {
 				builder = createABuilder(rawType);
 			}
 			generator.startGenerate(builder, clz);
+			System.out.println("[Config:INFO] Generating " + clz.getName());
 			if (!globalConfig) { // multiple configurations
 				generator.endGenerate(builder, clz);
 				writeObjectToFile(builder, new File(folder, FileUtils.parseFilePath(keyPrefix + fileExt)));
+				System.out.println("[Config:INFO] " + keyPrefix + fileExt + " generated, class=" + clz.getName());
 			}
 		} // end of for classes
 		globaleGenerator.endGenerate(globalBuilder, null);
 		writeObjectToFile(globalBuilder, new File(folder, fileName + fileExtension));
+		System.out.println("[Config:INFO] " + fileName + fileExtension + " generated");
 	}
 	
 	private static Object createABuilder(Class<?> rawType) {
@@ -194,33 +198,50 @@ public class GeneratorKit {
 		String configFolder = folderBuilder.toString();
 		String configMainName = nameBuilder.toString();
 		String configMainExtension = extBuilder.toString();
-		
+
 		List<Class<?>> orderedClasses = new ArrayList<Class<?>>();
 		Map<Class<?>, String> classExtensions = new HashMap<Class<?>, String>();
-		Class<?> lastClass = null;
-		for (int i = indexOffset; i < args.length; i++) {
-			String clazz = args[i];
-			if (clazz != null && clazz.length() > 0) {
-				if (clazz.startsWith(".")) {
-					// ./etc/ test.js im.webuzz.config.Security .js
-					if (lastClass != null) classExtensions.put(lastClass, clazz); // clazz is a file extension
-					lastClass = null;
-					continue;
-				}
-				try {
-					Class<?> c = Class.forName(clazz);
-					orderedClasses.add(c);
-					updateConfigExtension(classExtensions, c, configMainExtension);
-					lastClass = c;
-					Config.register(c);
-				} catch (ClassNotFoundException e) {
-					e.printStackTrace();
+		orderedClasses.add(Config.class);
+		classExtensions.put(Config.class, configMainExtension);
+		if (args.length == indexOffset || "*".equals(args[indexOffset])) {
+			// Not specifying any class, try to generate all known configuration classes
+			String argExt = null;
+			int extOffset = indexOffset + 1;
+			boolean forceExt = args.length > extOffset && (argExt = args[extOffset]) != null && argExt.startsWith(".");
+			for (Class<?> confgClazz : Config.getAllConfigurations()) {
+				if (!orderedClasses.contains(confgClazz)) orderedClasses.add(confgClazz);
+				if (forceExt) {
+					classExtensions.put(confgClazz, argExt);
+				} else {
+					updateConfigExtension(classExtensions, confgClazz, configMainExtension);
 				}
 			}
+		} else {
+			Class<?> lastClass = null;
+			for (int i = indexOffset; i < args.length; i++) {
+				String clazz = args[i];
+				if (clazz != null && clazz.length() > 0) {
+					if (clazz.startsWith(".")) {
+						// ./etc/ test.js im.webuzz.config.Security .js
+						if (lastClass != null) classExtensions.put(lastClass, clazz); // clazz is a file extension
+						lastClass = null;
+						continue;
+					}
+					try {
+						Class<?> c = Class.forName(clazz);
+						if (!orderedClasses.contains(c)) orderedClasses.add(c);
+						updateConfigExtension(classExtensions, c, configMainExtension);
+						lastClass = c;
+						Config.register(c);
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+			if (lastClass != null) updateConfigExtension(classExtensions, lastClass, configMainExtension);
 		}
-		if (lastClass != null) updateConfigExtension(classExtensions, lastClass, configMainExtension);
-		Class<?>[] classes = orderedClasses.toArray(new Class<?>[orderedClasses.size()]);
 
+		Class<?>[] classes = orderedClasses.toArray(new Class<?>[orderedClasses.size()]);
 		Config.register(GeneratorConfig.class);
 		generateConfigurationFiles(configFolder, configMainName, configMainExtension, classExtensions, classes);
 	}
@@ -229,9 +250,7 @@ public class GeneratorKit {
 		System.out.println("Usage:");
 		System.out.println("\t... " + Config.class.getName() + " [--c:xxx=### ...] <configuration file, e.g. config.ini> --run:generator"
 				+ " [<target main file>|<target folder>|<target folder> <main file name>]"
-				+ " <<configuration class> [file extension, e.g. .ini or .js or .xml]>"
-				+ " [<configuration class> [file extension, e.g. .ini or .js or .xml] ...]"
-				+ " [checking class]");
+				+ " [<configuration class> [file extension, e.g. .ini or .js or .xml] ...]");
 	}
 
 }

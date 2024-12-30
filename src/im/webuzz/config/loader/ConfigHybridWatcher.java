@@ -33,6 +33,16 @@ public class ConfigHybridWatcher extends ConfigWebWatcher {
 		super.add(configClazz);
 	}
 
+	@Override
+	protected void fetchAllResourceFiles() {
+		// ConfigFileOnce does not load resources into ConfigMemoryFS, so ConfigWebOnce
+		// will always have 200 response for first time synchronization.
+		// Here try to load all resource files into ConfigMemoryFS for 304 response
+		fileWatcher.loadAllResourceFiles();
+		
+		super.fetchAllResourceFiles();
+	}
+
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
 		file.synchronizeWithRemote(responseBytes, lastModified); // sync data to memory
 		// Need to check if there are @ConfigLocalOnly fields and update responseBytes accordingly.

@@ -45,6 +45,16 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 		super.add(configClazz);
 	}
 
+	@Override
+	protected void fetchAllResourceFiles() {
+		// ConfigFileOnce does not load resources into ConfigMemoryFS, so ConfigWebOnce
+		// will always have 200 response for first time synchronization.
+		// Here try to load all resource files into ConfigMemoryFS for 304 response
+		fileOnce.loadAllResourceFiles();
+		
+		super.fetchAllResourceFiles();
+	}
+	
 	protected void saveResponseToFile(ConfigMemoryFile file, byte[] responseBytes, long lastModified) {
 		file.synchronizeWithRemote(responseBytes, lastModified); // sync data to memory
 		// Need to check if there are @ConfigLocalOnly fields and update responseBytes accordingly.
@@ -55,6 +65,7 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	protected static void checkAndMergeFields(ConfigMemoryFile file, Map<String, Class<?>> keyPrefixClassMap) {
 		List<Field> localOnlyFields = new ArrayList<Field>();
+		List<Field> nextFields = new ArrayList<Field>(); // Following field
 		Class<?> clz = keyPrefixClassMap.get(file.name);
 		if (clz != null) {
 			Field[] fields = clz.getDeclaredFields();
@@ -64,13 +75,18 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 				Field f = fields[i];
 				if (InternalConfigUtils.isFiltered(f, fieldAnns, false, false, true)) {
 					localOnlyFields.add(f);
+					if (i != fields.length - 1) {
+						nextFields.add(fields[i + 1]);
+					} else {
+						nextFields.add(null);
+					}
 				}
 			}
 		}
 		if (localOnlyFields.size() > 0) {
 			ConfigGenerator merger = GeneratorKit.getConfigurationGenerator(file.extension);
 			if (merger != null) {
-				byte[] mergedContent = merger.mergeFields(file.content, clz, localOnlyFields);
+				byte[] mergedContent = merger.mergeFields(file.content, clz, localOnlyFields, nextFields);
 				if (mergedContent != null && mergedContent != file.content && !Arrays.equals(mergedContent, file.content)) {
 					file.originalWebContent = file.content;
 					file.content = mergedContent;
