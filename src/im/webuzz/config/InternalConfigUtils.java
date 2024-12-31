@@ -48,7 +48,7 @@ public class InternalConfigUtils {
 	}
 
 	public static boolean isFiltered(Field field, Map<String, Annotation[]> fieldAnns,
-			boolean filterStatic, boolean filterIgnored, boolean filterLocalOnly) {
+			boolean filterStatic, boolean filterLocalOnly) {
 		if (field == null) return true;
 		int modifiers = field.getModifiers();
 		if ((modifiers & Modifier.FINAL) != 0) return true;

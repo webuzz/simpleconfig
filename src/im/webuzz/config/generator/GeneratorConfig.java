@@ -31,12 +31,14 @@ public class GeneratorConfig {
 	public static boolean separateFieldsByBlankLines = true;
 	
 	public static boolean addTypeComment = true;
+	public static boolean addTypeAnnotationComment = true;
 	public static boolean addFieldComment = true;
 	public static boolean addFieldTypeComment = true;
+	public static boolean addFieldAnnotationComment = true;
+	
 	@ConfigComment({"Skip simple type comment for fields of type String, int, boolean."})
 	public static boolean skipSimpleTypeComment = false;
-	public static boolean skipUnchangedLines = false;
-	public static boolean skipObjectUnchangedFields = true;
+	
 	public static int startingIndex = 0;
 
 	@ConfigComment("For array or collection, if all items are save typed, generate the type for the array or collection.")
@@ -48,6 +50,7 @@ public class GeneratorConfig {
 	public static boolean shortenEmptyObject = true;
 	@ConfigComment("For XML format, <xxx null=\"true\" /> will present as the empty object, instead of <xxx><null /></xxx>")
 	public static boolean shortenNullObject = true;
+	
 	@ConfigNotNull
 	@ConfigPattern("([a-zA-Z0-9]+)")
 	public static Map<String, Class<? extends ConfigGenerator<?>>> generatorExtensions = new ConcurrentHashMap<>();

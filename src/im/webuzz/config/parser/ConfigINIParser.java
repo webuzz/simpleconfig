@@ -121,7 +121,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		boolean itemMatched = false;
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (InternalConfigUtils.isFiltered(f, fieldAnns, false, true, (flag & ConfigParser.FLAG_REMOTE) != 0)) continue;
+			if (InternalConfigUtils.isFiltered(f, fieldAnns, false, (flag & ConfigParser.FLAG_REMOTE) != 0)) continue;
 			String name = f.getName();
 			String keyName = keyPrefix != null ? keyPrefix + "." + name : name;
 			String p = props.getProperty(keyName);
@@ -1012,7 +1012,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (InternalConfigUtils.isFiltered(f, fieldAnns, true, true, false)) continue;
+				if (InternalConfigUtils.isFiltered(f, fieldAnns, true, false)) continue;
 				String fieldKeyName = prefix + f.getName();
 				String pp = props.getProperty(fieldKeyName);
 				if (pp == null) {
@@ -1047,7 +1047,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				if ((flag & FLAG_VALIDATE) != 0) System.out.println("[Config:WARN] Unknown field \"" + k + "\" for \"" + prefix + "\"");
 				continue;
 			}
-			if (InternalConfigUtils.isFiltered(f, fieldAnns, true, true, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, fieldAnns, true, false)) continue;
 			String v = kv[1].trim();
 			if (parseAndUpdateField(prefix + k, v, obj, new ConfigFieldProxy(f), validator, FLAG_UPDATE) == -1) return error;
 		}

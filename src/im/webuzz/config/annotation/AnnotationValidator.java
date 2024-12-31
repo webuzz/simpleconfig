@@ -41,6 +41,7 @@ public class AnnotationValidator {
 			List<Annotation> collectionAnnotations,
 			List<Annotation> mapAnnotations,
 			List<Annotation> nullAnnotations) {
+		//f.getDeclaringClass(); // TODO: To merge Config.configurationAnnoations
 		Annotation[] annotations = f.getAnnotations();
 		for (Annotation ann : annotations) {
 			if (ann instanceof ConfigEnum) {
@@ -343,7 +344,7 @@ public class AnnotationValidator {
 			Field[] fields = type.getFields();
 			for (int i = 0; i < fields.length; i++) {
 				Field f = fields[i];
-				if (InternalConfigUtils.isFiltered(f, fieldAnns, false, true, false)) continue;
+				if (InternalConfigUtils.isFiltered(f, fieldAnns, false, false)) continue;
 				Class<?> fieldType = f.getType();
 				try {
 					if (fieldType.isPrimitive()) {

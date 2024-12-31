@@ -16,17 +16,14 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
-import java.io.ByteArrayOutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.annotation.ConfigPreferredCodec;
-import im.webuzz.config.parser.ConfigFieldProxy;
 import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.util.BytesHelper;
@@ -71,55 +68,97 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		public XMLCommentWriter(CommentWrapper wrapper) {
 			super(wrapper);
 		}
+
+		public int appendConfigComment(StringBuilder builder, ConfigComment configAnn) {
+			if (configAnn == null) return 0;
+			String[] comments = configAnn.value();
+			if (comments == null || comments.length == 0) return 0;
+			for (int i = 0; i < comments.length; i++) {
+				if (i > 0) compactWriter.appendIndents(builder);
+				builder.append(comments[i]);
+			}
+			return comments.length;
+		}
 		
 		@Override
 		protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
 			for (Annotation ann : anns) {
+				if (builder.length() > 0) compactWriter.appendIndents(builder);
 				annWriter.appendAnnotation(builder, ann, anns.length > 1);
-				compactWriter.appendIndents(builder);
 			}
 			return anns.length;
 		}
 
 		@Override
-		protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
-			if (!commentGeneratedFields.add(f)) return; // already generated
-			boolean commentAdded = false;
-			if (addFieldComment) {
-				commentAdded = commentWriter.appendConfigComment(builder, f.getAnnotation(ConfigComment.class));
-			}
-			if (addTypeComment) {
-				Class<?> type = f.getType();
-				if (skipSimpleTypeComment
-						&& (type == int.class || type == String.class || type == boolean.class)) {
-					return;
-				}
-				StringBuilder annBuilder = new StringBuilder();
-				int annCount = commentWriter.appendAllFieldAnnotations(annBuilder, f);
-				Type paramType = f.getGenericType();
-				if (commentAdded) { 
-					StringBuilder typeBuilder = new StringBuilder();
-					if (annCount > 0) typeBuilder.append(annBuilder);
-					commentClassWriter.appendFieldType(typeBuilder, type, paramType);
-					typeBuilder.append("\r\n");
-					compactWriter.appendIndents(typeBuilder);
-					// Insert field type back into block comment
-					builder.insert(builder.length() - 5, typeBuilder);
-				} else if (annCount > 0) {
-					startBlockComment(builder);
-					compactWriter.appendIndents(builder);
-					builder.append(annBuilder);
-					commentClassWriter.appendFieldType(builder, type, paramType);
-					endBlockComment(builder);
-				} else {
-					startLineComment(builder);
-					commentClassWriter.appendFieldType(builder, type, paramType);
-					endLineComment(builder);
-				}
+		protected void generateTypeComment(StringBuilder builder, Class<?> clz) {
+			StringBuilder typeCommentBuilder = new StringBuilder();
+			int addedLines = commentWriter.appendConfigComment(typeCommentBuilder, clz.getAnnotation(ConfigComment.class));
+			if (addedLines > 1) {
+				startBlockComment(builder);
+				builder.append(typeCommentBuilder);
+				endBlockComment(builder); // If ended, line break should be appended.
+			} else if (addedLines > 0) {
+				startLineComment(builder);
+				builder.append(typeCommentBuilder);
+				endLineComment(builder);
 			}
 		}
 		
+		@Override
+		protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
+			if (!commentGeneratedFields.add(f)) return; // already generated
+			int addedLines = 0;
+			StringBuilder commentBuilder = null;
+			if (addFieldComment) {
+				commentBuilder = new StringBuilder();
+				addedLines += appendConfigComment(commentBuilder, f.getAnnotation(ConfigComment.class));
+			}
+			StringBuilder annBuilder = null;
+			if (addFieldAnnotationComment) {
+				annBuilder = new StringBuilder();
+				addedLines += appendAllFieldAnnotations(annBuilder, f);
+			}
+			StringBuilder typeBuilder = null;
+			if (addFieldTypeComment) {
+				Class<?> type = f.getType();
+				if (!skipSimpleTypeComment
+						|| (type != int.class && type != String.class && type != boolean.class)) {
+					typeBuilder = new StringBuilder();
+					Type paramType = f.getGenericType();
+					commentClassWriter.appendFieldType(typeBuilder, type, paramType);
+					addedLines += 1;
+				}
+			}
+			if (addedLines == 0) return;
+			if (addedLines == 1) {
+				startLineComment(builder);
+				if (commentBuilder != null && commentBuilder.length() > 0) {
+					builder.append(commentBuilder);
+				}
+				if (annBuilder != null && annBuilder.length() > 0) {
+					builder.append(annBuilder);
+				}
+				if (typeBuilder != null && typeBuilder.length() > 0) {
+					builder.append(typeBuilder); //.toString().replace('<', '{').replace('>', '}'));
+				}
+				endLineComment(builder);
+				return;
+			}
+			startBlockComment(builder);
+			if (commentBuilder != null && commentBuilder.length() > 0) {
+				compactWriter.appendIndents(builder).append(commentBuilder);
+			}
+			if (annBuilder != null && annBuilder.length() > 0) {
+				compactWriter.appendIndents(builder).append(annBuilder);
+			}
+			if (typeBuilder != null && typeBuilder.length() > 0) {
+				compactWriter.appendIndents(builder).append(typeBuilder); //.toString().replace('<', '{').replace('>', '}'));
+			}
+			endBlockComment(builder);
+		}
+
 	}
+	
 	public ConfigXMLGenerator() {
 		super();
 		commentWriter = new XMLCommentWriter(this);
@@ -153,6 +192,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	// To wrap or separate each configuration class
 	@Override
 	public void startClassBlock(StringBuilder builder) {
+		builder.append("<?xml version=\"1.0\" encoding=\"").append(Config.configFileEncoding.name()).append("\"?>\r\n");
 		builder.append("<config>\r\n");
 	}
 	@Override
@@ -510,82 +550,15 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields, List<Field> nextFields) {
-		byte[] content = originalContent;
-		int size = fields.size();
-		for (int i = 0; i < size; i++) {
-			Field f = fields.get(i);
-			Field nextField = nextFields.get(i);
-			int contentLength = content.length;
-			String name = f.getName();
-			String prefixedName = "<" + name;
-			byte[] nameBytes = prefixedName.getBytes();
-			int nameLength = nameBytes.length;
-			int lastIdx = -1;
-			int startIdx = 0;
-			do {
-				int idx = BytesHelper.indexOf(content, 0, contentLength, nameBytes, 0, nameLength, startIdx); 
-				if (idx == -1) break;
-				int nextIdx = idx + nameLength;
-				if (checkPrefix(content, contentLength, idx, nameLength) != -1) {
-					int suffixIdx = checkSuffix(content, contentLength, (byte) '>', nextIdx, nameLength, nextField, (byte) '<');
-					if (suffixIdx != -1) {
-						if (lastIdx == -1) lastIdx = idx;
-						nextIdx = suffixIdx;
-					}
-				}
-				startIdx = nextIdx;
-			} while (true);
-			if (lastIdx < 0) continue; // not matched
-			ByteArrayOutputStream baos = new ByteArrayOutputStream(contentLength + 64); // 64 extra size for potential modification 
-			if (lastIdx > 0) baos.write(content, 0, lastIdx);
-			StringBuilder builder = new StringBuilder();
-			compactWriter.increaseIndent();
-			generateFieldValue(builder, new ConfigFieldProxy(f), name, clz, null, null, null,
-					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
-					false, false, false, true, true);
-			compactWriter.decreaseIndent();
-			if (builder.length() > 0) {
-				byte[] bytes = builder.toString().getBytes(Config.configFileEncoding);
-				int localStartIdx = 0;
-				int localLastIdx = -1;
-				int byteLength = bytes.length;
-				do {
-					int idx = BytesHelper.indexOf(bytes, 0, byteLength, nameBytes, 0, nameLength, localStartIdx); 
-					if (idx == -1) break;
-					int nextIdx = idx + nameLength;
-					if (checkPrefix(bytes, byteLength, idx, nameLength) != -1) {
-						int suffixIdx = checkSuffix(bytes, byteLength, (byte) '>', nextIdx, nameLength, null, (byte) -1);
-						if (suffixIdx != -1) {
-							if (localLastIdx == -1) localLastIdx = idx;
-							nextIdx = suffixIdx;
-						}
-					}
-					localStartIdx = nextIdx;
-				} while (true);
-				String originalStr = new String(content, lastIdx, startIdx - lastIdx).trim();
-				String localStr = new String(bytes, localLastIdx, localStartIdx - localLastIdx).trim();
-				if (originalStr.equals(localStr)) continue; // No update!
-				/*
-				System.out.println("============");
-				System.out.println(originalStr);
-				System.out.println("=====vs=====");
-				System.out.println(localStr);
-				System.out.println("============");
-				// */
-				baos.write(bytes, localLastIdx, byteLength - localLastIdx);
-			}
-			if (contentLength > startIdx) {
-				baos.write(content, startIdx, contentLength - startIdx);
-			}
-			byte[] newContent = baos.toByteArray();
-			//System.out.println(new String(newContent, Config.configFileEncoding));
-			content = newContent;
-		}
-		return content;
+	protected byte[] getFieldPrefixedBytes(Field f) {
+		return ("<" + f.getName()).getBytes();
 	}
 
-	protected int checkSuffix(byte[] content, int contentLength, byte keyChar, int nextIdx, int nameLength, Field nextField, byte lastChar) {
+	@Override
+	protected int checkSuffix(byte[] content, int contentLength, int nextIdx, int nameLength,
+			Field field, Field nextField, boolean generated, boolean found) {
+		//byte keyChar = '>';
+		//byte lastChar = '<';
 		byte next = content[nextIdx];
 		if (next != '>' && next != ' ' && next != '\t' && next != '/' && next != '\r' && next != '\n') return -1;
 		//int startIdx = nextIdx;
@@ -616,6 +589,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	    	// backward search '/'
 		    if (next == '/') return lastIdx;
 	    }
+	    if (nextIdx >= contentLength - 1) return contentLength; 
     	nextIdx++;
     	next = content[nextIdx];
     	// continue to search closing tag
@@ -629,7 +603,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 			do {
 				int idx = BytesHelper.indexOf(content, 0, contentLength, nextNameBytes, 0, nextNameLength, startIdx); 
 				if (idx == -1) break;
-				int prevPrefix = checkPrefix(content, contentLength, idx, nextNameLength);
+				int prevPrefix = checkPrefix(content, contentLength, idx, nextNameLength, field);
 				if (prevPrefix != -1) {
 					lastIdx = prevPrefix;
 					break;
@@ -641,13 +615,17 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 				int idx = lastIdx;
 				while (idx > 0) {
 					byte prev = content[--idx];
-					if (prev == '>' && !isCommentTag(content, contentLength, idx)) {
-						return idx + 1;
+					if (prev == '>') {
+						int prevIdx = handleCommentTag(content, contentLength, idx);
+						if (prevIdx == -1) return idx + 1;
+						idx = prevIdx;
 					}
 				}
+			} else if (found) { // already found one in previous search
+				return -1;
 			}
     	}
-    	if (lastChar == -1) {
+    	if (generated) {
     		int prevIdx = contentLength;
     		byte prev = content[--prevIdx];
     	    while (prevIdx >= nextIdx && prev != '>') {
@@ -663,16 +641,27 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
     	return nextIdx + 1;
 	}
 	
-	protected int checkPrefix(byte[] content, int contentLength, int idx, int nameLength) {
+	@Override
+	protected int checkPrefix(byte[] content, int contentLength, int idx, int nameLength, Field field) {
 		if (idx == 0) return idx;
 		byte prev = content[--idx];
 		if (prev == '\n') return idx;
-		if (prev == '>' && !isCommentTag(content, contentLength, idx)) return idx;
+		if (prev == '>') {
+			int prevIdx = handleCommentTag(content, contentLength, idx);
+			if (prevIdx == -1) return idx;
+			idx = prevIdx;
+			prev = content[idx];
+		}
 		if (prev == ' ' || prev == '\t') {
 			while (idx > 0) {
 				prev = content[--idx];
 				if (prev == '\n') return idx;
-				if (prev == '>' && !isCommentTag(content, contentLength, idx)) return idx;
+				if (prev == '>') {
+					int prevIdx = handleCommentTag(content, contentLength, idx);
+					if (prevIdx == -1) return idx;
+					idx = prevIdx;
+					continue;
+				}
 				if (prev != ' ' && prev != '\t') return -1;
 			}
 			if (idx == 0) return idx;
@@ -681,8 +670,18 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 	}
 
 	// Helper method to handle ',' processing
-	private boolean isCommentTag(byte[] content, int contentLength, int idx) {
-		return idx >= 2 && content[idx - 1] == '-' && content[idx - 2] == '-';
+	private int handleCommentTag(byte[] content, int contentLength, int idx) {
+		if (!(idx >= 2 && content[idx - 1] == '-' && content[idx - 2] == '-')) return -1; // not a comment node
+		// ending with -->, search backward for <!--
+		idx -= 2;
+		while (idx > 0) {
+			byte prev = content[--idx];
+			if (prev == '-' && idx >= 3 && content[idx - 1] == '-'
+					&& content[idx - 2] == '!' && content[idx - 3] == '<') {
+				return idx - 3;
+			}
+		}
+		return 0; // failed to match starting <!--
 	}
 
 }

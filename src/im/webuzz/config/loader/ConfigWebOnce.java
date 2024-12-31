@@ -35,9 +35,9 @@ public class ConfigWebOnce implements ConfigLoader {
 		List<Callable<Object>> tasks = null;
 		synchronized (queueTaskMutex) {
 			String first = clazzQueue.peek();
-			if (first == null) {
-				System.out.println("XXX");
-			}
+			//if (first == null) {
+			//	System.out.println("debug");
+			//}
 			if (currentQueueKey.equals(first)) {
 				if (currentTask != null) {
 					tasks = new ArrayList<Callable<Object>>();
@@ -265,7 +265,11 @@ public class ConfigWebOnce implements ConfigLoader {
 					if (responseBytes != null && responseBytes.length > 0) {
 						//System.out.println("GOOOOOOOOOOOOOOT " + currentQueueKey);
 						if (!Arrays.equals(responseBytes, file.content) || file.modified != lastModified) {
-							saveResponseToFile(file, responseBytes, lastModified);
+							try {
+								saveResponseToFile(file, responseBytes, lastModified);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
 							if (Config.configurationLogging) {
 								System.out.println("[Config:INFO] Configuration file " + keyPrefix + fileExtension + " content synchronized remotely.");
 							}

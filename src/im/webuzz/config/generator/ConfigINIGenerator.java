@@ -16,19 +16,15 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
-import java.io.ByteArrayOutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
-import im.webuzz.config.parser.ConfigFieldProxy;
-import im.webuzz.config.util.BytesHelper;
 import im.webuzz.config.util.FieldUtils;
 import im.webuzz.config.util.TypeUtils;
 
@@ -133,7 +129,13 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	}
 
 	public static String formatStringForProperties(String str) {
-		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").replaceAll("( |#|!)", "\\\\$1").trim();
+		str = str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").replaceAll("(#|!)", "\\\\$1");
+		int length = str.length();
+		if (length > 0) {
+			if (str.charAt(length - 1) == ' ') str = str.substring(0, length - 1) + "\\ ";
+			if (str.charAt(0) == ' ') str = "\\" + str;
+		}
+		return str;
 	}
 
 	@Override
@@ -319,83 +321,26 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 	}
 
 	@Override
-	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields, List<Field> nextFields) {
-		byte[] content = originalContent;
-		for (Field f : fields) {
-			int contentLength = content.length;
-			ByteArrayOutputStream baos = new ByteArrayOutputStream(contentLength + fields.size() * 32);
-			String name = f.getName();
-			byte[] nameBytes = name.getBytes();
-			int nameLength = nameBytes.length;
-			int lastIdx = -1;
-			int startIdx = 0;
-			do {
-				int idx = BytesHelper.indexOf(content, 0, contentLength, nameBytes, 0, nameLength, startIdx); 
-				if (idx == -1) break;
-				int nextIdx = idx + nameLength;
-				if (checkPrefix(content, idx, clz)) {
-					int suffixIdx = checkSuffix(content, contentLength, (byte) '=', nextIdx);
-					if (suffixIdx != -1) {
-						if (lastIdx == -1) lastIdx = idx;
-						nextIdx = suffixIdx;
+	protected int checkSuffix(byte[] content, int contentLength, int nextIdx, int nameLength,
+			Field field, Field nextField, boolean generated, boolean found) {
+		byte next = content[nextIdx];
+		boolean afterDot = false;
+		while (next != '=') {
+			if (nextIdx >= contentLength - 1) return -1;
+			if (next == '\r' || next == '\n') return -1;
+			if (!found) {
+				if (next != ' ' && next != '\t') return -1;
+			} else {
+				if (next == '.') {
+					afterDot = true;
+				} else {
+					if (!afterDot) return -1;
+					if (next == ' ' || next == '\t') {
+						afterDot = false;
 					}
 				}
-				startIdx = nextIdx;
-			} while (true);
-			if (lastIdx < 0) continue; // not matched
-			if (lastIdx > 0) baos.write(content, 0, lastIdx);
-			StringBuilder builder = new StringBuilder();
-			generateFieldValue(builder, new ConfigFieldProxy(f), name, clz, null, null, null,
-					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
-					false, false, false, true, true);
-			if (builder.length() > 0) {
-				byte[] bytes = builder.toString().getBytes(Config.configFileEncoding);
-				int localStartIdx = 0;
-				int localLastIdx = -1;
-				int byteLength = bytes.length;
-				do {
-					int idx = BytesHelper.indexOf(bytes, 0, byteLength, nameBytes, 0, nameLength, localStartIdx); 
-					if (idx == -1) break;
-					int nextIdx = idx + nameLength;
-					if (checkPrefix(bytes, idx, clz)) {
-						int suffixIdx = checkSuffix(bytes, byteLength, (byte) '=', nextIdx);
-						if (suffixIdx != -1) {
-							if (localLastIdx == -1) localLastIdx = idx;
-							nextIdx = suffixIdx;
-						}
-					}
-					localStartIdx = nextIdx;
-				} while (true);
-				String originalStr = new String(content, lastIdx, startIdx - lastIdx).trim();
-				String localStr = new String(bytes, localLastIdx, localStartIdx - localLastIdx).trim();
-				if (originalStr.equals(localStr)) continue; // No update!
-				/*
-				System.out.println("============");
-				System.out.println(originalStr);
-				System.out.println("=====vs=====");
-				System.out.println(localStr);
-				System.out.println("============");
-				// */
-				baos.write(bytes, localLastIdx, byteLength - localLastIdx);
 			}
-			if (contentLength > startIdx) {
-				baos.write(content, startIdx, contentLength - startIdx);
-			}
-			byte[] newContent = baos.toByteArray();
-			//System.out.println(new String(newContent, Config.configFileEncoding));
-			content = newContent;
-		}
-		return content;
-	}
-
-	protected int checkSuffix(byte[] content, int contentLength, byte keyChar, int nextIdx) {
-		byte next = content[nextIdx];
-		while (next != keyChar) {
-			nextIdx++;
-			if (nextIdx >= contentLength) return -1;
-			next = content[nextIdx];
-			if (next == '\r' || next == '\n') return -1;
-			if (next != ' ' && next != '\t') return -1;
+			next = content[++nextIdx];
 		}
 		do {
 			if (nextIdx >= contentLength - 1) return contentLength;
@@ -403,30 +348,32 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 		return nextIdx;
 	}
 	
-	protected boolean checkPrefix(byte[] content, int idx, Class<?> clz) { // prefix should be empty or key prefix, like "generator.XXXX=xxxx" 
-		if (idx == 0) return true;
+	@Override
+	protected int checkPrefix(byte[] content, int contentLength, int idx, int nameLength, Field field) { // prefix should be empty or key prefix, like "generator.XXXX=xxxx" 
+		if (idx == 0) return idx;
 		byte prev = content[--idx];
 		if (prev == '.') { // in combined configuration mode
+			Class<?> clz = field.getDeclaringClass();
 			String keyPrefix = Config.getKeyPrefix(clz);
-			if (keyPrefix == null) return false;
+			if (keyPrefix == null) return -1;
 			int keyPrefixLength = keyPrefix.length();
-			if (keyPrefixLength == 0) return false;
-			if (idx < keyPrefixLength) return false;
+			if (keyPrefixLength == 0) return -1;
+			if (idx < keyPrefixLength) return -1;
 			idx -= keyPrefixLength;
 			String k = new String(content, idx, keyPrefixLength);
-			if (!k.equals(keyPrefix)) return false;
+			if (!k.equals(keyPrefix)) return -1;
 			prev = content[--idx];
 		}
-		if (prev == '\n') return true;
+		if (prev == '\n') return idx;
 		if (prev == ' ' || prev == '\t') {
 			while (idx > 0) {
 				prev = content[--idx];
-				if (prev == '\n') return true;
-				if (prev != ' ' && prev != '\t') return false;
+				if (prev == '\n') return idx;
+				if (prev != ' ' && prev != '\t') return -1;
 			}
-			if (idx == 0) return true;
+			if (idx == 0) return idx;
 		}
-		return false;
+		return -1;
 	}
 	
 }

@@ -14,9 +14,7 @@
 
 package im.webuzz.config.generator;
 
-import static im.webuzz.config.generator.GeneratorConfig.addFieldComment;
-import static im.webuzz.config.generator.GeneratorConfig.addTypeComment;
-import static im.webuzz.config.generator.GeneratorConfig.skipSimpleTypeComment;
+import static im.webuzz.config.generator.GeneratorConfig.*;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -53,25 +51,24 @@ public class CommentWriter {
 		this.commentClassWriter = new CommentClassWriter();
 	}
 
-	public boolean appendConfigComment(StringBuilder builder, ConfigComment configAnn) {
-		if (configAnn == null) return false;
+	public int appendConfigComment(StringBuilder builder, ConfigComment configAnn) {
+		if (configAnn == null) return 0;
 		String[] comments = configAnn.value();
-		if (comments == null || comments.length == 0) return false;
-		if (comments.length > 1) {
+		if (comments == null || comments.length == 0) return 0;
+		if (comments.length == 1) {
+			commentWrapper.startLineComment(builder);
+			builder.append(comments[0]);
+			commentWrapper.endLineComment(builder);
+		} else {
 			commentWrapper.startBlockComment(builder);
 			for (int i = 0; i < comments.length; i++) {
 				commentWrapper.addMiddleComment(builder).append(comments[i]).append("\r\n");
 			}
 			commentWrapper.endBlockComment(builder); // If ended, line break should be appended.
-		} else {
-			commentWrapper.startLineComment(builder);
-			builder.append(comments[0]);
-			commentWrapper.endLineComment(builder);
 		}
-		return true;
+		return comments.length;
 	}
-
-
+	
 	protected int appendFieldAnnotation(StringBuilder builder, Annotation[] anns) {
 		for (Annotation ann : anns) {
 			commentWrapper.startLineComment(builder);
@@ -81,7 +78,7 @@ public class CommentWriter {
 		return anns.length;
 	}
 
-	public int appendAllFieldAnnotations(StringBuilder annBuilder, Field f) {
+	protected int appendAllFieldAnnotations(StringBuilder annBuilder, Field f) {
 		int annCount = 0;
 		// The followings are array/list/set/map/object related
 		annCount += appendFieldAnnotation(annBuilder, f.getAnnotationsByType(ConfigNotNull.class));
@@ -101,23 +98,28 @@ public class CommentWriter {
 		return annCount;
 	}
 
+	protected void generateTypeComment(StringBuilder builder, Class<?> clz) {
+		appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
+	}
+
 	protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
 		if (!commentGeneratedFields.add(f)) return; // already generated
 		
 		if (addFieldComment) {
 			appendConfigComment(builder, f.getAnnotation(ConfigComment.class));
 		}
-		if (addTypeComment) {
-			Class<?> type = f.getType();
-			if (skipSimpleTypeComment
-					&& (type == int.class || type == String.class || type == boolean.class)) {
-				return;
-			}
+		if (addFieldAnnotationComment) {
 			appendAllFieldAnnotations(builder, f);
-			commentWrapper.startLineComment(builder);
-			Type paramType = f.getGenericType();
-			commentClassWriter.appendFieldType(builder, type, paramType);
-			commentWrapper.endLineComment(builder);
+		}
+		if (addFieldTypeComment) {
+			Class<?> type = f.getType();
+			if (!skipSimpleTypeComment
+					|| (type != int.class && type != String.class && type != boolean.class)) {
+				Type paramType = f.getGenericType();
+				commentWrapper.startLineComment(builder);
+				commentClassWriter.appendFieldType(builder, type, paramType);
+				commentWrapper.endLineComment(builder);
+			}
 		}
 	}
 

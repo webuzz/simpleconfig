@@ -236,7 +236,7 @@ public class CompactWriter {
 		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (InternalConfigUtils.isFiltered(f, fieldAnns, true, true, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, fieldAnns, true, false)) continue;
 			Class<?> type = f.getType();
 			if (type == String.class || type.isPrimitive() || TypeUtils.isBasicDataType(type)) {
 				continue; // ignore

@@ -10,6 +10,6 @@ public interface ConfigGenerator<T> {
 	public void startGenerate(T builder, Class<?> clz);
 	public void endGenerate(T builder, Class<?> clz);
 
-	public byte[] mergeFields(byte[] originalContent, Class<?> clz, List<Field> fields, List<Field> nextFields);
+	public byte[] mergeFields(byte[] originalContent, List<Field> fields, List<Field> nextFields);
 
 }

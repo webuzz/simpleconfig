@@ -16,6 +16,7 @@ package im.webuzz.config.generator;
 
 import static im.webuzz.config.generator.GeneratorConfig.*;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -40,7 +41,7 @@ import im.webuzz.config.parser.AnnotationField;
 import im.webuzz.config.parser.AnnotationProxy;
 import im.webuzz.config.parser.ConfigField;
 import im.webuzz.config.parser.ConfigFieldProxy;
-import im.webuzz.config.annotation.ConfigComment;
+import im.webuzz.config.util.BytesHelper;
 import im.webuzz.config.util.TypeUtils;
 
 public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, ConfigGenerator<StringBuilder> {
@@ -558,7 +559,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(o.getClass());
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (InternalConfigUtils.isFiltered(f, fieldAnns, true, true, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, fieldAnns, true, false)) continue;
 			if (!separatorGenerated) {
 				appendSeparator(builder, compact);
 				separatorGenerated = true;
@@ -687,21 +688,24 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		}
 		compactWriter.increaseIndent();
 		if (GeneratorConfig.addTypeComment) {
-			if (builder.length() > 0) builder.append("\r\n");
+			// The first line may be "$config={" in .js and
+			// "<?xml version="1.0" encoding="UTF-8"?><config>" in .xml,
+			// both < 64 characters
+			if (builder.length() > 64) builder.append("\r\n");
 			startLineComment(builder);
 			builder.append(clz.getName());
 			endLineComment(builder); //.append("\r\n");
 		}
 		//boolean skipUnchangedLines = false;
 		//String keyPrefix = Config.getKeyPrefix(clz);
-		commentWriter.appendConfigComment(builder, clz.getAnnotation(ConfigComment.class));
+		commentWriter.generateTypeComment(builder, clz);
 		Field[] fields = clz.getDeclaredFields();
 		String clzName = clz.getName();
 		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
 		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
 		for (int i = 0; i < fields.length; i++) {
 			Field f = fields[i];
-			if (InternalConfigUtils.isFiltered(f, fieldAnns, false, true, false)) continue;
+			if (InternalConfigUtils.isFiltered(f, fieldAnns, false, false)) continue;
 			//if (keyPrefix != null) name = prefixedField(keyPrefix, name);
 			// To check if there are duplicate fields over multiple configuration classes, especially for
 			// those classes without stand-alone configuration files.
@@ -727,5 +731,99 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		boolean combinedConfigs = !GeneratorConfig.multipleFiles || keyPrefix == null || keyPrefix.length() == 0;
 		if (builder.length() != 0 && (clz == null || !combinedConfigs)) endClassBlock(builder);
 	}
+
+	@Override
+	public byte[] mergeFields(byte[] originalContent, List<Field> fields, List<Field> nextFields) {
+		byte[] content = originalContent;
+		int size = fields.size();
+		for (int i = 0; i < size; i++) {
+			Field f = fields.get(i);
+			Field nextField = nextFields.get(i);
+			int contentLength = content.length;
+			byte[] nameBytes = getFieldPrefixedBytes(f);
+			int nameLength = nameBytes.length;
+			int startIdx = -1;
+			int endIdx = -1;
+			int searchIdx = 0;
+			do {
+				int idx = BytesHelper.indexOf(content, 0, contentLength, nameBytes, 0, nameLength, searchIdx); 
+				if (idx == -1) break;
+				int nextIdx = idx + nameLength;
+				if (checkPrefix(content, contentLength, idx, nameLength, f) != -1) {
+					int suffixIdx = checkSuffix(content, contentLength, nextIdx, nameLength,
+							f, nextField, false, startIdx != -1);
+					if (suffixIdx != -1) {
+						if (startIdx == -1) startIdx = idx;
+						endIdx = suffixIdx;
+						nextIdx = suffixIdx;
+					}
+				}
+				searchIdx = nextIdx;
+			} while (true);
+			if (startIdx < 0) continue; // not matched
+			ByteArrayOutputStream baos = new ByteArrayOutputStream(contentLength + 64); // 64 extra size for potential modification 
+			if (startIdx > 0) baos.write(content, 0, startIdx);
+			StringBuilder builder = new StringBuilder();
+			compactWriter.increaseIndent();
+			generateFieldValue(builder, new ConfigFieldProxy(f), f.getName(), f.getDeclaringClass(), null, null, null,
+					false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
+					false, false, false, true, true);
+			compactWriter.decreaseIndent();
+			if (builder.length() > 0) {
+				byte[] bytes = builder.toString().getBytes(Config.configFileEncoding);
+				int localStartIdx = -1;
+				int localEndIdx = -1;
+				int localSearchIdx = 0;
+				int byteLength = bytes.length;
+				do {
+					int idx = BytesHelper.indexOf(bytes, 0, byteLength, nameBytes, 0, nameLength, localSearchIdx); 
+					if (idx == -1) break;
+					int nextIdx = idx + nameLength;
+					if (checkPrefix(bytes, byteLength, idx, nameLength, f) != -1) {
+						int suffixIdx = checkSuffix(bytes, byteLength, nextIdx, nameLength,
+								f, null, true, localStartIdx != -1);
+						if (suffixIdx != -1) {
+							if (localStartIdx == -1) localStartIdx = idx;
+							localEndIdx = suffixIdx;
+							nextIdx = suffixIdx;
+						}
+					}
+					localSearchIdx = nextIdx;
+				} while (true);
+				String originalStr = new String(content, startIdx, endIdx - startIdx).trim();
+				/*
+				if (localStartIdx < 0) {
+					System.out.println("Debug....");
+				}
+				//*/
+				String localStr = new String(bytes, localStartIdx, localEndIdx - localStartIdx).trim();
+				if (originalStr.equals(localStr)) continue; // No update!
+				/*
+				System.out.println("============");
+				System.out.println(originalStr);
+				System.out.println("=====vs=====");
+				System.out.println(localStr);
+				System.out.println("============");
+				// */
+				baos.write(bytes, localStartIdx, byteLength - localStartIdx);
+			}
+			if (contentLength > endIdx) {
+				baos.write(content, endIdx, contentLength - endIdx);
+			}
+			byte[] newContent = baos.toByteArray();
+			//System.out.println(new String(newContent, Config.configFileEncoding));
+			content = newContent;
+		}
+		return content;
+	}
+
+	protected byte[] getFieldPrefixedBytes(Field f) {
+		return f.getName().getBytes();
+	}
+
+	protected abstract int checkPrefix(byte[] content, int contentLength, int idx, int nameLength, Field field);
+
+	protected abstract int checkSuffix(byte[] content, int contentLength, int nextIdx, int nameLength,
+			Field field, Field nextField, boolean generated, boolean found);
 
 }

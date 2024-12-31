@@ -66,27 +66,47 @@ public class ConfigHybridOnce extends ConfigWebOnce {
 	protected static void checkAndMergeFields(ConfigMemoryFile file, Map<String, Class<?>> keyPrefixClassMap) {
 		List<Field> localOnlyFields = new ArrayList<Field>();
 		List<Field> nextFields = new ArrayList<Field>(); // Following field
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		List<Field> allFields = new ArrayList<Field>();
+		List<Class<?>> allClasses = new ArrayList<Class<?>>();
 		Class<?> clz = keyPrefixClassMap.get(file.name);
+		boolean globalConfig = false;
 		if (clz != null) {
-			Field[] fields = clz.getDeclaredFields();
-			Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
-			Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
-			for (int i = 0; i < fields.length; i++) {
-				Field f = fields[i];
-				if (InternalConfigUtils.isFiltered(f, fieldAnns, false, false, true)) {
-					localOnlyFields.add(f);
-					if (i != fields.length - 1) {
-						nextFields.add(fields[i + 1]);
-					} else {
-						nextFields.add(null);
-					}
+			allClasses.add(clz);
+		} else {
+			globalConfig = true;
+			allClasses.add(Config.class);
+			allClasses.addAll(Arrays.asList(Config.getAllConfigurations()));
+		}
+		for (Class<?> clazz : allClasses) {
+			if (globalConfig) {
+				String keyPrefix = Config.getKeyPrefix(clazz);
+				if (keyPrefix != null && keyPrefix.length() > 0) continue;
+			}
+			Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clazz);
+			for (Field f : clazz.getDeclaredFields()) {
+				if (!InternalConfigUtils.isFiltered(f, fieldAnns, false, false)) {
+					allFields.add(f);
+				}
+			}
+		}
+		int size = allFields.size();
+		for (int i = 0; i < size; i++) {
+			Field f = allFields.get(i);
+			Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(f.getDeclaringClass());
+			if (InternalConfigUtils.isFiltered(f, fieldAnns, false, true)) {
+				localOnlyFields.add(f);
+				if (i != size - 1) {
+					nextFields.add(allFields.get(i + 1));
+				} else {
+					nextFields.add(null);
 				}
 			}
 		}
 		if (localOnlyFields.size() > 0) {
 			ConfigGenerator merger = GeneratorKit.getConfigurationGenerator(file.extension);
 			if (merger != null) {
-				byte[] mergedContent = merger.mergeFields(file.content, clz, localOnlyFields, nextFields);
+				byte[] mergedContent = merger.mergeFields(file.content, localOnlyFields, nextFields);
 				if (mergedContent != null && mergedContent != file.content && !Arrays.equals(mergedContent, file.content)) {
 					file.originalWebContent = file.content;
 					file.content = mergedContent;
