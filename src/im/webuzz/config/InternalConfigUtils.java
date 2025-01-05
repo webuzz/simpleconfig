@@ -2,9 +2,13 @@ package im.webuzz.config;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,6 +27,99 @@ public class InternalConfigUtils {
 	// Keep not found classes, if next time trying to load these classes, do not print exceptions
 	private static Set<String> notFoundClasses = Collections.newSetFromMap(new ConcurrentHashMap<>());
 	private static Map<String, Class<?>> loadedClasses = new ConcurrentHashMap<>(50);
+
+	@SuppressWarnings("unchecked")
+	public static List<Annotation> getAllKnownAnnotations(AnnotatedElement el, Class<?>[] containerAnnTypes) {
+		List<Annotation> anns = new ArrayList<Annotation>();
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Class<?> clz = null;
+		String name = null;
+		if (el instanceof Field) {
+			Field field = (Field) el;
+			clz = field.getDeclaringClass();
+			name = field.getName();
+		} else if (el instanceof Class) {
+			clz = (Class<?>) el;
+			name = "class";
+		} else {
+			return anns;
+		}
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
+		Annotation[] configuredAnns = null;
+		boolean annOverridden = false;
+		if (fieldAnns != null) {
+			configuredAnns = fieldAnns.get(name);
+			if (configuredAnns != null && configuredAnns.length > 0) {
+				// Check the first annotation to see if Annotation declared in the source
+				// file should be discarded or not 
+				annOverridden = configuredAnns[0] != null && configuredAnns[0] instanceof ConfigOverridden;
+			}
+		}
+		if (!annOverridden) {
+			Annotation[] annotations = el.getAnnotations();
+			if (annotations != null) {
+				for (Annotation ann : annotations) {
+					boolean container = false;
+					if (containerAnnTypes != null) {
+						for (Class<?> caType : containerAnnTypes) {
+							if (caType.isAssignableFrom(ann.annotationType())) {
+								container = true;
+								break;
+							}
+						}
+					}
+					if (!container) anns.add(ann);
+				}
+				//anns.addAll(Arrays.asList(annotations));
+			}
+			if (containerAnnTypes != null) {
+				for (Class<?> containerType : containerAnnTypes) {
+					annotations = el.getAnnotationsByType((Class<? extends Annotation>)containerType);
+					if (annotations != null) anns.addAll(Arrays.asList(annotations));
+				}
+			}
+		}
+		if (configuredAnns != null) anns.addAll(Arrays.asList(configuredAnns));
+		return anns;
+	}
+
+	@SuppressWarnings("unchecked")
+	public static  <T extends Annotation> T getSingleKnownAnnotations(AnnotatedElement el, Class<T> annType) {
+		Map<Class<?>, Map<String, Annotation[]>> typeAnns = Config.configurationAnnotations;
+		Class<?> clz = null;
+		String name = null;
+		if (el instanceof Field) {
+			Field field = (Field) el;
+			clz = field.getDeclaringClass();
+			name = field.getName();
+		} else if (el instanceof Class) {
+			clz = (Class<?>) el;
+			name = "class";
+		} else {
+			return null;
+		}
+		Map<String, Annotation[]> fieldAnns = typeAnns == null ? null : typeAnns.get(clz);
+		Annotation[] configuredAnns = null;
+		boolean annOverridden = false;
+		if (fieldAnns != null) {
+			configuredAnns = fieldAnns.get(name);
+			if (configuredAnns != null && configuredAnns.length > 0) {
+				// Check the first annotation to see if Annotation declared in the source
+				// file should be discarded or not 
+				annOverridden = configuredAnns[0] != null && configuredAnns[0] instanceof ConfigOverridden;
+			}
+		}
+		if (!annOverridden) {
+			Annotation annotation = el.getAnnotation(annType);
+			if (annotation != null) return (T) annotation;
+		}
+		if (configuredAnns != null) {
+			for (Annotation ann : configuredAnns) {
+				if (annType.isAssignableFrom(ann.annotationType())) return (T) ann;
+			}
+		}
+		return null;
+	}
 
 	/**
 	 * Check if given field is filtered/skipped or not.
@@ -60,6 +157,26 @@ public class InternalConfigUtils {
 			if (!staticField) return true;
 		}
 		int filteringModifiers = Modifier.PUBLIC;
+		boolean typeAnnOverridden = false;
+		Annotation[] typeAnns = fieldAnns == null ? null : fieldAnns.get("class");
+		if (typeAnns != null && typeAnns.length > 0) {
+			// Check the first annotation to see if Annotation declared in the source
+			// file should be discarded or not 
+			typeAnnOverridden = typeAnns[0] != null && typeAnns[0] instanceof ConfigOverridden;
+		}
+		if (!typeAnnOverridden && filterLocalOnly
+				&& field.getDeclaringClass().getAnnotation(ConfigLocalOnly.class) != null) {
+			return true;
+		}
+		if (typeAnns != null) {
+			for (Annotation ann : typeAnns) {
+				Class<? extends Annotation> annClass = ann.getClass();
+				if (filterLocalOnly && ConfigLocalOnly.class.isAssignableFrom(annClass)) {
+					return true;
+				}
+			}
+		}
+		
 		boolean annOverridden = false;
 		Annotation[] anns = fieldAnns == null ? null : fieldAnns.get(field.getName());
 		if (anns != null && anns.length > 0) {

@@ -441,7 +441,7 @@ public class Config {
 
 	public static String getKeyPrefix(Class<?> clz) {
 		String keyPrefix = null;
-		ConfigKeyPrefix prefixAnn = clz.getAnnotation(ConfigKeyPrefix.class);
+		ConfigKeyPrefix prefixAnn = InternalConfigUtils.getSingleKnownAnnotations(clz, ConfigKeyPrefix.class);
 		if (prefixAnn != null) keyPrefix = prefixAnn.value();
 		if (keyPrefix == null || keyPrefix.length() == 0) {
 			try {

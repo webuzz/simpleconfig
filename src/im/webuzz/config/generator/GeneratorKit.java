@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+//import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
@@ -39,6 +39,7 @@ import im.webuzz.config.util.TypeUtils;
  */
 public class GeneratorKit {
 
+	/*
 	protected static Map<String, ConfigGenerator<?>> generators = new ConcurrentHashMap<>();
 
 	public static ConfigGenerator<?> getConfigurationGenerator(String extension) {
@@ -60,7 +61,18 @@ public class GeneratorKit {
 		if (generator == null) generator = new ConfigINIGenerator();
 		return generator;
 	}
+	//*/
 
+	public static ConfigGenerator<?> getConfigurationGenerator(String extension) {
+		try {
+			Class<? extends ConfigGenerator<?>> clazz = GeneratorConfig.generatorExtensions.get(extension.substring(1));
+			if (clazz != null) return clazz.newInstance();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
 	/**
 	 * Generate configuration files to the specific file.
 	 * 

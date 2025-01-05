@@ -106,7 +106,7 @@ public class ConfigXMLGenerator extends ConfigBaseGenerator {
 		
 		@Override
 		protected void generateFieldComment(StringBuilder builder, Field f, boolean topConfigClass) {
-			if (!commentGeneratedFields.add(f)) return; // already generated
+			if (!topConfigClass && !commentGeneratedFields.add(f)) return; // already generated
 			int addedLines = 0;
 			StringBuilder commentBuilder = null;
 			if (addFieldComment) {

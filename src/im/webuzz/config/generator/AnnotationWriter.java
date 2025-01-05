@@ -22,7 +22,7 @@ public class AnnotationWriter {
 		if (ann instanceof ConfigNotNull || ann instanceof ConfigNotEmpty || ann instanceof ConfigLength
 				|| ann instanceof ConfigEnum || ann instanceof ConfigPattern || ann instanceof ConfigPreferredCodec
 				|| ann instanceof ConfigRange || ann instanceof ConfigNumberEnum
-				|| ann instanceof ConfigSince) {
+				|| ann instanceof ConfigSince || ann instanceof ConfigKeyPrefix) {
 			builder.append('(');
 			if (ann instanceof ConfigNotNull) {
 				ConfigNotNull a = (ConfigNotNull) ann;
@@ -145,6 +145,12 @@ public class AnnotationWriter {
 				}
 			} else if (ann instanceof ConfigSince) {
 				ConfigSince a = (ConfigSince) ann;
+				String value = a.value();
+				if (value != null && value.length() > 0) {
+					builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
+				}
+			} else if (ann instanceof ConfigKeyPrefix) {
+				ConfigKeyPrefix a = (ConfigKeyPrefix) ann;
 				String value = a.value();
 				if (value != null && value.length() > 0) {
 					builder.append('\"').append(CompactWriter.formatString(value)).append('\"');

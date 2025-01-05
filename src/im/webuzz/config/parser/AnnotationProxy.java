@@ -27,6 +27,20 @@ public class AnnotationProxy {
 				//System.out.println("Debug annotation#equals : " + proxyEquals(args[0]));
 				return proxyEquals(args[0]);
 			}
+			if ("toString".equals(name)) {
+				StringBuilder builder = new StringBuilder();
+				builder.append('@').append(type.getName());
+				if (cachedFields != null && cachedFields.length > 0) {
+					builder.append('(');
+					for (int i = 0; i < cachedFields.length; i++) {
+						if (i > 0) builder.append(',');
+						AnnotationField f = cachedFields[i];
+						builder.append(f.name).append('=').append(f.value);
+					}
+					builder.append(')');
+				}
+				return builder.toString();
+			}
 			AnnotationField f = annotationFields.get(name);
 			if (f == null) return null;
 			return f.value;

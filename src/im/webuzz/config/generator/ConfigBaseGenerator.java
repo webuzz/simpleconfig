@@ -98,7 +98,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 		StringBuilder valueBuilder = new StringBuilder();
 		StringBuilder typeBuilder = new StringBuilder();
 		/*
-		if ("localServerName".equals(name)) {
+		if ("configurationPackages".equals(name)) {
 			System.out.println("object array");
 		}
 		//*/
@@ -790,14 +790,52 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 					}
 					localSearchIdx = nextIdx;
 				} while (true);
-				String originalStr = new String(content, startIdx, endIdx - startIdx).trim();
-				/*
-				if (localStartIdx < 0) {
-					System.out.println("Debug....");
-				}
-				//*/
-				String localStr = new String(bytes, localStartIdx, localEndIdx - localStartIdx).trim();
+				int originalLength = endIdx - startIdx;
+				String originalStr = new String(content, startIdx, originalLength).trim();
+				int localLength = localEndIdx - localStartIdx;
+				String localStr = new String(bytes, localStartIdx, localLength).trim();
 				if (originalStr.equals(localStr)) continue; // No update!
+				boolean merged = false;
+				StringBuilder simpleBuilder = new StringBuilder();
+				compactWriter.increaseIndent();
+				// Generate the field for the second time, comments for sub-object's fields won't be generated.
+				generateFieldValue(simpleBuilder, new ConfigFieldProxy(f), f.getName(), f.getDeclaringClass(), null, null, null,
+						false, false, 0, f.getAnnotationsByType(ConfigPreferredCodec.class),
+						false, false, false, true, true);
+				compactWriter.decreaseIndent();
+				if (builder.length() > simpleBuilder.length()) {
+					byte[] simpleBytes = simpleBuilder.toString().getBytes(Config.configFileEncoding);
+					int simpleStartIdx = -1;
+					int simpleEndIdx = -1;
+					int simpleSearchIdx = 0;
+					int simpleByteLength = simpleBytes.length;
+					do {
+						int idx = BytesHelper.indexOf(simpleBytes, 0, simpleByteLength, nameBytes, 0, nameLength, simpleSearchIdx); 
+						if (idx == -1) break;
+						int nextIdx = idx + nameLength;
+						if (checkPrefix(simpleBytes, simpleByteLength, idx, nameLength, f) != -1) {
+							int suffixIdx = checkSuffix(simpleBytes, simpleByteLength, nextIdx, nameLength,
+									f, null, true, simpleStartIdx != -1);
+							if (suffixIdx != -1) {
+								if (simpleStartIdx == -1) simpleStartIdx = idx;
+								simpleEndIdx = suffixIdx;
+								nextIdx = suffixIdx;
+							}
+						}
+						simpleSearchIdx = nextIdx;
+					} while (true);
+					int simpleLength = simpleEndIdx - simpleStartIdx;
+					String simpleStr = new String(simpleBytes, simpleStartIdx, simpleLength).trim();
+					if (originalStr.equals(simpleStr)) continue; // No update!
+					/*
+					System.out.println("=====VS=====");
+					System.out.println(simpleStr);
+					// */
+					if (Math.abs(simpleLength - originalLength) < Math.abs(localLength - originalLength)) {
+						baos.write(simpleBytes, simpleStartIdx, simpleByteLength - simpleStartIdx);
+						merged = true;
+					}
+				}
 				/*
 				System.out.println("============");
 				System.out.println(originalStr);
@@ -805,7 +843,7 @@ public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrappe
 				System.out.println(localStr);
 				System.out.println("============");
 				// */
-				baos.write(bytes, localStartIdx, byteLength - localStartIdx);
+				if (!merged) baos.write(bytes, localStartIdx, byteLength - localStartIdx);
 			}
 			if (contentLength > endIdx) {
 				baos.write(content, endIdx, contentLength - endIdx);

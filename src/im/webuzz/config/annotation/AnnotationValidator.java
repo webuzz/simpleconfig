@@ -41,9 +41,9 @@ public class AnnotationValidator {
 			List<Annotation> collectionAnnotations,
 			List<Annotation> mapAnnotations,
 			List<Annotation> nullAnnotations) {
-		//f.getDeclaringClass(); // TODO: To merge Config.configurationAnnoations
-		Annotation[] annotations = f.getAnnotations();
-		for (Annotation ann : annotations) {
+		List<Annotation> anns = InternalConfigUtils.getAllKnownAnnotations(f,
+				new Class<?>[] { ConfigNotNull.class, ConfigNotEmpty.class, ConfigLength.class, ConfigPreferredCodec.class });
+		for (Annotation ann : anns) {
 			if (ann instanceof ConfigEnum) {
 				stringAnnotations.add(ann);
 			} else if (ann instanceof ConfigNonNegative) {
@@ -58,31 +58,25 @@ public class AnnotationValidator {
 				numberAnnotations.add(ann);
 			} else if (ann instanceof ConfigPreferredCodec) {
 				stringAnnotations.add(ann);
+			} else if (ann instanceof ConfigNotNull) {
+				stringAnnotations.add(ann);
+				collectionAnnotations.add(ann);
+				mapAnnotations.add(ann);
+				nullAnnotations.add(ann);
+			} else if (ann instanceof ConfigNotEmpty) {
+				stringAnnotations.add(ann);
+				collectionAnnotations.add(ann);
+				mapAnnotations.add(ann);
+				nullAnnotations.add(ann);
+			} else if (ann instanceof ConfigLength) {
+				stringAnnotations.add(ann);
+				collectionAnnotations.add(ann);
+				mapAnnotations.add(ann);
+				nullAnnotations.add(ann);
 			}
 		}
-		annotations = f.getAnnotationsByType(ConfigNotNull.class);
-		for (Annotation ann : annotations) {
-			stringAnnotations.add(ann);
-			collectionAnnotations.add(ann);
-			mapAnnotations.add(ann);
-			nullAnnotations.add(ann);
-		}
-		annotations = f.getAnnotationsByType(ConfigNotEmpty.class);
-		for (Annotation ann : annotations) {
-			stringAnnotations.add(ann);
-			collectionAnnotations.add(ann);
-			mapAnnotations.add(ann);
-			nullAnnotations.add(ann);
-		}
-		annotations = f.getAnnotationsByType(ConfigLength.class);
-		for (Annotation ann : annotations) {
-			stringAnnotations.add(ann);
-			collectionAnnotations.add(ann);
-			mapAnnotations.add(ann);
-			nullAnnotations.add(ann);
-		}
 	}
-	
+
 	public int validatePrimitive(Field f, double num, String keyName) {
 		List<Annotation> numberAnnotations = new ArrayList<Annotation>();
 		List<Annotation> stringAnnotations = new ArrayList<Annotation>();

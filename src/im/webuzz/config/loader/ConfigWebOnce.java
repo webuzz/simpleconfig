@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
+import im.webuzz.config.annotation.ConfigLocalOnly;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
 import im.webuzz.config.util.FileUtils;
@@ -155,7 +156,11 @@ public class ConfigWebOnce implements ConfigLoader {
 		
 		Class<?>[] configs = Config.getAllConfigurations();
 		for (int i = 0; i < configs.length; i++) {
-			synchronizeClass(configs[i], -1);
+			Class<?> clz = configs[i];
+			if (InternalConfigUtils.getSingleKnownAnnotations(clz, ConfigLocalOnly.class) != null) {
+				continue; // skip synchronizing this class with remote configuration center.
+			}
+			synchronizeClass(clz, -1);
 		}
 	}
 	

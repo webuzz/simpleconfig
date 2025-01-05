@@ -26,6 +26,7 @@ public class FieldUtils {
 	}
 
 	public static boolean canAKeyBeAFieldName(String key) {
+		if (keywords.contains(key)) return false;
 		int len = key.length();
 		for (int i = 0; i < len; i++) {
 			char c = key.charAt(i);
