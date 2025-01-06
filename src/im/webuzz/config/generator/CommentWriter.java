@@ -27,6 +27,8 @@ import java.util.Set;
 
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.*;
+import im.webuzz.config.common.AnnotationWriter;
+import im.webuzz.config.common.CommentClassWriter;
 
 public class CommentWriter {
 

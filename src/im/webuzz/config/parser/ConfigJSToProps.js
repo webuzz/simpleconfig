@@ -70,14 +70,25 @@ $imwebuzzconfigparser.prototype.isAField = function(p, offset, ignoringProps) {
 };
 
 /* private */
+$imwebuzzconfigparser.prototype.formatPropertyValue = function(str) {
+	if (str == "") return "[empty]";
+	str = str.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/\t/g, "\\t").replace(/(!|#)/g, "\\$1");
+	var length = str.length;
+	if (length > 0) {
+		if (str.charAt(length - 1) == ' ') str = str.substring(0, length - 1) + "\\ ";
+		if (str.charAt(0) == ' ') str = "\\" + str;
+	}
+	return str;
+};
+
+/* private */
 $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix, o) {
 	if (o == null) {
 		builder[builder.length] = prefix + "=[null]";
 		return; 
 	}
 	if (typeof o == "string") {
-		builder[builder.length] = prefix + "=" + ((o == "") ? "[empty]"
-				: o.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/\t/g, "\\t").trim());
+		builder[builder.length] = prefix + "=" + this.formatPropertyValue(o);
 		return; 
 	}
 	if (typeof o == "number" || typeof o == "boolean") {

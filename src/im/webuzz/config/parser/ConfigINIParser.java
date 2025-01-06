@@ -30,7 +30,11 @@ import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigRange;
 import im.webuzz.config.codec.ConfigCodec;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.AnnotationField;
+import im.webuzz.config.common.AnnotationProxy;
+import im.webuzz.config.common.ConfigField;
+import im.webuzz.config.common.ConfigFieldProxy;
+import im.webuzz.config.common.TypeUtils;
 
 public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 

@@ -15,8 +15,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import im.webuzz.config.Config;
-//import im.webuzz.config.util.FileUtils;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.TypeUtils;
 
 public class ConfigParserBuilder {
 

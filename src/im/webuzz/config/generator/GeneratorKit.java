@@ -27,8 +27,8 @@ import java.util.Map;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
-import im.webuzz.config.util.FileUtils;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.FileUtils;
+import im.webuzz.config.common.TypeUtils;
 
 
 /**
@@ -38,30 +38,6 @@ import im.webuzz.config.util.TypeUtils;
  *
  */
 public class GeneratorKit {
-
-	/*
-	protected static Map<String, ConfigGenerator<?>> generators = new ConcurrentHashMap<>();
-
-	public static ConfigGenerator<?> getConfigurationGenerator(String extension) {
-		//String ext = extension.substring(1);
-		ConfigGenerator<?> generator = generators.get(extension);
-		if (generator != null) return generator;
-		try {
-			Class<?> clazz = GeneratorConfig.generatorExtensions.get(extension.substring(1));
-			if (clazz != null) {
-				Object instance = clazz.newInstance();
-				if (instance instanceof ConfigGenerator) {
-					generator = (ConfigGenerator<?>) instance;
-					generators.put(extension, generator);
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		if (generator == null) generator = new ConfigINIGenerator();
-		return generator;
-	}
-	//*/
 
 	public static ConfigGenerator<?> getConfigurationGenerator(String extension) {
 		try {
@@ -138,7 +114,7 @@ public class GeneratorKit {
 	}
 
 	
-	public static void writeObjectToFile(Object obj, File file) {
+	protected static void writeObjectToFile(Object obj, File file) {
 		byte[] newBytes = convertBuilderToBytes(obj);
 		if (newBytes == null) {
 			System.out.println("[Config:ERROR] Failed to write object to file " + file.getName() + ": unsupported object type: " + obj.getClass().getName());
@@ -165,7 +141,7 @@ public class GeneratorKit {
 	}
 
 	private static byte[] emptyBytes = new byte[0];
-	public static byte[] convertBuilderToBytes(Object obj) {
+	protected static byte[] convertBuilderToBytes(Object obj) {
 		byte[] newBytes = null;
 		if (obj instanceof StringBuilder) {
 			StringBuilder builder = (StringBuilder) obj;

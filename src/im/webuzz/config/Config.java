@@ -41,9 +41,9 @@ import im.webuzz.config.codec.AESCodec;
 import im.webuzz.config.codec.Base64Codec;
 import im.webuzz.config.codec.Bytes64Codec;
 import im.webuzz.config.codec.BytesAESCodec;
-import im.webuzz.config.codec.CodecKit;
 import im.webuzz.config.codec.ConfigCodec;
 import im.webuzz.config.codec.SecretCodec;
+import im.webuzz.config.common.FileUtils;
 import im.webuzz.config.codec.AESKeysConfig;
 import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.loader.ConfigFileWatcher;
@@ -54,7 +54,6 @@ import im.webuzz.config.parser.ConfigINIParser;
 import im.webuzz.config.parser.ConfigJSParser;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigXMLParser;
-import im.webuzz.config.util.FileUtils;
 
 @ConfigClass
 @ConfigComment("Configuration class controlling the behavior of the Config system, serving as the entry point for all configurations.")
@@ -372,10 +371,10 @@ public class Config {
 				GeneratorKit.run(retArgs, indexOffset);
 				break;
 			case "encoder":
-				CodecKit.run(retArgs, indexOffset, false);
+				InternalCodecKit.run(retArgs, indexOffset, false);
 				break;
 			case "decoder":
-				CodecKit.run(retArgs, indexOffset, true);
+				InternalCodecKit.run(retArgs, indexOffset, true);
 				break;
 			case "validator":
 				if (ConfigMemoryFS.validate()) {

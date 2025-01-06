@@ -1,4 +1,4 @@
-package im.webuzz.config.util;
+package im.webuzz.config.common;
 
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;

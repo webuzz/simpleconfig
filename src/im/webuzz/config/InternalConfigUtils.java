@@ -22,8 +22,8 @@ import im.webuzz.config.annotation.ConfigIgnored;
 import im.webuzz.config.annotation.ConfigLocalOnly;
 import im.webuzz.config.annotation.ConfigOverridden;
 import im.webuzz.config.annotation.Configurable;
+import im.webuzz.config.common.FileUtils;
 import im.webuzz.config.loader.ConfigLoader;
-import im.webuzz.config.util.FileUtils;
 
 public class InternalConfigUtils {
 	

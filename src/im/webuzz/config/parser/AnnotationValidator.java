@@ -20,8 +20,8 @@ import im.webuzz.config.annotation.ConfigPattern;
 import im.webuzz.config.annotation.ConfigPositive;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigRange;
-import im.webuzz.config.generator.AnnotationWriter;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.AnnotationWriter;
+import im.webuzz.config.common.TypeUtils;
 
 public class AnnotationValidator {
 

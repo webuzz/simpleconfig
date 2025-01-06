@@ -35,8 +35,7 @@ import org.w3c.dom.Text;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.codec.ConfigCodec;
-import im.webuzz.config.generator.ConfigINIGenerator;
-import im.webuzz.config.generator.GeneratorConfig;
+import im.webuzz.config.common.StringUtils;
 
 public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 
@@ -355,7 +354,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 		//*/
 		NodeType type = prefix == null ? NodeType.none : parseType(o, containerType);
 		if (type == NodeType.plain) {
-			assign(builder, prefix, null).append(ConfigINIGenerator.formatStringForProperties(getTextValue(o).trim())).append("\r\n");
+			assign(builder, prefix, null).append(StringUtils.formatAsProperties(getTextValue(o).trim())).append("\r\n");
 			return;
 		}
 		if (type == NodeType.nullValue) {
@@ -387,7 +386,7 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			String content = getTextValue(o);
 			assign(builder, prefix, null);
 			if ("String".equalsIgnoreCase(typeName)) {
-				builder.append(ConfigINIGenerator.formatStringForProperties(content)).append("\r\n");;
+				builder.append(StringUtils.formatAsProperties(content)).append("\r\n");;
 			} else {
 				builder.append('[').append(typeName).append(':').append(content).append("]\r\n");
 			}
@@ -399,18 +398,19 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			assign(builder, prefix, null);
 			String content = getTextValue(first);
 			if ("String".equalsIgnoreCase(typeName)) {
-				builder.append(ConfigINIGenerator.formatStringForProperties(content)).append("\r\n");;
+				builder.append(StringUtils.formatAsProperties(content)).append("\r\n");;
 			} else {
 				builder.append('[').append(typeName).append(':').append(content).append("]\r\n");
 			}
 			return;
 		}
+		int startingIndex = 0; //GeneratorConfig.startingIndex;
 		if (type == NodeType.mapEntries) {
 			appendType(builder, prefix, o, null);
 			Element[] mapEntries = getChildElements(o, true);
-			int nodeLength = mapEntries.length + GeneratorConfig.startingIndex;
+			int nodeLength = mapEntries.length + startingIndex;
 			int maxZeros = ("" + nodeLength).length();
-			int idx = GeneratorConfig.startingIndex;
+			int idx = startingIndex;
 			for (Element entry : mapEntries) {
 				String index = String.valueOf(idx);
 				int leadingZeros = maxZeros - index.length();
@@ -517,9 +517,9 @@ public class ConfigXMLParser implements ConfigParser<InputStream, Object> {
 			else if (type == NodeType.listDirect) defaultType = "list";
 			else if (type == NodeType.setDirect) defaultType = "set";
 			appendType(builder, prefix, o, defaultType);
-			int nodeLength = children.length + GeneratorConfig.startingIndex;
+			int nodeLength = children.length + startingIndex;
 			int maxZeros = ("" + nodeLength).length();
-			int idx = GeneratorConfig.startingIndex;
+			int idx = startingIndex;
 			for (Element element : children) {
 				String index = "" + idx;
 				int leadingZeros = maxZeros - index.length();

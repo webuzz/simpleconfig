@@ -18,10 +18,9 @@ import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
-import im.webuzz.config.annotation.ConfigNonNegative;
 import im.webuzz.config.annotation.ConfigNotEmpty;
-import im.webuzz.config.annotation.ConfigNotNull;
 import im.webuzz.config.annotation.ConfigPattern;
+import im.webuzz.config.annotation.ConfigPositive;
 
 @ConfigClass
 @ConfigComment("Configuration for synchronizing local and remote servers. The remote server acts as the configuration center.")
@@ -43,7 +42,6 @@ public class RemoteCCConfig {
 	@ConfigNotEmpty
 	public static String localServerName = "app";
 
-
 	@ConfigComment("Port number of the local server.")
 	public static int localServerPort = 0;
 
@@ -54,11 +52,12 @@ public class RemoteCCConfig {
 	@ConfigComment("Class providing a custom web request client (e.g., for HTTP, FTP, or other protocols).")
 	public static String webRequestClient = null;
 
-
 	@ConfigComment("Timeout (in milliseconds) for each configuration request.")
+	@ConfigPositive
 	public static long webRequestTimeout = 2000;
 
 	@ConfigComment("Interval (in milliseconds) between checks for remote configuration updates.")
+	@ConfigPositive
 	public static long webRequestInterval = 10000;
 
 	@ConfigComment("Enable MD5-based ETag support for HTTP requests.")
@@ -66,7 +65,6 @@ public class RemoteCCConfig {
 
 	@ConfigComment("Allowed file extensions for synchronized resources. Blocks harmful extensions like .exe or .sh.")
 	@ConfigNotEmpty
-	@ConfigNotNull(depth = 1)
 	@ConfigPattern("(\\.[a-zA-Z0-9]+)")
 	public static String[] extraResourceExtensions = new String[] {
 		".xml", ".properties", ".props", ".ini", ".txt", ".config", ".conf", ".cfg", ".js", ".json",
@@ -75,23 +73,11 @@ public class RemoteCCConfig {
 	};
 
 	@ConfigComment("Additional resource files to synchronize from the remote server.")
-	@ConfigNotNull(depth = 1)
 	@ConfigNotEmpty(depth = 1)
 	public static String[] extraResourceFiles = null;
 
 	@ConfigComment("Template for generating target URLs for extra resource files.")
-	@ConfigNotNull
 	@ConfigNotEmpty
 	public static String extraTargetURLPattern = "${server.url.prefix}/${local.server.name}/${extra.file.path}";
-
-	@ConfigComment("Block execution until local files are synchronized (based on *.timestamp).")
-	public static boolean blockingBeforeSynchronized = false;
-
-	@ConfigComment("Interval (in milliseconds) to consider local files outdated. Requires synchronization if expired.")
-	@ConfigNonNegative
-	public static long synchronizedExpiringInterval = 8 * 3600 * 1000; // 8 hours
-
-	@ConfigComment("Enable or disable synchronization with the remote server.")
-	public static boolean synchronizing = false;
 
 }

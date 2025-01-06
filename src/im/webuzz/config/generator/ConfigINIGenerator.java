@@ -25,7 +25,8 @@ import java.util.Set;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.StringUtils;
+import im.webuzz.config.common.TypeUtils;
 
 public class ConfigINIGenerator extends ConfigBaseGenerator {
 
@@ -124,17 +125,7 @@ public class ConfigINIGenerator extends ConfigBaseGenerator {
 			builder.append("[empty]");
 			return;
 		} 
-		builder.append(formatStringForProperties(v));
-	}
-
-	public static String formatStringForProperties(String str) {
-		str = str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").replaceAll("(#|!)", "\\\\$1");
-		int length = str.length();
-		if (length > 0) {
-			if (str.charAt(length - 1) == ' ') str = str.substring(0, length - 1) + "\\ ";
-			if (str.charAt(0) == ' ') str = "\\" + str;
-		}
-		return str;
+		builder.append(StringUtils.formatAsProperties(v));
 	}
 
 	@Override

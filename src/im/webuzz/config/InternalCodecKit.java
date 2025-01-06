@@ -1,4 +1,4 @@
-package im.webuzz.config.codec;
+package im.webuzz.config;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -8,16 +8,16 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.codec.ConfigCodec;
+import im.webuzz.config.common.TypeUtils;
 import im.webuzz.config.generator.ConfigGenerator;
 import im.webuzz.config.generator.GeneratorConfig;
 import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
-import im.webuzz.config.util.TypeUtils;
 
-public class CodecKit {
+public class InternalCodecKit {
 
 	public static class CodecItemConfig {
 		// Need to configure GeneratorConfig#preferredCodecOrder for the final codec 

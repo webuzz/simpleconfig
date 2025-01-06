@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.Set;
 
 import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.common.TypeUtils;
 import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigComment;
-import im.webuzz.config.util.TypeUtils;
 
 /**
  * Generate configuration default file in XML format.

@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.TypeUtils;
 
 public class CompactWriter {
 
@@ -78,10 +78,6 @@ public class CompactWriter {
 		}
 	}
 	
-	public static String formatString(String str) {
-		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
-	}
-
 	private static void appendChar(StringBuilder builder, char ch) {
 		if (0x20 <= ch && ch <= 0x7e) {
 			builder.append('\'').append(ch).append('\'');

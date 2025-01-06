@@ -1,4 +1,4 @@
-package im.webuzz.config.util;
+package im.webuzz.config.common;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;

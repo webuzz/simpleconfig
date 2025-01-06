@@ -1,4 +1,4 @@
-package im.webuzz.config.parser;
+package im.webuzz.config.common;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;

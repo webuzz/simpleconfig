@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.TypeUtils;
 
 public class ClassWriter {
 	

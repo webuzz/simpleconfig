@@ -3,7 +3,7 @@ package im.webuzz.config.loader;
 import java.io.File;
 import java.util.Arrays;
 
-import im.webuzz.config.util.FileUtils;
+import im.webuzz.config.common.FileUtils;
 
 public class ConfigMemoryFile {
 

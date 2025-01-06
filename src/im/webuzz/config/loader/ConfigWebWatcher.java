@@ -31,7 +31,7 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 			queue.put(configClazz);
 		} catch (InterruptedException e) {
 			//e.printStackTrace();
-			// Do nothing, watchman will try to synchronize this class from remote server later (in 10s)
+			// Do nothing, this class will be synchronized from remote server later (in 10s)
 		}
 	}
 	@Override
@@ -57,10 +57,6 @@ public class ConfigWebWatcher extends ConfigWebOnce implements Runnable {
 				}
 				fetchAllConfigurations();
 				fetchAllResourceFiles();
-				//refreshAll(false, WebConfig.webRequestTimeout);
-				if (!RemoteCCConfig.synchronizing) {
-					continue;
-				}
 			} catch (Throwable e) {
 				// might be OOM
 				try {

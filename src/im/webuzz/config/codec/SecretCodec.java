@@ -16,7 +16,7 @@ package im.webuzz.config.codec;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.util.Base64;
+import im.webuzz.config.common.Base64;
 
 /**
  * This is a reference implementation of configuration security kit for

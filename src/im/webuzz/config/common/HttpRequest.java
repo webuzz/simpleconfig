@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.util;
+package im.webuzz.config.common;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;

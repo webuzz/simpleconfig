@@ -6,9 +6,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
+import im.webuzz.config.common.FileUtils;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
-import im.webuzz.config.util.FileUtils;
 
 public class ConfigFileOnce implements ConfigLoader {
 

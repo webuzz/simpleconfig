@@ -1,4 +1,4 @@
-package im.webuzz.config.generator;
+package im.webuzz.config.common;
 
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
@@ -6,8 +6,6 @@ import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import im.webuzz.config.util.TypeUtils;
 
 public class CommentClassWriter {
 	

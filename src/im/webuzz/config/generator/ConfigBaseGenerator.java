@@ -37,11 +37,12 @@ import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
 import im.webuzz.config.codec.ConfigCodec;
-import im.webuzz.config.parser.AnnotationField;
-import im.webuzz.config.parser.AnnotationProxy;
-import im.webuzz.config.parser.ConfigField;
-import im.webuzz.config.parser.ConfigFieldProxy;
-import im.webuzz.config.util.TypeUtils;
+import im.webuzz.config.common.AnnotationField;
+import im.webuzz.config.common.AnnotationProxy;
+import im.webuzz.config.common.AnnotationWriter;
+import im.webuzz.config.common.ConfigField;
+import im.webuzz.config.common.ConfigFieldProxy;
+import im.webuzz.config.common.TypeUtils;
 
 public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, ConfigGenerator<StringBuilder> {
 

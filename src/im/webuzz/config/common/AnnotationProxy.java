@@ -1,4 +1,4 @@
-package im.webuzz.config.parser;
+package im.webuzz.config.common;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;

@@ -1,9 +1,18 @@
-package im.webuzz.config.generator;
+package im.webuzz.config.common;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 
-import im.webuzz.config.annotation.*;
+import im.webuzz.config.annotation.ConfigEnum;
+import im.webuzz.config.annotation.ConfigKeyPrefix;
+import im.webuzz.config.annotation.ConfigLength;
+import im.webuzz.config.annotation.ConfigNotEmpty;
+import im.webuzz.config.annotation.ConfigNotNull;
+import im.webuzz.config.annotation.ConfigNumberEnum;
+import im.webuzz.config.annotation.ConfigPattern;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.annotation.ConfigRange;
+import im.webuzz.config.annotation.ConfigSince;
 
 public class AnnotationWriter {
 	
@@ -64,7 +73,7 @@ public class AnnotationWriter {
 						} else if (value.length() == 0) {
 							builder.append("\"\"");
 						} else {
-							builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
+							builder.append('\"').append(StringUtils.formatAsString(value)).append('\"');
 						}
 						first = false;
 					}
@@ -74,7 +83,7 @@ public class AnnotationWriter {
 				ConfigPattern a = (ConfigPattern) ann;
 				String value = a.value();
 				if (value != null && value.length() > 0) {
-					builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
+					builder.append('\"').append(StringUtils.formatAsString(value)).append('\"');
 				}
 			} else if (ann instanceof ConfigPreferredCodec) {
 				ConfigPreferredCodec a = (ConfigPreferredCodec) ann;
@@ -92,7 +101,7 @@ public class AnnotationWriter {
 						} else if (value.length() == 0) {
 							builder.append("\"\"");
 						} else {
-							builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
+							builder.append('\"').append(StringUtils.formatAsString(value)).append('\"');
 						}
 						first = false;
 					}
@@ -147,13 +156,13 @@ public class AnnotationWriter {
 				ConfigSince a = (ConfigSince) ann;
 				String value = a.value();
 				if (value != null && value.length() > 0) {
-					builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
+					builder.append('\"').append(StringUtils.formatAsString(value)).append('\"');
 				}
 			} else if (ann instanceof ConfigKeyPrefix) {
 				ConfigKeyPrefix a = (ConfigKeyPrefix) ann;
 				String value = a.value();
 				if (value != null && value.length() > 0) {
-					builder.append('\"').append(CompactWriter.formatString(value)).append('\"');
+					builder.append('\"').append(StringUtils.formatAsString(value)).append('\"');
 				}
 			}			
 			int length = builder.length();

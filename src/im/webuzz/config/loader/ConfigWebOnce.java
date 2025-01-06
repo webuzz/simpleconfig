@@ -15,10 +15,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigLocalOnly;
+import im.webuzz.config.common.FileUtils;
+import im.webuzz.config.common.HttpRequest;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
-import im.webuzz.config.util.FileUtils;
-import im.webuzz.config.util.HttpRequest;
 
 public class ConfigWebOnce implements ConfigLoader {
 
