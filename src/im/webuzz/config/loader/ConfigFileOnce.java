@@ -89,12 +89,15 @@ public class ConfigFileOnce implements ConfigLoader {
 					break;
 				}
 			}
+			if (!matched) continue;
+			/*
 			if (!matched) {
 				if (Config.configurationLogging) {
 					System.out.println("[Config:INFO] Resource file " + path + " is skipped as its extension is not permitted.");
 				}
 				continue;
 			}
+			//*/
 			ConfigMemoryFile memFile = ConfigMemoryFS.checkAndPrepareFile(filePath, fileName, fileExt);
 			memFile.synchronizeWithLocal(f, false);
 		}

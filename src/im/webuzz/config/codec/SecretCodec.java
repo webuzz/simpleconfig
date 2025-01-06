@@ -87,33 +87,30 @@ public class SecretCodec implements ConfigCodec<String> {
 		default:
 			break;
 		}
-		try {
-			byte[] rawValue = SimpleAES.b64DecryptBytes(b64Value);
-			if (rawValue != null && rawValue.length > 0) {
-				String newValue = new String(rawValue);
-				int colonIdx = newValue.indexOf(':');
-				StringBuilder builder = new StringBuilder();
-				if (colonIdx != -1) {
-					String user = newValue.substring(0, colonIdx);
-					builder.append(user).append(':');
-					newValue = newValue.substring(colonIdx + 1);
-				}
-				int newLength = newValue.length();
-				if (newLength % 2 == 1) { // incorrect
-					builder.append(newValue); // keep it
-				} else {
-					int half = newLength / 2;
-					for (int i = half - 1; i >= 0; i --) { // Exact password
-						builder.append(newValue.charAt(i + i));
-					}
-				}
-				result = builder.toString();
-				if (caches.size() < maxCredentials) {
-					caches.put(encodedString, result);
-				}
-				return result;
+		byte[] rawValue = SimpleAES.b64DecryptBytes(b64Value);
+		if (rawValue != null && rawValue.length > 0) {
+			String newValue = new String(rawValue);
+			int colonIdx = newValue.indexOf(':');
+			StringBuilder builder = new StringBuilder();
+			if (colonIdx != -1) {
+				String user = newValue.substring(0, colonIdx);
+				builder.append(user).append(':');
+				newValue = newValue.substring(colonIdx + 1);
 			}
-		} catch (Exception e) {
+			int newLength = newValue.length();
+			if (newLength % 2 == 1) { // incorrect
+				builder.append(newValue); // keep it
+			} else {
+				int half = newLength / 2;
+				for (int i = half - 1; i >= 0; i --) { // Exact password
+					builder.append(newValue.charAt(i + i));
+				}
+			}
+			result = builder.toString();
+			if (caches.size() < maxCredentials) {
+				caches.put(encodedString, result);
+			}
+			return result;
 		}
 		return null;
 	}

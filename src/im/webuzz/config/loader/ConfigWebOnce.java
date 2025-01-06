@@ -238,7 +238,7 @@ public class ConfigWebOnce implements ConfigLoader {
 
 	protected void synchronizeFile(final Class<?> clz, final String keyPrefix, final String fileExtension, ConfigMemoryFile file,
 			final boolean globalConfig, final String extraPath, final long timeout) {
-		final String requestURL = buildURL(keyPrefix, fileExtension, extraPath);
+		final String requestURL = compileURL(keyPrefix, fileExtension, extraPath);
 		if (requestURL == null) return;
 		final StringBuilder builder = new StringBuilder();
 		AtomicInteger count = inQueueRequests.get(requestURL);
@@ -401,27 +401,52 @@ public class ConfigWebOnce implements ConfigLoader {
 		};
 	}
 
-	protected static String buildURL(String keyPrefix, String fileExtension,  String extraPath) {
+	
+	private String compileURL(String keyPrefix, String fileExtension, String extraPath) {
 		String url = extraPath == null ? RemoteCCConfig.targetURLPattern : RemoteCCConfig.extraTargetURLPattern;
 		if (url == null) return null;
-		if (extraPath == null) { // configurations
-			url = url.replaceAll("\\$\\{config.key.prefix\\}", keyPrefix);
-			if (fileExtension != null && fileExtension.length() > 0
-					&& url.indexOf("${config.file.extension}") != -1) {
-				url = url.replaceAll("\\$\\{config.file.extension\\}", fileExtension);
+		StringBuilder builder = null;
+		int idx = -1;
+		int lastIdx = 0;
+		String propKeyPrefix = "${";
+		Map<String, List<String>> supportedEnvs = Config.configurationSupportedEnvironments;
+		while ((idx = url.indexOf(propKeyPrefix, lastIdx)) != -1) {
+			if (builder == null) builder = new StringBuilder();
+			builder.append(url.substring(lastIdx, idx));
+			lastIdx = idx;
+			int beginIdx = idx + propKeyPrefix.length();
+			int endIdx = url.indexOf('}', beginIdx);
+			if (endIdx == -1) break;
+			String propName = url.substring(beginIdx, endIdx);
+			String propValue = null;
+			if ("config.key.prefix".equals(propName)) {
+				propValue = keyPrefix;
+			} else if ("config.file.extension".equals(propName)) {
+				propValue = fileExtension;
+			} else if ("extra.file.path".equals(propName)) {
+				propValue = extraPath;
+			} else if ("server.url.prefix".equals(propName)) {
+				propValue = RemoteCCConfig.globalServerURLPrefix;
+			} else if ("local.server.name".equals(propName)) {
+				propValue = RemoteCCConfig.localServerName;
+			} else {
+				propValue = Config.getEnvironment(propName);
+				if (propValue != null && propValue.length() > 0) {
+					List<String> supportedValues = supportedEnvs == null ? null : supportedEnvs.get(propName);
+					if (supportedValues != null && !supportedValues.isEmpty() && !supportedValues.contains(propValue)) {
+						// value is not supported, switch to the first value (considered as the default value
+						propValue = supportedValues.get(0);
+					}
+				}
 			}
-		} else { // resource files
-			url = url.replaceAll("\\$\\{extra.file.path\\}", extraPath);
+			if (propValue != null && propValue.length() > 0) {
+				builder.append(propValue);
+			}
+			lastIdx = endIdx + 1;
 		}
-		String server = RemoteCCConfig.globalServerURLPrefix;
-		String localName = RemoteCCConfig.localServerName;
-		if (server != null) {
-			url = url.replaceAll("\\$\\{server.url.prefix\\}", server);
-		}
-		if (localName != null && url.indexOf("${local.server.name}") != -1) {
-			url = url.replaceAll("\\$\\{local.server.name\\}", localName);
-		}
-		return url;
+		if (lastIdx == 0) return url;
+		builder.append(url.substring(lastIdx));
+		return builder.toString();
 	}
 
 	protected void sendWebRequest(String url, String user, String password, long lastModified, String eTag, WebCallback callback) {

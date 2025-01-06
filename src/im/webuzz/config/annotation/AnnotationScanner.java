@@ -9,26 +9,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.jar.JarFile;
 
-//import im.webuzz.config.annotation.ConfigClass;
-
 public class AnnotationScanner {
-
-	/*
-	public static void main(String[] args) {
-		try {
-			String packageName = "im.webuzz.config.web"; // The target package to scan
-			Class<? extends Annotation> annotation = ConfigClass.class; // Target annotation
-
-			// Get all classes annotated with @ConfigClass
-			List<Class<?>> annotatedClasses = getAnnotatedClassesInPackage(packageName, annotation);
-
-			// Print the results
-			annotatedClasses.forEach(clazz -> System.out.println(clazz.getName()));
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-	//*/
 
 	/**
 	 * Scans the given package for classes annotated with the specified annotation.

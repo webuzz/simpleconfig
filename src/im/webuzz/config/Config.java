@@ -23,6 +23,8 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -68,35 +70,56 @@ public class Config {
 	static String configMainName = null;
 	static String configMainExtension = null;
 	
+	@ConfigComment("Enable or disable configuration logging.")
+	public static boolean configurationLogging = true;
+
 	@ConfigComment("Supported configuration file formats, scanned in order of priority. The first extension is the default.")
 	@ConfigNotNull
-	@ConfigNotEmpty
+	@ConfigNotEmpty(depth = 1)
 	@ConfigPattern("(\\.[a-zA-Z0-9]+)")
-	public static List<String> configurationScanningExtensions = Arrays.asList(
-			new String[] { ".ini", ".js", ".xml" });
+	public static List<String> configurationScanningExtensions = Arrays.asList(new String[] { ".ini", ".js", ".xml" });
+	
+	@ConfigComment("Parsers for different configuration file extensions. Each file uses a corresponding parser.")
+	@ConfigNotEmpty
+	@ConfigPattern("([a-zA-Z0-9]+)")
+	// Each configuration class will have a parser for itself. Parser's class is configured here
+	// so we can instantiate many parser instances.
+	public static Map<String, Class<? extends ConfigParser<?, ?>>> configurationParsers = null;
+	static {
+		Map<String, Class<? extends ConfigParser<?, ?>>> parsers = new HashMap<>();
+		parsers.put("ini", ConfigINIParser.class);
+		parsers.put("js", ConfigJSParser.class);
+		parsers.put("xml", ConfigXMLParser.class);
+		configurationParsers = Collections.unmodifiableMap(parsers);
+	}
+	
+	@ConfigComment("Singleton parser for command line arguments. Default: ConfigArgumentsParser.")
+	// The command line argument parser is a singleton, configure parser object directly.
+	public static ConfigParser<String[], String[]> commandLineParser = new ConfigArgumentsParser();
+
+	@ConfigComment("Codecs for encrypting sensitive configuration values. Codecs must be stateless.")
+	@ConfigLength(min = 3, max = 32, depth = 1)
+	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
+	public static Map<String, ConfigCodec<?>> configurationCodecs = null;
+	static {
+		Map<String, ConfigCodec<?>> codecs = new HashMap<>();
+		codecs.put("secret", new SecretCodec());
+		codecs.put("aes", new AESCodec());
+		codecs.put("bytesaes", new BytesAESCodec());
+		codecs.put("base64", new Base64Codec());
+		codecs.put("bytes64", new Bytes64Codec());
+		configurationCodecs = Collections.unmodifiableMap(codecs);
+	}
 	
 	@ConfigComment("List of classes to be configured via files, e.g., im.webuzz.config.Config.")
 	public static List<Class<?>> configurationClasses = null;
 
 	@ConfigComment("List of package names containing configuration classes, e.g., im.webuzz.config.*.")
-	@ConfigNotNull(depth = 1)
 	@ConfigPattern("[a-zA-Z]([a-zA-Z0-9_\\$]+\\.)*\\*$")
 	public static List<String> configurationPackages = null;
-	
-	@ConfigComment("Parsers for different configuration file extensions. Each file uses a corresponding parser.")
-	@ConfigNotNull
-	@ConfigNotEmpty
-	@ConfigPattern("([a-zA-Z0-9]+)")
-	// Each configuration class will have a parser for itself. Parser's class is configured here
-	// so we can instantiate many parser instances.
-	public static Map<String, Class<? extends ConfigParser<?, ?>>> configurationParsers = new ConcurrentHashMap<>();
-	
-	@ConfigComment("Singleton parser for command line arguments. Default: ConfigArgumentsParser.")
-	@ConfigNotNull
-	// The command line argument parser is a singleton, configure parser object directly.
-	public static ConfigParser<String[], String[]> commandLineParser = new ConfigArgumentsParser();
 
-	public static Map<Class<?>, Map<String, Annotation[]>> configurationAnnotations = new ConcurrentHashMap<>();
+	@ConfigComment("Add or modify class or field's annotation for validation.")
+	public static Map<Class<?>, Map<String, Annotation[]>> configurationAnnotations = null;
 	
 	@ConfigComment({
 		"Loader for managing configuration files. Available loaders:",
@@ -109,28 +132,29 @@ public class Config {
 	})
 	@ConfigNotNull
 	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
-
-	@ConfigComment("Codecs for encrypting sensitive configuration values. Codecs must be stateless.")
-	@ConfigNotNull
-	@ConfigLength(min = 3, max = 32, depth = 1)
-	@ConfigPattern("([a-zA-Z][a-zA-Z0-9]+)")
-	public static Map<String, ConfigCodec<?>> configurationCodecs = new ConcurrentHashMap<>();
 	
-	// Static block initializing parsers and codecs
+	@ConfigNotEmpty(depth = 2)
+	public static Map<String, List<String>> configurationSupportedEnvironments = null;
+	/*
 	static {
-		configurationParsers.put("ini", ConfigINIParser.class);
-		configurationParsers.put("js", ConfigJSParser.class);
-		configurationParsers.put("xml", ConfigXMLParser.class);
-
-		configurationCodecs.put("secret", new SecretCodec());
-		configurationCodecs.put("aes", new AESCodec());
-		configurationCodecs.put("bytesaes", new BytesAESCodec());
-		configurationCodecs.put("base64", new Base64Codec());
-		configurationCodecs.put("bytes64", new Bytes64Codec());
+		Map<String, List<String>> envVars = new HashMap<>();
+		envVars.put("language", Arrays.asList("en", "zh"));
+		envVars.put("country", Arrays.asList("US", "CN"));
+		envVars.put("version", Arrays.asList("1.0", "1.5"));
+		configurationSupportedEnvironments = Collections.unmodifiableMap(envVars);
 	}
+	//*/
 	
-	@ConfigComment("Enable or disable configuration logging.")
-	public static boolean configurationLogging = true;
+	public static Map<String, String> configurationFileNamePatterns = null;
+	/*
+	static {
+		Map<String, String> prefixPattern = new HashMap<>();
+		prefixPattern.put("string", "string_${language}"); // e.g. Android's I18N solution
+		prefixPattern.put("news", "news_${country}");
+		prefixPattern.put("settings", "settings.${version}");
+		configurationFileNamePatterns = Collections.unmodifiableMap(prefixPattern);
+	}
+	//*/
 	
 	public static Class<?> configurationAlarmer = null;
 	public static boolean exitInitializingOnInvalidItems = true;
@@ -140,6 +164,8 @@ public class Config {
 	private static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
 	private static List<Class<?>> orderedConfigs = new ArrayList<>();
 	static volatile ClassLoader classLoader = null;
+	
+	private static Map<String, String> environments = new ConcurrentHashMap<String, String>();
 	
 	/*
 	 * In case configurations got updated from file, try to add class into configuration system
@@ -160,6 +186,28 @@ public class Config {
 		InternalConfigUtils.checkStrategyLoader();
 	}
 
+	/*
+	 * Set an environment for configuration to load related configuration files. 
+	 * E.g. For class UITextsConfig with @ConfigKeyPrefix("uitexts")
+	 * Invoking #setEnvironment("language", "zh") after configuring
+	 * configurationFileNamePatterns.uitexts=uitexts_${language}
+	 * , it will try to load file uitexts_zh.ini for the class UITextsConfig.
+	 */
+	public static void setEnvironment(String key, String defaultValue) {
+		environments.put(key, defaultValue);
+	}
+	
+	/*
+	 * Set all environments at once.
+	 */
+	public static void setEnvironments(Map<String, String> envs) {
+		environments.putAll(envs);
+	}
+	
+	public static String getEnvironment(String key) {
+		return environments.get(key);
+	}
+	
 	/* Recommend using this method in other applications */
 	public static void register(Object cfg) {
 		if (cfg instanceof Class<?>) {
@@ -223,7 +271,8 @@ public class Config {
 		if (!updating) return;
 		orderedConfigs.add(clazz);
 		InternalConfigUtils.initializedTime = System.currentTimeMillis();
-		commandLineParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE);
+		ConfigParser<String[], String[]> cmdParser = commandLineParser;
+		if (cmdParser != null) cmdParser.parseConfiguration(clazz, ConfigParser.FLAG_UPDATE);
 		if (InternalConfigUtils.strategyLoader != null) InternalConfigUtils.strategyLoader.add(clazz);
 		if (configurationLogging) {
 			System.out.println("[Config:INFO] Registering configuration class " + clazz.getName() + " done.");
@@ -269,12 +318,15 @@ public class Config {
 		String[] retArgs = args;
 		do {
 			argumentsParser = commandLineParser;
+			if (argumentsParser == null) break;
 			retArgs = argumentsParser.loadResource(retArgs, true);
 			argumentsParser.parseConfiguration(Config.class, ConfigParser.FLAG_UPDATE);
 		} while (argumentsParser != commandLineParser); // commandLineParser may be updated by the parser itself!
 		
-		for (Class<?> config : orderedConfigs) {
-			argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
+		if (argumentsParser != null) {
+			for (Class<?> config : orderedConfigs) {
+				argumentsParser.parseConfiguration(config, ConfigParser.FLAG_UPDATE);
+			}
 		}
 
 		StringBuilder folderBuilder = new StringBuilder();
@@ -461,9 +513,45 @@ public class Config {
 		}
 		if (keyPrefix != null) {
 			keyPrefix = keyPrefix.trim();
-			if (keyPrefix.length() != 0) return FileUtils.parseFilePath(keyPrefix);
+			if (keyPrefix.length() != 0) {
+				Map<String, String> patterns = configurationFileNamePatterns;
+				String fileName = patterns == null ? null : patterns.get(keyPrefix);
+				if (fileName == null || fileName.length() == 0) return FileUtils.parseFilePath(keyPrefix);
+				return FileUtils.parseFilePath(compleFileName(fileName));
+			}
 		}
 		return null;
+	}
+	
+	private static String compleFileName(String pattern) {
+		StringBuilder builder = null;
+		int idx = -1;
+		int lastIdx = 0;
+		String propKeyPrefix = "${";
+		Map<String, String> currentEnvs = environments;
+		Map<String, List<String>> supportedEnvs = configurationSupportedEnvironments;
+		while ((idx = pattern.indexOf(propKeyPrefix, lastIdx)) != -1) {
+			if (builder == null) builder = new StringBuilder();
+			builder.append(pattern.substring(lastIdx, idx));
+			lastIdx = idx;
+			int beginIdx = idx + propKeyPrefix.length();
+			int endIdx = pattern.indexOf('}', beginIdx);
+			if (endIdx == -1) break;
+			String propName = pattern.substring(beginIdx, endIdx);
+			String propValue = currentEnvs.get(propName);
+			if (propValue != null && propValue.length() > 0) {
+				List<String> supportedValues = supportedEnvs == null ? null : supportedEnvs.get(propName);
+				if (supportedValues != null && !supportedValues.isEmpty() && !supportedValues.contains(propValue)) {
+					// value is not supported, switch to the first value (considered as the default value
+					propValue = supportedValues.get(0);
+				}
+				builder.append(propValue);
+			}
+			lastIdx = endIdx + 1;
+		}
+		if (lastIdx == 0) return pattern;
+		builder.append(pattern.substring(lastIdx));
+		return builder.toString();
 	}
 	
 	public static void main(String[] args) {

@@ -1,7 +1,8 @@
 package im.webuzz.config.generator;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
@@ -53,11 +54,13 @@ public class GeneratorConfig {
 	
 	@ConfigNotNull
 	@ConfigPattern("([a-zA-Z0-9]+)")
-	public static Map<String, Class<? extends ConfigGenerator<?>>> generatorExtensions = new ConcurrentHashMap<>();
+	public static Map<String, Class<? extends ConfigGenerator<?>>> generatorExtensions = null;
 	static {
-		generatorExtensions.put("ini", ConfigINIGenerator.class);
-		generatorExtensions.put("js", ConfigJSGenerator.class);
-		generatorExtensions.put("xml", ConfigXMLGenerator.class);
+		Map<String, Class<? extends ConfigGenerator<?>>> generators = new HashMap<>();
+		generators.put("ini", ConfigINIGenerator.class);
+		generators.put("js", ConfigJSGenerator.class);
+		generators.put("xml", ConfigXMLGenerator.class);
+		generatorExtensions = Collections.unmodifiableMap(generators);
 	}
 	
 }

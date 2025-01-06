@@ -114,6 +114,16 @@ public class ConfigArgumentsParser implements ConfigParser<String[], String[]> {
 			continueStdinReading = true;
 			return parsed;
 		}
+		String envKey = "environment";
+		if (key.startsWith(envKey)) {
+			int nextIdx = startIdx + envKey.length();
+			char next = arg.charAt(nextIdx);
+			if (next == '-' || next == ':') {
+				key = arg.substring(nextIdx + 1, idx);
+				Config.setEnvironment(key, value);
+				return parsed;
+			}
+		}
 		if (!iniParser.props.containsKey(key)) {
 			iniParser.props.put(key, value);
 		}

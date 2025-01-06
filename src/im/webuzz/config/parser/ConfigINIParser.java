@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -299,7 +301,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				List nv = (List) ret;
 				List ov = (List) f.get(obj);
 				if (!DeepComparator.listDeepEquals(nv, ov)) {
-					newVal = nv;
+					newVal = Collections.unmodifiableList(nv);
 					changed = true;
 				}
 			} else if (Set.class.isAssignableFrom(type)) {
@@ -308,7 +310,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				Set nv = (Set) ret;
 				Set ov = (Set) f.get(obj);
 				if (!DeepComparator.setDeepEquals(nv, ov)) {
-					newVal = nv;
+					newVal = Collections.unmodifiableSet(nv);
 					changed = true;
 				}
 			} else if (Map.class.isAssignableFrom(type)) {
@@ -317,7 +319,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				Map nv = (Map) ret;
 				Map ov = (Map) f.get(obj);
 				if (!DeepComparator.mapDeepEquals(nv, ov)) {
-					newVal = nv;
+					newVal = Collections.unmodifiableMap(nv);
 					changed = true;
 				}
 			} else if (type == Integer.class || type == Long.class
@@ -485,24 +487,21 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	protected Object decodeRaw(String codecKey, String rawEncoded) {
 		ConfigCodec<?> codec = Config.configurationCodecs.get(codecKey);
 		if (codec == null) return null;
-		try {
-			return codec.decode(rawEncoded);
-		} catch (Throwable e) {
-			e.printStackTrace();
-			return null;
+		Object decoded = codec.decode(rawEncoded);
+		if (decoded == null) {
+			int length = rawEncoded.length();
+			StringBuilder builder = new StringBuilder();
+			builder.append("Unable to decode given \"").append(codecKey).append("\" string: ");
+			if (length <= 128) {
+				builder.append(rawEncoded);
+			} else {
+				builder.append(rawEncoded.substring(0, 32))
+						.append("...")
+						.append(rawEncoded.substring(length - 32, length));
+			}
+			throw new RuntimeException(builder.toString());
 		}
-//		Map<String, Class<? extends IConfigCodec<?>>> codecs = Config.configurationCodecs;
-//		if (codecs == null) return null;
-//		Class<? extends IConfigCodec<?>> clazz = codecs.get(codecKey);
-//		if (clazz == null) return null;
-//		try {
-//			codec = (IConfigCodec<?>) clazz.newInstance();
-//			Config.codecs.put(codecKey, codec);
-//			return codec.decode(rawEncoded);
-//		} catch (Throwable e) {
-//			e.printStackTrace();
-//		}
-//		return null;
+		return decoded;
 	}
 
 	/**
@@ -570,13 +569,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		} // */
 		if ($null.equals(p) || p == null) return null;
 		if ($empty.equals(p) || p.length() == 0) {
-			if (List.class.isAssignableFrom(type)) {
-				return new ArrayList<Object>();
-			} else if (Set.class.isAssignableFrom(type)) {
-				return Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>());
-			} else { // Array
-				return Array.newInstance(type.getComponentType(), 0);
-			}
+			return createCollectionObject(type, 0);
 		}
 		Class<?> valueType = type.getComponentType();
 		Type valueParamType = null;
@@ -645,14 +638,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		}
 		if (valueType == null) valueType = Object.class;
 		
-		Object value = null;
-		if (List.class.isAssignableFrom(type)) {
-			value = new ArrayList<Object>(arrayLength);
-		} else if (Set.class.isAssignableFrom(type)) {
-			value = Collections.newSetFromMap(new ConcurrentHashMap<Object, Boolean>(arrayLength << 2));
-		} else { // Array
-			value = Array.newInstance(valueType, arrayLength);
-		}
+		Object value = createCollectionObject(type, arrayLength);
 		boolean isPrimitiveArray = isArray && valueType.isPrimitive();
 		for (int j = 0; j < arrayLength; j++) {
 			String v = null;
@@ -675,30 +661,26 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 						v = "0";
 					}
 				}
-//				try {
-					if (type == int[].class) {
-						Array.setInt(value, j, Integer.decode(v).intValue());
-					} else if (type == long[].class) {
-						Array.setLong(value, j, Long.decode(v).longValue());
-					} else if (type == byte[].class) {
-						Array.setByte(value, j, Byte.decode(v).byteValue());
-					} else if (type == short[].class) {
-						Array.setShort(value, j, Short.decode(v).shortValue());
-					} else if (type == float[].class) {
-						Array.setFloat(value, j, Float.parseFloat(v));
-					} else if (type == double[].class) {
-						Array.setDouble(value, j, Double.parseDouble(v));
-					} else if (type == boolean[].class) {
-						if (!"true".equals(v) && !"false".equals(v)) {
-							throw new RuntimeException("\"" + v + "\" is an invalid boolean value");
-						}
-						Array.setBoolean(value, j, Boolean.parseBoolean(v));
-					} else if (type == char[].class) {
-						Array.setChar(value, j, parseChar(v));
+				if (type == int[].class) {
+					Array.setInt(value, j, Integer.decode(v).intValue());
+				} else if (type == long[].class) {
+					Array.setLong(value, j, Long.decode(v).longValue());
+				} else if (type == byte[].class) {
+					Array.setByte(value, j, Byte.decode(v).byteValue());
+				} else if (type == short[].class) {
+					Array.setShort(value, j, Short.decode(v).shortValue());
+				} else if (type == float[].class) {
+					Array.setFloat(value, j, Float.parseFloat(v));
+				} else if (type == double[].class) {
+					Array.setDouble(value, j, Double.parseDouble(v));
+				} else if (type == boolean[].class) {
+					if (!"true".equals(v) && !"false".equals(v)) {
+						throw new RuntimeException("\"" + v + "\" is an invalid boolean value");
 					}
-//				} catch (Exception e) {
-//					e.printStackTrace();
-//				}
+					Array.setBoolean(value, j, Boolean.parseBoolean(v));
+				} else if (type == char[].class) {
+					Array.setChar(value, j, parseChar(v));
+				}
 			} else {
 				o = recognizeAndParseObject(newPropName, v, valueType, valueParamType, flag);
 				if (o == error) return error;
@@ -710,6 +692,48 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			}
 		}
 		return value;
+	}
+
+	protected Object createCollectionObject(Class<?> type, int initialCapacity) {
+		Object value = null;
+		if (List.class.isAssignableFrom(type)) {
+			value = newInstance(type, initialCapacity);
+			if (value == null) {
+				value = new ArrayList<Object>(initialCapacity);
+			}
+		} else if (Set.class.isAssignableFrom(type)) {
+			value = newInstance(type, initialCapacity);
+			if (value == null) {
+				value = new HashSet<Object>(initialCapacity);
+			}
+		} else if (Map.class.isAssignableFrom(type)) {
+			value = newInstance(type, initialCapacity);
+			if (value == null) {
+				value = new HashMap<Object, Object>(initialCapacity);
+			}
+		} else { // Array
+			value = Array.newInstance(type.getComponentType(), initialCapacity);
+		}
+		return value;
+	}
+
+	protected Object newInstance(Class<?> type, int initialCapacity) {
+		if (type.isInterface() || TypeUtils.isAbstractClass(type)) return null;
+		try {
+			if (initialCapacity > 0) {
+				Constructor<?> constructor = null;
+				try {
+					constructor = type.getConstructor(int.class); // initial capacity size
+				} catch (Exception e) {
+					//e.printStackTrace();
+				}
+				if (constructor != null) return constructor.newInstance(initialCapacity);
+			}
+			return type.newInstance();
+		} catch (Exception e) {
+			e.printStackTrace();
+			return null;
+		}
 	}
 
 	/**
@@ -734,10 +758,12 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 	 * @param paramType
 	 * @return
 	 */
+	@SuppressWarnings("unchecked")
 	private Object parseMap(String keyName, String p, Class<?> type, Type paramType, int flag) {
 		if ($null.equals(p) || p == null) return null;
-		Map<Object, Object> value = new ConcurrentHashMap<Object, Object>();
-		if ($empty.equals(p) || p.length() == 0) return value;
+		//Map<Object, Object> value = new ConcurrentHashMap<Object, Object>();
+		//Map<Object, Object> value = new HashMap<Object, Object>();
+		if ($empty.equals(p) || p.length() == 0) return createCollectionObject(type, 1);
 		Class<?> keyType = null;
 		Type keyParamType = null;
 		Class<?> valueType = null;
@@ -793,7 +819,8 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 					}
 				}
 			}
-			if (filteredKeyNames.isEmpty()) return value;
+			if (filteredKeyNames.isEmpty()) return createCollectionObject(type, 1);
+			Map<Object, Object> value = (Map<Object, Object>) createCollectionObject(type, filteredKeyNames.size());
 			if (entriesMode) {
 				for (String propName : filteredKeyNames) {
 					String newPropName = prefix + propName;
@@ -906,7 +933,9 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 		}
 		// single line configuration, should be simple like Map<String, String>
 		String[] arr = p.split("\\s*;\\s*");
-		for (int j = 0; j < arr.length; j++) {
+		int arrayLength = arr.length;
+		Map<Object, Object> value = (Map<Object, Object>) createCollectionObject(type, arrayLength);
+		for (int j = 0; j < arrayLength; j++) {
 			String item = arr[j].trim();
 			if (item.length() == 0) continue;
 			String[] kv = item.split("\\s*>+\\s*");

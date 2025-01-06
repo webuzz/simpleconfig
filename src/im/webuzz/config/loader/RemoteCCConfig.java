@@ -29,7 +29,8 @@ import im.webuzz.config.annotation.ConfigPattern;
 public class RemoteCCConfig {
 
 	@ConfigComment("Base URL of the global configuration center (e.g., HTTP server URL).")
-	public static String globalServerURLPrefix = null;
+	@ConfigNotEmpty
+	public static String globalServerURLPrefix = "http://127.0.0.1:8080";
 
 	@ConfigComment("Username for accessing the global configuration center.")
 	public static String globalServerAuthUser = null;
@@ -39,7 +40,6 @@ public class RemoteCCConfig {
 	public static String globalServerAuthPassword = null;
 
 	@ConfigComment("Local server name for identifying requests at the configuration center.")
-	@ConfigNotNull
 	@ConfigNotEmpty
 	public static String localServerName = "app";
 
@@ -48,7 +48,6 @@ public class RemoteCCConfig {
 	public static int localServerPort = 0;
 
 	@ConfigComment("Template for generating the target configuration URL.")
-	@ConfigNotNull
 	@ConfigNotEmpty
 	public static String targetURLPattern = "${server.url.prefix}/${local.server.name}/${config.key.prefix}${config.file.extension}";
 
@@ -66,7 +65,6 @@ public class RemoteCCConfig {
 	public static boolean webRequestSupportsMD5ETag = true;
 
 	@ConfigComment("Allowed file extensions for synchronized resources. Blocks harmful extensions like .exe or .sh.")
-	@ConfigNotNull
 	@ConfigNotEmpty
 	@ConfigNotNull(depth = 1)
 	@ConfigPattern("(\\.[a-zA-Z0-9]+)")

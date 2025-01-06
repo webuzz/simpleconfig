@@ -2,6 +2,7 @@ package im.webuzz.config.util;
 
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
+import im.webuzz.config.annotation.ConfigNotEmpty;
 import im.webuzz.config.annotation.ConfigRange;
 
 @ConfigKeyPrefix("httppool")
@@ -15,5 +16,8 @@ public class HttpConnectionConfig {
 	@ConfigComment("Time unit is second.")
 	@ConfigRange(min = 1, max = 300)
 	public static int webWorkerIdleInterval = 30;
+
+	@ConfigNotEmpty
+	public static String userAgent = "SimpleConfig/3.0";
 
 }

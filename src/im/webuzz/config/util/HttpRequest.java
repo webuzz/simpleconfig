@@ -48,8 +48,6 @@ import java.util.concurrent.TimeUnit;
 public class HttpRequest {
 	
 	
-	public static String DEFAULT_USER_AGENT = "SimpleConfig/3.0";
-	
 	public static ThreadPoolExecutor executor = null;
 
 	protected int status;
@@ -323,7 +321,7 @@ public class HttpRequest {
 			connection.setInstanceFollowRedirects(false);
 			connection.setDoInput(true);
 			connection.setRequestMethod(method);
-			connection.setRequestProperty("User-Agent", DEFAULT_USER_AGENT);
+			connection.setRequestProperty("User-Agent", HttpConnectionConfig.userAgent);
 			if ("POST".equalsIgnoreCase(method)) {
 				connection.setDoOutput(true);
 				connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
