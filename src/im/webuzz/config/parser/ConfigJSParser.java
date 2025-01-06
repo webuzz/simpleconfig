@@ -16,8 +16,6 @@ package im.webuzz.config.parser;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-//import java.io.File;
-//import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -207,10 +205,5 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 	public Set<String> unusedConfigurationItems() {
 		return iniParser.unusedConfigurationItems();
 	}
-
-//	public static void main(String[] args) throws Exception {
-//		checkInitialize();
-//		System.out.println(convertJS);
-//	}
 
 }

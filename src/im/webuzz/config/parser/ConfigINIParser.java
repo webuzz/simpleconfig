@@ -180,7 +180,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Invalid value for field \"").append(keyName)
 					.append("\": \"").append(p).append("\" is not an enum!");
-			AlarmerKit.reportErrorToContinue(errMsg.toString());
+			Config.configurationNotifier.reportError(errMsg.toString());
 			return error;
 		}
 		String typeStr = suffix.substring(0, nameIdx).trim();
@@ -190,7 +190,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Invalid value for field \"").append(keyName)
 					.append("\": ").append(err);
-			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return error;
+			if (!Config.configurationNotifier.reportError(errMsg.toString())) return error;
 		}
 		return pType;
 	}
@@ -391,7 +391,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 							StringBuilder errMsg = new StringBuilder();
 							errMsg.append("Invalid value for field \"").append(keyName)
 									.append("\": ").append(err);
-							if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
+							if (!Config.configurationNotifier.reportError(errMsg.toString())) return -1;
 							return 0;
 						}
 					}
@@ -461,7 +461,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Error occurs on parsing value for field \"").append(keyName)
 					.append("\": ").append(e.getMessage());
-			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
+			if (!Config.configurationNotifier.reportError(errMsg.toString())) return -1;
 			return unchanged;
 		}
 		return unchanged;
@@ -1151,7 +1151,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				StringBuilder errMsg = new StringBuilder();
 				errMsg.append("Invalid value for field \"").append(keyName)
 						.append("\": ").append(err);
-				if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return error;
+				if (!Config.configurationNotifier.reportError(errMsg.toString())) return error;
 			}
 			return clazz;
 		}

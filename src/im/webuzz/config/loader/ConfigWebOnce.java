@@ -1,7 +1,6 @@
 package im.webuzz.config.loader;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -16,9 +15,11 @@ import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
 import im.webuzz.config.annotation.ConfigLocalOnly;
 import im.webuzz.config.common.FileUtils;
-import im.webuzz.config.common.HttpRequest;
 import im.webuzz.config.parser.ConfigParser;
 import im.webuzz.config.parser.ConfigParserBuilder;
+import im.webuzz.config.web.ConfigHttpRequest;
+import im.webuzz.config.web.HttpRequest;
+import im.webuzz.config.web.WebCallback;
 
 public class ConfigWebOnce implements ConfigLoader {
 
@@ -429,6 +430,8 @@ public class ConfigWebOnce implements ConfigLoader {
 				propValue = RemoteCCConfig.globalServerURLPrefix;
 			} else if ("local.server.name".equals(propName)) {
 				propValue = RemoteCCConfig.localServerName;
+			} else if ("local.server.port".equals(propName)) {
+				propValue = String.valueOf(RemoteCCConfig.localServerPort);
 			} else {
 				propValue = Config.getEnvironment(propName);
 				if (propValue != null && propValue.length() > 0) {
@@ -450,32 +453,15 @@ public class ConfigWebOnce implements ConfigLoader {
 	}
 
 	protected void sendWebRequest(String url, String user, String password, long lastModified, String eTag, WebCallback callback) {
-		boolean done = false;
-		String reqClass = RemoteCCConfig.webRequestClient;
-		if (reqClass != null && reqClass.length() > 0) {
-			// Other class may be used to request remote configuration file besides HTTP client
-			Class<?> clz = InternalConfigUtils.loadConfigurationClass(reqClass);
-			if (clz != null) {
-				try {
-					Method m = clz.getMethod("asyncWebRequest", 
-							String.class, // url
-							String.class, // user
-							String.class, // password
-							long.class, // lastModified
-							String.class, // eTag
-							Object.class // WebCallback.class callback
-					);
-					m.invoke(clz, url, user, password, lastModified, eTag, callback);
-					done = true;
-				} catch (NoSuchMethodException e) {
-					// do nothing
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+		try {
+			RemoteCCConfig.webClient.get(true, url, user, password, null, lastModified, eTag, callback);
+		} catch (Exception e) {
+			e.printStackTrace();
+			// fall back to HTTP request client
+			if (RemoteCCConfig.webClient.getClass() != ConfigHttpRequest.class) {
+				//asyncWebRequest(url, user, password, lastModified, eTag, callback);
+				new ConfigHttpRequest().get(true, url, user, password, null, lastModified, eTag, callback);
 			}
-		}
-		if (!done) { // fall back to HTTP request client
-			asyncWebRequest(url, user, password, lastModified, eTag, callback);
 		}
 	}
 
@@ -484,8 +470,6 @@ public class ConfigWebOnce implements ConfigLoader {
 	}
 
 	/*
-	 * Default HTTP client to request remote configuration file.
-	 */
 	public static void asyncWebRequest(String url, String user, String password, long lastModified, String eTag, final Object callback) {
 		final HttpRequest req = new HttpRequest();
 		req.open("GET", url, true, user, password);
@@ -508,5 +492,6 @@ public class ConfigWebOnce implements ConfigLoader {
 		}
 		req.send(); // Normal HTTP request may try to create new thread to do asynchronous job. NIO request may not.
 	}
+	//*/
 
 }

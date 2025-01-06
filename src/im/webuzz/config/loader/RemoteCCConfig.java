@@ -16,9 +16,12 @@ package im.webuzz.config.loader;
 
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.web.ConfigHttpRequest;
+import im.webuzz.config.web.ConfigWebClient;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
 import im.webuzz.config.annotation.ConfigNotEmpty;
+import im.webuzz.config.annotation.ConfigNotNull;
 import im.webuzz.config.annotation.ConfigPattern;
 import im.webuzz.config.annotation.ConfigPositive;
 
@@ -27,6 +30,11 @@ import im.webuzz.config.annotation.ConfigPositive;
 @ConfigKeyPrefix("remotecc")
 public class RemoteCCConfig {
 
+	@ConfigComment("A custom web request client (e.g., for HTTP, FTP, or other protocols).")
+	@ConfigNotNull
+	public static ConfigWebClient webClient = new ConfigHttpRequest();
+
+	
 	@ConfigComment("Base URL of the global configuration center (e.g., HTTP server URL).")
 	@ConfigNotEmpty
 	public static String globalServerURLPrefix = "http://127.0.0.1:8080";
@@ -38,6 +46,7 @@ public class RemoteCCConfig {
 	@ConfigPreferredCodec(value = {"secret", "aes"})
 	public static String globalServerAuthPassword = null;
 
+	
 	@ConfigComment("Local server name for identifying requests at the configuration center.")
 	@ConfigNotEmpty
 	public static String localServerName = "app";
@@ -45,12 +54,10 @@ public class RemoteCCConfig {
 	@ConfigComment("Port number of the local server.")
 	public static int localServerPort = 0;
 
+	
 	@ConfigComment("Template for generating the target configuration URL.")
 	@ConfigNotEmpty
 	public static String targetURLPattern = "${server.url.prefix}/${local.server.name}/${config.key.prefix}${config.file.extension}";
-
-	@ConfigComment("Class providing a custom web request client (e.g., for HTTP, FTP, or other protocols).")
-	public static String webRequestClient = null;
 
 	@ConfigComment("Timeout (in milliseconds) for each configuration request.")
 	@ConfigPositive
@@ -63,6 +70,7 @@ public class RemoteCCConfig {
 	@ConfigComment("Enable MD5-based ETag support for HTTP requests.")
 	public static boolean webRequestSupportsMD5ETag = true;
 
+	
 	@ConfigComment("Allowed file extensions for synchronized resources. Blocks harmful extensions like .exe or .sh.")
 	@ConfigNotEmpty
 	@ConfigPattern("(\\.[a-zA-Z0-9]+)")

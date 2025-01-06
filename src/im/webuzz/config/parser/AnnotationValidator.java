@@ -105,7 +105,7 @@ public class AnnotationValidator {
 			annWriter.appendFieldNumber(errMsg, f, num);
 			errMsg.append(": Invalid value for field \"").append(keyName)
 					.append("\", ").append(expectBuilder);
-			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
+			if (!Config.configurationNotifier.reportError(errMsg.toString())) return -1;
 		}
 		return result ? 1 : 0;
 	}
@@ -130,7 +130,7 @@ public class AnnotationValidator {
 			annWriter.appendFieldObject(errMsg, f, obj);
 			errMsg.append(": Invalid value for field \"").append(keyName)
 					.append("\", ").append(expectBuilder);
-			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
+			if (!Config.configurationNotifier.reportError(errMsg.toString())) return -1;
 		}
 		return result ? 1 : 0;
 	}

@@ -12,7 +12,7 @@
  *   Zhou Renjian / zhourenjian@gmail.com - initial API and implementation
  *******************************************************************************/
 
-package im.webuzz.config.common;
+package im.webuzz.config.web;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -35,6 +35,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import im.webuzz.config.common.Base64;
 
 /**
  * This class is a Java implementation of browser's XMLHttpRequest object.

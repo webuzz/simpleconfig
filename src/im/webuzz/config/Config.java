@@ -48,6 +48,8 @@ import im.webuzz.config.codec.AESKeysConfig;
 import im.webuzz.config.generator.GeneratorKit;
 import im.webuzz.config.loader.ConfigFileWatcher;
 import im.webuzz.config.loader.ConfigMemoryFS;
+import im.webuzz.config.notifier.ConfigConsoleNotifier;
+import im.webuzz.config.notifier.ConfigNotifier;
 import im.webuzz.config.loader.ConfigLoader;
 import im.webuzz.config.parser.ConfigArgumentsParser;
 import im.webuzz.config.parser.ConfigINIParser;
@@ -131,6 +133,11 @@ public class Config {
 	@ConfigNotNull
 	public static Class<? extends ConfigLoader> configurationLoader = ConfigFileWatcher.class;
 	
+	@ConfigComment({
+		"Supported environments configuration map. Key represents environment variable (e.g.,",
+		"'language', 'country', 'version'), and value is a list of supported values,",
+		"and the first value of the list is the default value if given value is not listed."
+	})
 	@ConfigNotEmpty(depth = 2)
 	public static Map<String, List<String>> configurationSupportedEnvironments = null;
 	/*
@@ -143,6 +150,10 @@ public class Config {
 	}
 	//*/
 	
+	@ConfigComment({
+		"Configuration map for file name patterns. Key represents file name,",
+		"and value is the new file name pattern (e.g., 'string_${language}')."
+	})
 	public static Map<String, String> configurationFileNamePatterns = null;
 	/*
 	static {
@@ -154,11 +165,22 @@ public class Config {
 	}
 	//*/
 	
-	public static Class<?> configurationAlarmer = null;
-	public static boolean exitInitializingOnInvalidItems = true;
-	public static boolean skipUpdatingWithInvalidItems = true;
+	@ConfigComment("Notifier for invalid configuration events. Default is a console-based notifier.")
+	@ConfigNotNull
+	public static ConfigNotifier configurationNotifier = new ConfigConsoleNotifier();
 
-	
+	@ConfigComment({
+		"If true, the application will terminate (System.exit) during initialization",
+		"when invalid configuration items are detected."
+	})
+	public static boolean configurationExitOnInvalidInit = true;
+
+	@ConfigComment({
+		"If true, invalid configuration items will be skipped during updates,",
+		"allowing the application to continue running."
+	})
+	public static boolean configurationSkipInvalidUpdate = true;
+
 	private static Map<String, Class<?>> allConfigs = new ConcurrentHashMap<>();
 	private static List<Class<?>> orderedConfigs = new ArrayList<>();
 	static volatile ClassLoader classLoader = null;
@@ -532,4 +554,5 @@ public class Config {
 	public static void main(String[] args) {
 		initialize(args);
 	}
+
 }

@@ -104,7 +104,7 @@ public class ConfigFileOnce implements ConfigLoader {
 	}
 
 	private boolean parseConfig(ConfigParser<?, ?> parser, Class<?> config) {
-		if (Config.skipUpdatingWithInvalidItems) {
+		if (Config.configurationSkipInvalidUpdate) {
 			if (parser.parseConfiguration(config, ConfigParser.FLAG_CHECK) != -1) { // checking
 				return parser.parseConfiguration(config, ConfigParser.FLAG_UPDATE) == 1;
 			}
