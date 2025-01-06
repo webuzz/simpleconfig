@@ -1,4 +1,4 @@
-package im.webuzz.config.util;
+package im.webuzz.config.generator;
 
 import java.util.Arrays;
 import java.util.HashSet;

@@ -28,10 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
-import im.webuzz.config.annotation.AnnotationValidator;
 import im.webuzz.config.annotation.ConfigRange;
 import im.webuzz.config.codec.ConfigCodec;
-import im.webuzz.config.util.DeepComparator;
 import im.webuzz.config.util.TypeUtils;
 
 public class ConfigINIParser implements ConfigParser<InputStream, Object> {
@@ -178,7 +176,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Invalid value for field \"").append(keyName)
 					.append("\": \"").append(p).append("\" is not an enum!");
-			Config.reportErrorToContinue(errMsg.toString());
+			AlarmerKit.reportErrorToContinue(errMsg.toString());
 			return error;
 		}
 		String typeStr = suffix.substring(0, nameIdx).trim();
@@ -188,7 +186,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Invalid value for field \"").append(keyName)
 					.append("\": ").append(err);
-			if (!Config.reportErrorToContinue(errMsg.toString())) return error;
+			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return error;
 		}
 		return pType;
 	}
@@ -389,7 +387,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 							StringBuilder errMsg = new StringBuilder();
 							errMsg.append("Invalid value for field \"").append(keyName)
 									.append("\": ").append(err);
-							if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+							if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
 							return 0;
 						}
 					}
@@ -459,7 +457,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 			StringBuilder errMsg = new StringBuilder();
 			errMsg.append("Error occurs on parsing value for field \"").append(keyName)
 					.append("\": ").append(e.getMessage());
-			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
 			return unchanged;
 		}
 		return unchanged;
@@ -1149,7 +1147,7 @@ public class ConfigINIParser implements ConfigParser<InputStream, Object> {
 				StringBuilder errMsg = new StringBuilder();
 				errMsg.append("Invalid value for field \"").append(keyName)
 						.append("\": ").append(err);
-				if (!Config.reportErrorToContinue(errMsg.toString())) return error;
+				if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return error;
 			}
 			return clazz;
 		}

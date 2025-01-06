@@ -1,4 +1,4 @@
-package im.webuzz.config.util;
+package im.webuzz.config.generator;
 
 public class BytesHelper {
 

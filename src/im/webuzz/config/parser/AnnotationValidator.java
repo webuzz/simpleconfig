@@ -1,4 +1,4 @@
-package im.webuzz.config.annotation;
+package im.webuzz.config.parser;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
@@ -10,6 +10,16 @@ import java.util.Map;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.InternalConfigUtils;
+import im.webuzz.config.annotation.ConfigEnum;
+import im.webuzz.config.annotation.ConfigLength;
+import im.webuzz.config.annotation.ConfigNonNegative;
+import im.webuzz.config.annotation.ConfigNotEmpty;
+import im.webuzz.config.annotation.ConfigNotNull;
+import im.webuzz.config.annotation.ConfigNumberEnum;
+import im.webuzz.config.annotation.ConfigPattern;
+import im.webuzz.config.annotation.ConfigPositive;
+import im.webuzz.config.annotation.ConfigPreferredCodec;
+import im.webuzz.config.annotation.ConfigRange;
 import im.webuzz.config.generator.AnnotationWriter;
 import im.webuzz.config.util.TypeUtils;
 
@@ -95,7 +105,7 @@ public class AnnotationValidator {
 			annWriter.appendFieldNumber(errMsg, f, num);
 			errMsg.append(": Invalid value for field \"").append(keyName)
 					.append("\", ").append(expectBuilder);
-			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
 		}
 		return result ? 1 : 0;
 	}
@@ -120,7 +130,7 @@ public class AnnotationValidator {
 			annWriter.appendFieldObject(errMsg, f, obj);
 			errMsg.append(": Invalid value for field \"").append(keyName)
 					.append("\", ").append(expectBuilder);
-			if (!Config.reportErrorToContinue(errMsg.toString())) return -1;
+			if (!AlarmerKit.reportErrorToContinue(errMsg.toString())) return -1;
 		}
 		return result ? 1 : 0;
 	}

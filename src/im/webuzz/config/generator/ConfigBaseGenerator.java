@@ -41,7 +41,6 @@ import im.webuzz.config.parser.AnnotationField;
 import im.webuzz.config.parser.AnnotationProxy;
 import im.webuzz.config.parser.ConfigField;
 import im.webuzz.config.parser.ConfigFieldProxy;
-import im.webuzz.config.util.BytesHelper;
 import im.webuzz.config.util.TypeUtils;
 
 public abstract class ConfigBaseGenerator implements CommentWriter.CommentWrapper, ConfigGenerator<StringBuilder> {

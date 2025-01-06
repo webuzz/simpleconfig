@@ -1,18 +1,23 @@
 package im.webuzz.config;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.JarFile;
 
+import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigIgnored;
 import im.webuzz.config.annotation.ConfigLocalOnly;
 import im.webuzz.config.annotation.ConfigOverridden;
@@ -423,6 +428,118 @@ public class InternalConfigUtils {
 		String ext = configExtensions.get(configClass);
 		if (ext == null) ext = Config.configMainExtension;
 		return ext;
+	}
+
+	/**
+	 * Scans the given package for classes annotated with the specified annotation.
+	 *
+	 * @param packageName The package to scan.
+	 * @param annotation  The annotation to look for.
+	 * @return A list of classes annotated with the specified annotation.
+	 * @throws IOException If an error occurs while accessing resources.
+	 * @throws ClassNotFoundException If a class cannot be loaded.
+	 */
+	public static List<Class<?>> getConfigClassesInPackage(String packageName)
+			throws IOException, ClassNotFoundException {
+		List<Class<?>> annotatedClasses = new ArrayList<>();
+		String packagePath = packageName.replace('.', '/');
+		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+	
+		// Get all resources corresponding to the package path
+		Enumeration<URL> resources = classLoader.getResources(packagePath);
+	
+		while (resources.hasMoreElements()) {
+			URL resource = resources.nextElement();
+			String protocol = resource.getProtocol();
+	
+			if ("file".equals(protocol)) {
+				// If the resource is a directory in the file system
+				File directory = new File(resource.getFile());
+				if (directory.exists()) {
+					findConfigClassesInDirectory(directory, packageName, annotatedClasses);
+				}
+			} else if ("jar".equals(protocol)) {
+				// If the resource is a JAR file
+				String jarPath = resource.getPath().substring(5, resource.getPath().indexOf("!"));
+				try (JarFile jarFile = new JarFile(jarPath)) {
+					findConfigClassesInJar(jarFile, packagePath, annotatedClasses);
+				}
+			}
+		}
+		return annotatedClasses;
+	}
+
+	/**
+	 * Recursively scans a directory for classes annotated with the specified annotation.
+	 *
+	 * @param directory   The directory to scan.
+	 * @param packageName The corresponding package name for the directory.
+	 * @param annotation  The annotation to look for.
+	 * @param annotatedClasses The list to store annotated classes.
+	 * @throws ClassNotFoundException If a class cannot be loaded.
+	 */
+	private static void findConfigClassesInDirectory(File directory, String packageName,
+			List<Class<?>> annotatedClasses)
+			throws ClassNotFoundException {
+		File[] files = directory.listFiles();
+	
+		if (files == null) {
+			return;
+		}
+	
+		for (File file : files) {
+			if (file.isDirectory()) {
+				// Recursively scan subdirectories
+				findConfigClassesInDirectory(file, packageName + "." + file.getName(), annotatedClasses);
+			} else if (file.getName().endsWith(".class")) {
+				// Convert the file name to a class name and load the class
+				String className = packageName + "." + file.getName().replace(".class", "");
+				Class<?> clazz = Class.forName(className);
+				// Check if the class is annotated with the target annotation
+				if (isConfigClass(clazz)) annotatedClasses.add(clazz);
+			}
+		}
+	}
+
+	private static boolean isConfigClass(Class<?> clazz) {
+		if (clazz.isAnnotationPresent(ConfigClass.class)) return true;
+		try {
+			Field f = clazz.getDeclaredField("configKeyPrefix");
+			if (f == null) return false;
+			int modifiers = f.getModifiers();
+			int expectedModifiers = Modifier.PUBLIC | Modifier.FINAL | Modifier.STATIC;
+			if ((modifiers & expectedModifiers) == expectedModifiers) return true;
+		} catch (Exception e) {
+			//e.printStackTrace();
+		}
+		return false;
+	}
+	
+	/**
+	 * Scans a JAR file for classes annotated with the specified annotation.
+	 *
+	 * @param jarFile     The JAR file to scan.
+	 * @param packagePath The package path inside the JAR file.
+	 * @param annotation  The annotation to look for.
+	 * @param annotatedClasses The list to store annotated classes.
+	 * @throws ClassNotFoundException If a class cannot be loaded.
+	 */
+	private static void findConfigClassesInJar(JarFile jarFile, String packagePath,
+			List<Class<?>> annotatedClasses)
+			throws ClassNotFoundException {
+		jarFile.stream()
+				.filter(entry -> !entry.isDirectory() && entry.getName().endsWith(".class"))
+				.filter(entry -> entry.getName().startsWith(packagePath))
+				.forEach(entry -> {
+					String className = entry.getName().replace("/", ".").replace(".class", "");
+					try {
+						Class<?> clazz = Class.forName(className);
+						// Check if the class is annotated with the target annotation
+						if (isConfigClass(clazz)) annotatedClasses.add(clazz);
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				});
 	}
 
 }

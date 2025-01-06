@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-import im.webuzz.config.annotation.AnnotationScanner;
 import im.webuzz.config.annotation.ConfigClass;
 import im.webuzz.config.annotation.ConfigComment;
 import im.webuzz.config.annotation.ConfigKeyPrefix;
@@ -252,7 +251,7 @@ public class Config {
 	protected static void registerPackage(String starredPkgName) {
 		String pkgName = starredPkgName.substring(0, starredPkgName.length() - 2);
 		try {
-			List<Class<?>> classes = AnnotationScanner.getAnnotatedClassesInPackage(pkgName, ConfigClass.class);
+			List<Class<?>> classes = InternalConfigUtils.getConfigClassesInPackage(pkgName);
 			for (Class<?> clz : classes) {
 				// Add new configuration class may trigger file reading, might be IO blocking
 				registerClass(clz);
@@ -453,29 +452,6 @@ public class Config {
 		System.out.println("\t--run:wrapper <class>\tExecutes the main method of the specified class.");
 	}
 
-	public static boolean reportErrorToContinue(String msg) {
-		String[] msgs = msg.split("(\r\n|\n|\r)");
-		for (int i = 0; i < msgs.length; i++) {
-			System.out.println("[Config:ERROR] " + msgs[i]);
-		}
-		if (configurationAlarmer != null) {
-			// TODO: Use alarm to send an alert to the operator 
-		}
-		if (InternalConfigUtils.isInitializationFinished()) {
-			if (skipUpdatingWithInvalidItems) {
-				// Stop parsing all the left items
-				return false;
-			}
-			return true; // continue to parse other item
-		}
-		if (exitInitializingOnInvalidItems) {
-			System.out.println("[Config:FATAL] Exit current configuration initialization!");
-			System.exit(0);
-			return false;
-		}
-		return true; // continue to parse other item
-	}
-	
 	/*
 	 * Will be invoked by watchman classes
 	 */

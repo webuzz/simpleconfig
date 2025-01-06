@@ -25,7 +25,6 @@ import java.util.Set;
 
 import im.webuzz.config.Config;
 import im.webuzz.config.annotation.ConfigPreferredCodec;
-import im.webuzz.config.util.FieldUtils;
 import im.webuzz.config.util.TypeUtils;
 
 public class ConfigINIGenerator extends ConfigBaseGenerator {
