@@ -188,7 +188,7 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 	}
 
 	public static String formatStringForJS(String str) {
-		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").trim();
+		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").replaceAll("\"", "\\\\\"").trim();
 	}
 
 	@Override
