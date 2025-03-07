@@ -59,7 +59,7 @@ public class ConfigFileOnce implements ConfigLoader {
 			InternalConfigUtils.recordConfigExtension(configClazz, extension); // always update the configuration class' file extension
 			parser.parseConfiguration(configClazz, ConfigParser.FLAG_UPDATE);
 			if (Config.configurationLogging) {
-				System.out.println("[Config:INFO] Configuration " + configClazz.getName() + "/" + file.getAbsolutePath() + " loaded.");
+				System.out.println("[Config:INFO] Configuration " + configClazz.getName() + " at " + file.getAbsolutePath() + " loaded.");
 			}
 		} catch (Throwable e) {
 			e.printStackTrace();

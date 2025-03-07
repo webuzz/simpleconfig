@@ -156,7 +156,7 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 		return;
 	}
 	// Convert normal object or map to key-value pairs
-	if (oClass == null && this.isPlainObject(o, prefix, ignoringProps)) {
+	if (oClass == null && prefix != null && this.isPlainObject(o, prefix, ignoringProps)) {
 		var objBuilder = [];
 		var fields = 0;
 		var type = null;
