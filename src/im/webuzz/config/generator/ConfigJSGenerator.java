@@ -187,8 +187,43 @@ public class ConfigJSGenerator extends ConfigBaseGenerator {
 		builder.append('\"').append(formatStringForJS(v)).append('\"');
 	}
 
-	public static String formatStringForJS(String str) {
-		return str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").replaceAll("\t", "\\\\t").replaceAll("\"", "\\\\\"").trim();
+	private String formatStringForJS(String str) {
+		String jsStr = str.replaceAll("\\\\", "\\\\\\\\").replaceAll("\t", "\\\\t").replaceAll("\"", "\\\\\"");
+		if (str.length() > 160) {
+			StringBuilder builder = new StringBuilder();
+			int length = jsStr.length();
+			int lastIndex = 0;
+			for (int i = 0; i < length; i++) {
+				char c = jsStr.charAt(i);
+				boolean lineBreak = false;
+				if (c == '\n') {
+					lineBreak = true;
+				} else if (c == '\r') {
+					if (i < length - 1 && jsStr.charAt(i + 1) != '\n') {
+						lineBreak = true;
+					}
+				}
+				if (lineBreak) {
+					builder.append(jsStr.substring(lastIndex, i));
+					if (i != length - 1) {
+						builder.append("\\n\"\n");
+						compactWriter.appendIndents(builder);
+						builder.append("\t\t+ \"");
+					} else {
+						builder.append("\\n");
+					}
+					lastIndex = i + 1;
+				}
+			}
+			if (lastIndex > 0) {
+				if (lastIndex != length) {
+					builder.append(jsStr.substring(lastIndex));
+				}
+				return builder.toString().trim();
+			}
+			return jsStr.trim();
+		}
+		return jsStr.replaceAll("\r", "\\\\r").replaceAll("\n", "\\\\n").trim();
 	}
 
 	@Override

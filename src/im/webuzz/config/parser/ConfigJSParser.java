@@ -140,7 +140,7 @@ public class ConfigJSParser implements ConfigParser<InputStream, Object> {
 			builder.append("null");
 		}
 		//System.out.println(builder.toString());
-		builder.append(";$config = ").append(js).append("\r\n");
+		builder.append(";\r\n$config = ").append(js).append("\r\n");
 		try {
 			if (checkInitialize()) {
 				Object o = evalMethod.invoke(jsEngine,  builder.toString() + "new $imwebuzzconfigparser().convertToProperties($config);");
