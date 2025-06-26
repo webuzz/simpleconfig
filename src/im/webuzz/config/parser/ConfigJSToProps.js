@@ -131,7 +131,7 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 				} else if (typeof pv == "string" && pv == "") {
 					pv = "[empty]";
 				}
-				objBuilder[objBuilder.length] = pv;
+				objBuilder[objBuilder.length] = typeof pv == "string" ? this.formatPropertyValue(pv) : pv;
 			}
 			builder[builder.length] = prefix + "=" + (objBuilder.length == 0 ? "[empty]" : objBuilder.join(";"));
 		//*/
@@ -169,7 +169,7 @@ $imwebuzzconfigparser.prototype.visit = function(builder, ignoringProps, prefix,
 			} else if (typeof pv == "string" && pv == "") {
 				pv = "[empty]";
 			}
-			objBuilder[objBuilder.length] = p + ">" + pv;
+			objBuilder[objBuilder.length] = p + ">" + (typeof pv == "string" ? this.formatPropertyValue(pv) : pv);
 			fields++;
 			if (fields == 1) {
 				type = p;
